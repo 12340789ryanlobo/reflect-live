@@ -1,0 +1,15 @@
+node_modules/
+.next/
+dist/
+.turbo/
+.DS_Store
+.env
+.env.local
+.env.*.local
+!.env.local.example
+*.log
+.vercel/
+.railway/
+*.db
+*.db-journal
+/tmp/

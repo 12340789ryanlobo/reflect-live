@@ -1,0 +1,13 @@
+{
+  "name": "reflect-live",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:web": "bun --cwd apps/web run dev",
+    "dev:worker": "bun --cwd apps/worker run dev",
+    "build:web": "bun --cwd apps/web run build",
+    "build:worker": "bun --cwd apps/worker run build",
+    "test": "bun --cwd apps/worker test && bun --cwd scripts test",
+    "seed": "bun run scripts/seed.ts"
+  }
+}
