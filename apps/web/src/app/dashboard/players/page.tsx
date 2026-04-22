@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { Metric } from '@/components/metric-card';
@@ -9,8 +9,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Star, Users, Activity } from 'lucide-react';
+import { Star, Users, Activity, Trash2 } from 'lucide-react';
 import { prettyPhone, relativeTime } from '@/lib/format';
 
 interface PlayerRow extends Player {
@@ -20,47 +21,67 @@ interface PlayerRow extends Player {
 }
 
 export default function PlayersPage() {
-  const { prefs } = useDashboard();
+  const { prefs, role } = useDashboard();
   const sb = useSupabase();
   const router = useRouter();
   const [rows, setRows] = useState<PlayerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState<string>('all');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const isAdmin = role === 'admin';
 
-  useEffect(() => {
-    (async () => {
-      const { data: players } = await sb.from('players').select('*').eq('team_id', prefs.team_id).order('name');
-      const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-      const { data: msgs } = await sb.from('twilio_messages')
-        .select('player_id,direction,category,date_sent')
-        .eq('team_id', prefs.team_id)
-        .gte('date_sent', since30);
-      const msgList = (msgs ?? []) as Array<{ player_id: number | null; direction: string; category: string; date_sent: string }>;
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data: players } = await sb.from('players').select('*').eq('team_id', prefs.team_id).order('name');
+    const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+    const { data: msgs } = await sb.from('twilio_messages')
+      .select('player_id,direction,category,date_sent')
+      .eq('team_id', prefs.team_id)
+      .gte('date_sent', since30);
+    const msgList = (msgs ?? []) as Array<{ player_id: number | null; direction: string; category: string; date_sent: string }>;
 
-      const lastInboundByPlayer = new Map<number, string>();
-      const workoutByPlayer = new Map<number, number>();
-      const rehabByPlayer = new Map<number, number>();
-      for (const m of msgList) {
-        if (m.player_id == null) continue;
-        if (m.direction === 'inbound') {
-          const prev = lastInboundByPlayer.get(m.player_id);
-          if (!prev || m.date_sent > prev) lastInboundByPlayer.set(m.player_id, m.date_sent);
-        }
-        if (m.category === 'workout') workoutByPlayer.set(m.player_id, (workoutByPlayer.get(m.player_id) ?? 0) + 1);
-        if (m.category === 'rehab') rehabByPlayer.set(m.player_id, (rehabByPlayer.get(m.player_id) ?? 0) + 1);
+    const lastInboundByPlayer = new Map<number, string>();
+    const workoutByPlayer = new Map<number, number>();
+    const rehabByPlayer = new Map<number, number>();
+    for (const m of msgList) {
+      if (m.player_id == null) continue;
+      if (m.direction === 'inbound') {
+        const prev = lastInboundByPlayer.get(m.player_id);
+        if (!prev || m.date_sent > prev) lastInboundByPlayer.set(m.player_id, m.date_sent);
       }
+      if (m.category === 'workout') workoutByPlayer.set(m.player_id, (workoutByPlayer.get(m.player_id) ?? 0) + 1);
+      if (m.category === 'rehab') rehabByPlayer.set(m.player_id, (rehabByPlayer.get(m.player_id) ?? 0) + 1);
+    }
 
-      const enriched: PlayerRow[] = (players ?? []).map((p: Player) => ({
-        ...p,
-        last_inbound: lastInboundByPlayer.get(p.id) ?? null,
-        workouts_30d: workoutByPlayer.get(p.id) ?? 0,
-        rehabs_30d: rehabByPlayer.get(p.id) ?? 0,
-      }));
-      setRows(enriched);
-      setLoading(false);
-    })();
+    const enriched: PlayerRow[] = (players ?? []).map((p: Player) => ({
+      ...p,
+      last_inbound: lastInboundByPlayer.get(p.id) ?? null,
+      workouts_30d: workoutByPlayer.get(p.id) ?? 0,
+      rehabs_30d: rehabByPlayer.get(p.id) ?? 0,
+    }));
+    setRows(enriched);
+    setLoading(false);
   }, [sb, prefs.team_id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function deletePlayer(p: PlayerRow, ev: React.MouseEvent) {
+    ev.stopPropagation();
+    const hasActivity = p.workouts_30d + p.rehabs_30d > 0 || p.last_inbound != null;
+    const warning = hasActivity
+      ? `Delete ${p.name}? Their activity logs will be removed and their Twilio messages will be kept but unlinked. This is permanent.`
+      : `Delete ${p.name}? No messages or workouts are linked. Quick clean-up.`;
+    if (!confirm(warning)) return;
+    setDeletingId(p.id);
+    const res = await fetch(`/api/players/${p.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? 'Delete failed.');
+    }
+    await load();
+    setDeletingId(null);
+  }
 
   const groups = useMemo(() => {
     const s = new Set<string>();
@@ -135,6 +156,7 @@ export default function PlayersPage() {
                     <TableHead>Workouts 30d</TableHead>
                     <TableHead>Rehabs 30d</TableHead>
                     <TableHead>Star</TableHead>
+                    {isAdmin && <TableHead></TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -151,6 +173,21 @@ export default function PlayersPage() {
                         <TableCell>
                           {starred ? <Star className="size-4 fill-primary text-primary" /> : <Star className="size-4 text-muted-foreground" />}
                         </TableCell>
+                        {isAdmin && (
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => deletePlayer(p, e)}
+                              disabled={deletingId === p.id}
+                              aria-label={`Delete ${p.name}`}
+                              title="Delete from roster"
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
