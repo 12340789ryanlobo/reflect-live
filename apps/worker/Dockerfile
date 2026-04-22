@@ -9,6 +9,11 @@
 FROM oven/bun:1-alpine AS deps
 WORKDIR /app
 
+# Native build tools — required because scripts/ has better-sqlite3 as a
+# dependency (used by the local seed script, not the worker runtime). Bun
+# still resolves that workspace during `install`, so node-gyp needs python.
+RUN apk add --no-cache python3 make g++ gcc libc-dev
+
 # Copy the minimal set of files needed to resolve workspace installs
 COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/worker/package.json ./apps/worker/
