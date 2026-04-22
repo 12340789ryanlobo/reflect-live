@@ -132,26 +132,24 @@ export default function AthletePage() {
     return (
       <>
         <PageHeader
-          code="ME·00"
-          eyebrow="Your lane"
+          eyebrow="Your view"
           title="Your"
-          italic="lane."
+          italic="view."
           subtitle="PICK AN ATHLETE TO SIMULATE"
         />
         <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
           <section className="reveal reveal-1 panel p-5">
-            <SectionTag code="MEMO" name="About athlete view" />
+            <SectionTag name="About athlete view" />
             <p className="mt-3 text-sm text-[color:var(--bone-soft)] leading-relaxed">
-              Pick any athlete to see the dashboard as <em className="italic">they</em> see it — only
-              their messages, only their workouts, only their readiness. Useful for previewing what a
-              captain&rsquo;s check-in page looks like, or testing what a swimmer&rsquo;s view feels
-              like before they sign in.
+              Pick any athlete to see the dashboard as <em className="italic">they</em> see it —
+              only their messages, only their workouts, only their readiness. Useful for previewing
+              what an athlete sees before they sign in.
             </p>
           </section>
 
           <section className="reveal reveal-2 panel">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="ME·A" name={`Roster · ${allPlayers.length} athletes`} />
+              <SectionTag name={`Roster · ${allPlayers.length} athletes`} />
             </div>
             <div className="grid grid-cols-1 gap-0 md:grid-cols-2 xl:grid-cols-3">
               {allPlayers.map((p, i) => (
@@ -222,7 +220,7 @@ export default function AthletePage() {
         {/* Personal dial + readouts */}
         <section className="reveal reveal-1 grid gap-6 lg:grid-cols-12">
           <div className="panel flex flex-col items-center justify-center gap-4 p-6 lg:col-span-4">
-            <SectionTag code="HERO" name="Your readiness" className="w-full" />
+            <SectionTag name="Your readiness" className="w-full" />
             <ReadinessDial
               value={derived.avgReadiness}
               responses={derived.surveyReadings.length}
@@ -235,7 +233,7 @@ export default function AthletePage() {
           </div>
           <div className="panel lg:col-span-8">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="ME·A" name="Your telemetry" />
+              <SectionTag name="Your telemetry" />
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
               <StatReadout label="Your messages" value={derived.inboundCount} sub={daysShort} tone="signal" />
@@ -273,7 +271,6 @@ export default function AthletePage() {
           <div className="panel overflow-hidden">
             <div className="px-5 pt-4 pb-3">
               <SectionTag
-                code="ME·B"
                 name="Your messages"
                 right={
                   <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
@@ -342,7 +339,6 @@ export default function AthletePage() {
           <div className="panel overflow-hidden">
             <div className="px-5 pt-4 pb-3">
               <SectionTag
-                code="ME·C"
                 name="Your activity log"
                 right={
                   <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">

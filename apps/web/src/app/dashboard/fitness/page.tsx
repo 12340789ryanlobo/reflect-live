@@ -86,7 +86,6 @@ export default function FitnessPage() {
   return (
     <>
       <PageHeader
-        code="02."
         eyebrow="The log"
         title="The"
         italic="log."
@@ -111,7 +110,7 @@ export default function FitnessPage() {
         {/* Top readouts */}
         <section className="reveal reveal-1 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="02.A" name="Workload telemetry" />
+            <SectionTag name="Workload telemetry" />
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
             <StatReadout label="Workouts" value={workoutCount} sub={daysShort.toUpperCase()} tone="chlorine" />
@@ -136,7 +135,6 @@ export default function FitnessPage() {
           <section className="reveal reveal-2 panel">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
               <SectionTag
-                code="02.B"
                 name="Upcoming competitions"
                 right={
                   <Link
@@ -177,7 +175,7 @@ export default function FitnessPage() {
 
         {/* How-to card */}
         <section className="reveal reveal-3 panel border-dashed p-5">
-          <SectionTag code="MEMO" name="How athletes log" />
+          <SectionTag name="How athletes log" />
           <p className="mt-2 text-sm text-[color:var(--bone-soft)] leading-relaxed">
             Text the team line. Start the message with{' '}
             <code className="mono bg-[color:var(--panel-raised)] px-1.5 py-0.5 text-[color:var(--signal)]">Workout:</code>{' '}
@@ -197,7 +195,6 @@ export default function FitnessPage() {
         <section className="reveal reveal-4 panel overflow-hidden">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
             <SectionTag
-              code="02.C"
               name={`Past activity · ${filtered.length} entries`}
               right={
                 <Select

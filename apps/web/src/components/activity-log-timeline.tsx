@@ -32,14 +32,14 @@ export function ActivityLogTimeline({ teamId }: { teamId: number }) {
 
   return (
     <div className="panel px-5 py-5">
-      <SectionTag code="05." name="The log" right={
-        <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-          RECENT {logs.length}
-        </span>
-      } />
-      <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
-        Workouts and rehabs, freshest first. Pulled from the reflect import + live texts.
-      </p>
+      <SectionTag
+        name="Activity log"
+        right={
+          <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+            {logs.length}
+          </span>
+        }
+      />
 
       {!logs.length ? (
         <p className="mt-6 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">

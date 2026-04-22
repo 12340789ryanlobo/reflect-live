@@ -66,7 +66,7 @@ const COACH_NAV: NavItem[] = [
 ];
 
 const ATHLETE_NAV: NavItem[] = [
-  { href: '/dashboard/athlete', label: 'Your lane', icon: UserIcon, code: '00' },
+  { href: '/dashboard/athlete', label: 'Your view', icon: UserIcon, code: '00' },
   { href: '/dashboard/athlete#messages', label: 'Your messages', icon: MessageSquareText, code: '01' },
 ];
 
@@ -154,7 +154,7 @@ export function AppSidebar({
   if (hasLinkedAthlete && role !== 'athlete') {
     groups.push({
       label: 'Also you',
-      items: [{ href: '/dashboard/athlete', label: 'Your lane', icon: UserIcon, code: 'ME' }],
+      items: [{ href: '/dashboard/athlete', label: 'Your view', icon: UserIcon, code: 'ME' }],
     });
   }
   if (role === 'admin') {
@@ -176,7 +176,7 @@ export function AppSidebar({
               reflect<span className="opacity-50">·</span>live
             </span>
             <span className="truncate mono text-[0.62rem] uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-              {teamName ?? 'UChicago Swim & Dive'}
+              {teamName ?? 'Team'}
             </span>
           </div>
         </Link>

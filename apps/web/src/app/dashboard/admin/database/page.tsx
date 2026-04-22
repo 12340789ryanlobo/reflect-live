@@ -70,7 +70,6 @@ export default function AdminDatabasePage() {
   return (
     <>
       <PageHeader
-        code="A4"
         eyebrow="Database"
         title="The"
         italic="database."
@@ -81,7 +80,7 @@ export default function AdminDatabasePage() {
         {/* Highlights */}
         <section className="reveal reveal-1 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="A4·A" name="Highlighted tables" />
+            <SectionTag name="Highlighted tables" />
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
             {highlightRows.map((r) => (
@@ -108,7 +107,6 @@ export default function AdminDatabasePage() {
         <section className="reveal reveal-2 panel overflow-hidden">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
             <SectionTag
-              code="A4·B"
               name="All tables"
               right={
                 <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">

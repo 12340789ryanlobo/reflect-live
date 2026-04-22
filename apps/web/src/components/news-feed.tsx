@@ -78,17 +78,13 @@ export function NewsFeed() {
     <div className="panel overflow-hidden">
       <div className="px-5 pt-4 pb-3">
         <SectionTag
-          code="04."
-          name="The broadcast"
+          name="Headlines"
           right={
             <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-              {items.length} STORIES · 30M CYCLE
+              {items.length} · 30m
             </span>
           }
         />
-        <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
-          External sport headlines. Refreshes every half-hour.
-        </p>
       </div>
 
       {!items.length ? (

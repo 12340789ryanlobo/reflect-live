@@ -46,7 +46,6 @@ export default function AdminTeamsPage() {
   return (
     <>
       <PageHeader
-        code="A2"
         eyebrow="Teams"
         title="Teams"
         subtitle={`${teams.length} TEAMS REGISTERED`}
@@ -56,7 +55,7 @@ export default function AdminTeamsPage() {
       <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
         <section className="reveal reveal-1 panel overflow-hidden">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="A2·A" name="Registered teams" />
+            <SectionTag name="Registered teams" />
           </div>
           {loading ? (
             <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
@@ -298,7 +297,7 @@ function EditTeamDialog({
             <Input value={desc} onChange={(e) => setDesc(e.target.value)} />
           </div>
           <div className="pt-3 border-t border-[color:var(--hairline)]">
-            <SectionTag code="TW" name="Twilio configuration" />
+            <SectionTag name="Twilio configuration" />
           </div>
           <div className="space-y-1.5">
             <Label>Account SID</Label>

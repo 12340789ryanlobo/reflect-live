@@ -77,7 +77,7 @@ export async function POST() {
     return NextResponse.json({
       ok: false,
       reason: 'ambiguous',
-      message: 'More than one verified phone matches a different swimmer. Remove one and try again.',
+      message: 'More than one verified phone matches a different athlete. Remove one and try again.',
     });
   }
 

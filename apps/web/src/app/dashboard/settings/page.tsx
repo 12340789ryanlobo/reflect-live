@@ -213,7 +213,6 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader
-        code="SET"
         eyebrow="Settings"
         title="Settings"
         subtitle="PROFILE · PREFERENCES · TELEMETRY"
@@ -223,7 +222,6 @@ export default function SettingsPage() {
         {/* Role */}
         <section className="reveal reveal-1 panel p-5">
           <SectionTag
-            code="S1"
             name="Role / view"
             right={<Stamp tone={ROLE_OPTIONS.find((r) => r.value === currentRole)?.tone ?? 'on'}>{currentRole}</Stamp>}
           />
@@ -288,7 +286,7 @@ export default function SettingsPage() {
                     href="/dashboard/athlete"
                     className="text-[color:var(--signal)] hover:underline underline-offset-4"
                   >
-                    open your lane →
+                    open your view →
                   </Link>
                 </div>
               )}
@@ -299,13 +297,12 @@ export default function SettingsPage() {
         {/* Phone link */}
         <section className="reveal reveal-2 panel p-5">
           <SectionTag
-            code="S2"
             name="Link your phone to the roster"
             right={<Phone className="size-4 text-[color:var(--signal)]" />}
           />
           <p className="mt-2 text-sm text-[color:var(--bone-soft)] leading-relaxed">
-            If you&rsquo;re also an athlete, verify your number and we&rsquo;ll link it to your roster
-            entry. You keep your current role and gain a personal &ldquo;your lane&rdquo; view.
+            If you&rsquo;re also on the roster, verify your number and we&rsquo;ll link it to
+            your athlete entry. You keep your current role and gain a personal athlete view.
           </p>
 
           <div className="mt-5 space-y-4">
@@ -328,7 +325,7 @@ export default function SettingsPage() {
                     href="/dashboard/athlete"
                     className="text-[color:var(--signal)] hover:underline underline-offset-4"
                   >
-                    open your lane →
+                    open your view →
                   </Link>
                 </div>
               </div>
@@ -418,10 +415,7 @@ export default function SettingsPage() {
         {/* Prefs + account */}
         <section className="reveal reveal-3 grid gap-6 lg:grid-cols-2">
           <div className="panel p-5">
-            <SectionTag code="S3" name="Preferences" />
-            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
-              Default group filter + watchlist management.
-            </p>
+            <SectionTag name="Preferences" />
             <div className="mt-5 space-y-4">
               <div className="space-y-1.5">
                 <Label>Default group filter</Label>
@@ -470,7 +464,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="panel p-5">
-            <SectionTag code="S4" name="Account" />
+            <SectionTag name="Account" />
             <dl className="mt-5 grid grid-cols-[100px_1fr] gap-y-2 gap-x-4 text-sm">
               <Dt>Email</Dt>
               <Dd mono>{user?.primaryEmailAddress?.emailAddress ?? '—'}</Dd>
@@ -509,8 +503,7 @@ export default function SettingsPage() {
         {/* Database + worker */}
         <section className="reveal reveal-4 grid gap-6 lg:grid-cols-2">
           <div className="panel p-5">
-            <SectionTag code="S5" name="Database" />
-            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">Records scoped to your team.</p>
+            <SectionTag name="Database" />
             <ul className="mt-4 space-y-2">
               <KV label="Athletes" value={stats?.players ?? 0} tone="heritage" />
               <KV label="Messages indexed" value={stats?.messages ?? 0} tone="signal" />
@@ -518,8 +511,7 @@ export default function SettingsPage() {
             </ul>
           </div>
           <div className="panel p-5">
-            <SectionTag code="S6" name="Worker health" />
-            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">Last polls and error state.</p>
+            <SectionTag name="Worker health" />
             <ul className="mt-4 space-y-2">
               <KV label="Twilio poll" value={relativeTime(lastTwilio)} mono />
               <KV label="Weather poll" value={relativeTime(lastWeather)} mono />

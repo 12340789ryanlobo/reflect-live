@@ -94,7 +94,6 @@ export default function AdminUsersPage() {
   return (
     <>
       <PageHeader
-        code="A1"
         eyebrow="Users & roles"
         title="Users"
         italic="& roles."
@@ -104,13 +103,13 @@ export default function AdminUsersPage() {
       <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
         <p className="mono text-[0.72rem] leading-relaxed text-[color:var(--bone-mute)]">
           Roles take effect immediately. Users can&rsquo;t change their own role. Linking a user
-          to a roster player gives them a personal &ldquo;your lane&rdquo; view — useful when a
-          coach is also a swimmer.
+          to a roster player gives them a personal athlete view — useful when a coach or admin
+          is also on the roster.
         </p>
 
         <section className="reveal reveal-1 panel overflow-hidden">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="A1·A" name="Users" />
+            <SectionTag name="Users" />
           </div>
           {loading ? (
             <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">

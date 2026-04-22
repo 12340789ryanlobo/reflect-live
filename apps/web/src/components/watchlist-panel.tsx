@@ -60,18 +60,17 @@ export function WatchlistPanel({ teamId, watchlist }: { teamId: number; watchlis
   return (
     <div className="panel p-5">
       <SectionTag
-        code="★"
         name="Starred"
         right={
           <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-            {players.length} of {watchlist.length}
+            {players.length}
           </span>
         }
       />
 
       {!players.length ? (
         <p className="mt-6 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-          — tap the star on any player to put them on the wire —
+          — star an athlete to track them here —
         </p>
       ) : (
         <ul className="mt-4 space-y-2">

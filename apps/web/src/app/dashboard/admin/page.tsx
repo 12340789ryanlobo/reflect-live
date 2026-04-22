@@ -68,7 +68,6 @@ export default function AdminOverview() {
   return (
     <>
       <PageHeader
-        code="ADMIN"
         eyebrow="Admin overview"
         title="Admin"
         italic="room."
@@ -79,7 +78,7 @@ export default function AdminOverview() {
         {/* Top readouts */}
         <section className="reveal reveal-1 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="ADM·A" name="System summary" />
+            <SectionTag name="System summary" />
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
             <StatReadout
@@ -107,7 +106,7 @@ export default function AdminOverview() {
         {/* Quick links grid */}
         <section className="reveal reveal-2 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="ADM·B" name="Control panels" />
+            <SectionTag name="Control panels" />
           </div>
           <div className="grid grid-cols-1 gap-0 md:grid-cols-2 xl:grid-cols-4">
             {quickLinks.map(({ href, code, title, description, icon: Icon, accent }, i) => (

@@ -89,7 +89,7 @@ export default function Onboarding() {
         <div className="reveal reveal-3">
           <div className="panel overflow-hidden">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="R" name="Roster · Team selection" />
+              <SectionTag name="Team selection" />
             </div>
             <div className="p-6">
               {loading ? (

@@ -123,7 +123,6 @@ export function LiveFeed({ teamId }: { teamId: number }) {
     <div className="panel overflow-hidden">
       <div className="px-5 pt-4 pb-3">
         <SectionTag
-          code="01."
           name="The wire"
           live
           right={
@@ -142,9 +141,6 @@ export function LiveFeed({ teamId }: { teamId: number }) {
             </Tabs>
           }
         />
-        <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
-          Every SMS, the second it fires. Workouts, rehabs, check-ins, chat — sorted on arrival.
-        </p>
       </div>
 
       {filtered.length === 0 ? (

@@ -7,9 +7,7 @@ import { ReadinessDial } from '@/components/readiness-dial';
 import { LiveFeed } from '@/components/live-feed';
 import { WatchlistPanel } from '@/components/watchlist-panel';
 import { ActivityLogTimeline } from '@/components/activity-log-timeline';
-import { WorkerHealthCard } from '@/components/worker-health-card';
 import { NewsFeed } from '@/components/news-feed';
-import { SectionTag } from '@/components/section-tag';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { bucketize } from '@/components/sparkline';
@@ -44,7 +42,6 @@ export default function Dashboard() {
     surveyCount: 0,
   });
   const [messageSpark, setMessageSpark] = useState<number[]>([]);
-  const [workoutSpark, setWorkoutSpark] = useState<number[]>([]);
   const [flagSpark, setFlagSpark] = useState<number[]>([]);
 
   useEffect(() => {
@@ -109,27 +106,19 @@ export default function Dashboard() {
       const winMs = days * 24 * 3600 * 1000;
       const bucketCount = days === 1 ? 24 : days === 7 ? 28 : 30;
       setMessageSpark(bucketize(scoped.map((m) => m.date_sent), bucketCount, winMs));
-      setWorkoutSpark(
-        bucketize(
-          scoped.filter((m) => m.category === 'workout').map((m) => m.date_sent),
-          bucketCount,
-          winMs,
-        ),
-      );
       setFlagSpark(bucketize(flagsArr, bucketCount, winMs));
     })();
   }, [sb, prefs.team_id, prefs.group_filter, days]);
 
   const daysShort = DAY_OPTIONS.find((o) => Number(o.value) === days)?.label ?? `${days}d`;
   const scopedSubtitle = prefs.group_filter
-    ? `${team.name} · ${prefs.group_filter} · WINDOW ${daysShort}`
-    : `${team.name} · WINDOW ${daysShort}`;
+    ? `${team.name} · ${prefs.group_filter.toUpperCase()}`
+    : team.name.toUpperCase();
 
   return (
     <>
       <PageHeader
-        code="00."
-        eyebrow="Control Room"
+        eyebrow="Control room"
         title="Control"
         italic="room."
         subtitle={scopedSubtitle}
@@ -151,11 +140,9 @@ export default function Dashboard() {
       />
 
       <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
-        {/* ======== TOP STRIP — Dial + Stats ======== */}
-        <section className="reveal reveal-1 grid gap-6 lg:grid-cols-12">
-          {/* Dial — the signature element */}
-          <div className="panel flex flex-col items-center justify-center gap-4 p-6 lg:col-span-4">
-            <SectionTag code="HERO" name="Team readiness" className="w-full" />
+        {/* HERO — dial on the left, three key readouts on the right. No wrapper labels. */}
+        <section className="reveal reveal-1 panel grid gap-0 md:grid-cols-[minmax(320px,auto)_1fr]">
+          <div className="flex flex-col items-center justify-center border-b border-[color:var(--hairline)] p-6 md:border-b-0 md:border-r">
             <ReadinessDial
               value={counts.avgReadiness}
               responses={counts.surveyCount}
@@ -168,160 +155,68 @@ export default function Dashboard() {
                   : 'NO SURVEYS YET'
               }
             />
-            <div className="grid w-full grid-cols-3 gap-2 border-t border-[color:var(--hairline)] pt-3">
-              <MiniStat
-                label="Healthy"
-                value={counts.surveyCount - counts.flags}
-                tone="chlorine"
-              />
-              <MiniStat label="Flagged" value={counts.flags} tone="siren" />
-              <MiniStat
-                label="Rate"
-                value={`${counts.responseRate}%`}
-                tone={counts.responseRate >= 70 ? 'chlorine' : 'amber'}
-              />
-            </div>
           </div>
-
-          {/* Stats grid */}
-          <div className="panel lg:col-span-8">
-            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="TELEMETRY" name="Broadcast telemetry" />
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-0 sm:grid-cols-3">
+            <div className="p-6 border-b border-[color:var(--hairline)] sm:border-b-0 sm:border-r">
               <StatReadout
                 label="Messages"
                 value={counts.messages}
                 sub={daysShort.toUpperCase()}
                 tone="signal"
                 spark={messageSpark}
+                accent={false}
               />
+            </div>
+            <div className="p-6 border-b border-[color:var(--hairline)] sm:border-b-0 sm:border-r">
               <StatReadout
-                label="Active roster"
+                label="Active"
                 value={`${counts.activePlayers}/${counts.rosterSize}`}
                 sub={`REPLIED · ${daysShort.toUpperCase()}`}
                 tone="heritage"
+                accent={false}
               />
-              <StatReadout
-                label="Workouts"
-                value={workoutSpark.reduce((a, b) => a + b, 0)}
-                sub={daysShort.toUpperCase()}
-                tone="chlorine"
-                spark={workoutSpark}
-              />
+            </div>
+            <div className="p-6">
               <StatReadout
                 label="Flags"
                 value={counts.flags}
                 sub="READINESS ≤ 4"
                 tone={counts.flags > 0 ? 'siren' : 'default'}
                 spark={flagSpark}
+                accent={false}
               />
-              <WorkerHealthCard />
             </div>
           </div>
         </section>
 
-        {/* ======== THE WIRE + STARRED ======== */}
-        <section className="reveal reveal-2 grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <LiveFeed teamId={prefs.team_id} />
-          </div>
-          <WatchlistPanel teamId={prefs.team_id} watchlist={prefs.watchlist} />
+        {/* WIRE — full-width focal point. */}
+        <section className="reveal reveal-2">
+          <LiveFeed teamId={prefs.team_id} />
         </section>
 
-        {/* ======== BROADCAST + CALENDAR ======== */}
+        {/* SECONDARY — starred + news side-by-side. */}
         <section className="reveal reveal-3 grid gap-6 lg:grid-cols-3">
+          <WatchlistPanel teamId={prefs.team_id} watchlist={prefs.watchlist} />
           <div className="lg:col-span-2">
             <NewsFeed />
           </div>
-          <div className="panel p-5">
-            <SectionTag
-              code="03."
-              name="The calendar"
-              right={
-                <Link
-                  href="/dashboard/events"
-                  className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--signal)] hover:text-[color:var(--bone)] transition"
-                >
-                  ALL EVENTS →
-                </Link>
-              }
-            />
-            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
-              Meets, venues, and their live conditions. Full tile grid lives on the events page.
-            </p>
-            <div className="mt-6 space-y-3">
-              <CalendarRow label="Next meet" value="—" />
-              <CalendarRow label="Training sites tracked" value="—" />
-              <CalendarRow label="Forecast cadence" value="10 MIN" signal />
-            </div>
-            <Link
-              href="/dashboard/events"
-              className="mt-6 inline-flex items-center gap-2 border border-[color:var(--hairline-strong)] px-4 py-2 mono text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--bone-soft)] hover:border-[color:var(--heritage)] hover:text-[color:var(--heritage)] transition"
-            >
-              Open calendar →
-            </Link>
-          </div>
         </section>
 
-        {/* ======== THE LOG ======== */}
+        {/* THE LOG — bottom. */}
         <section className="reveal reveal-4">
           <ActivityLogTimeline teamId={prefs.team_id} />
         </section>
+
+        {/* Thin footer — calendar link */}
+        <section className="reveal reveal-5 border-t border-[color:var(--hairline)] pt-6">
+          <Link
+            href="/dashboard/events"
+            className="inline-flex items-center gap-2 mono text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[color:var(--bone-soft)] hover:text-[color:var(--signal)] transition"
+          >
+            Venue calendar →
+          </Link>
+        </section>
       </main>
     </>
-  );
-}
-
-function MiniStat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: React.ReactNode;
-  tone: 'chlorine' | 'amber' | 'siren';
-}) {
-  const color = {
-    chlorine: 'hsl(162 62% 54%)',
-    amber: 'hsl(38 90% 62%)',
-    siren: 'hsl(356 82% 62%)',
-  }[tone];
-  return (
-    <div className="flex flex-col items-center text-center">
-      <span className="mono text-[0.6rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-        {label}
-      </span>
-      <span
-        className="num-display text-lg leading-none mt-1 tabular"
-        style={{ color }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function CalendarRow({
-  label,
-  value,
-  signal,
-}: {
-  label: string;
-  value: React.ReactNode;
-  signal?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-dashed border-[color:var(--hairline)] pb-2 last:border-0 last:pb-0">
-      <span className="mono text-[0.66rem] uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-        {label}
-      </span>
-      <span
-        className="mono text-sm font-semibold tabular"
-        style={{ color: signal ? 'hsl(188 82% 58%)' : 'var(--bone)' }}
-      >
-        {value}
-      </span>
-    </div>
   );
 }

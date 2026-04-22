@@ -139,7 +139,6 @@ export default function PlayersPage() {
   return (
     <>
       <PageHeader
-        code="01."
         eyebrow="The roster"
         title="The"
         italic="roster."
@@ -150,7 +149,7 @@ export default function PlayersPage() {
         {/* Top telemetry */}
         <section className="reveal reveal-1 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="01.A" name="Roster summary" />
+            <SectionTag name="Roster summary" />
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
             <StatReadout label="Roster" value={rows.length} sub={`${groups.length} GROUPS`} tone="heritage" />
@@ -179,7 +178,6 @@ export default function PlayersPage() {
         <section className="reveal reveal-2 panel overflow-hidden">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
             <SectionTag
-              code="01.B"
               name={`Heat sheet · ${filtered.length} shown`}
               right={
                 <div className="flex items-center gap-2">

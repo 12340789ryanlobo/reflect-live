@@ -59,7 +59,6 @@ export default function EventsPage() {
   return (
     <>
       <PageHeader
-        code="03."
         eyebrow="The calendar"
         title="The"
         italic="calendar."
@@ -71,7 +70,7 @@ export default function EventsPage() {
         {/* Telemetry strip */}
         <section className="reveal reveal-1 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="03.A" name="Calendar telemetry" />
+            <SectionTag name="Calendar telemetry" />
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
             <StatReadout label="Upcoming" value={future.length} sub="MEETS" tone="heritage" />
@@ -89,7 +88,6 @@ export default function EventsPage() {
         {/* Venue stations — weather grid */}
         <section className="reveal reveal-2 panel p-5">
           <SectionTag
-            code="03.B"
             name="Venue stations"
             live
             right={
@@ -98,16 +96,15 @@ export default function EventsPage() {
               </span>
             }
           />
-          <p className="mt-2 mb-5 text-xs text-[color:var(--bone-mute)]">
-            Open-Meteo readings for every venue. Conditions refresh every ten minutes.
-          </p>
-          <WeatherGrid teamId={prefs.team_id} />
+          <div className="mt-5">
+            <WeatherGrid teamId={prefs.team_id} />
+          </div>
         </section>
 
         {/* Upcoming meets — editorial tiles with countdown */}
         <section className="reveal reveal-3 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag code="03.C" name="Upcoming meets" />
+            <SectionTag name="Upcoming meets" />
           </div>
           {future.length === 0 ? (
             <p className="px-6 py-10 text-center mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
@@ -171,7 +168,7 @@ export default function EventsPage() {
         {past.length > 0 && (
           <section className="reveal reveal-4 panel">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="03.D" name="Archived" />
+              <SectionTag name="Archived" />
             </div>
             <ul className="divide-y divide-[color:var(--hairline)]/60">
               {past.map((e) => (
@@ -195,7 +192,7 @@ export default function EventsPage() {
         {training.length > 0 && (
           <section className="reveal reveal-5 panel">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="03.E" name="Training sites" />
+              <SectionTag name="Training sites" />
             </div>
             <ul className="divide-y divide-[color:var(--hairline)]/60">
               {training.map((t) => {

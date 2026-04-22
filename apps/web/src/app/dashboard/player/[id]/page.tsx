@@ -91,7 +91,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   if (!player) {
     return (
       <>
-        <PageHeader code="01·PLAYER" eyebrow="Athlete card" title="Loading…" />
+        <PageHeader eyebrow="Athlete card" title="Loading…" />
         <main className="flex flex-1 p-6">
           <p className="mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
             — loading athlete —
@@ -123,7 +123,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           {/* Passport card */}
           <div className="panel lg:col-span-8">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="CARD" name="Athlete card" right={<Stamp tone={stampTone}>{stampText}</Stamp>} />
+              <SectionTag name="Athlete card" right={<Stamp tone={stampTone}>{stampText}</Stamp>} />
             </div>
             <div className="grid gap-6 p-6 md:grid-cols-[auto_1fr]">
               {/* Photo block */}
@@ -183,7 +183,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
 
           {/* Personal readiness dial */}
           <div className="panel flex flex-col items-center justify-center gap-4 p-6 lg:col-span-4">
-            <SectionTag code="HERO" name="Readiness" className="w-full" />
+            <SectionTag name="Readiness" className="w-full" />
             <ReadinessDial
               value={derived.avgReadiness}
               responses={derived.surveyReadings.length}
@@ -203,7 +203,6 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         <section className="reveal reveal-2 panel overflow-hidden">
           <div className="px-5 pt-4 pb-3">
             <SectionTag
-              code="02."
               name="Messages"
               right={
                 <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
@@ -279,7 +278,6 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         <section className="reveal reveal-3 panel">
           <div className="px-5 pt-4 pb-3">
             <SectionTag
-              code="03."
               name="Activity log"
               right={
                 <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">

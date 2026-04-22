@@ -63,7 +63,6 @@ export default function FollowUpsPage() {
   return (
     <>
       <PageHeader
-        code="CAP·01"
         eyebrow="Follow-ups"
         title="Follow-"
         italic="ups."
@@ -86,7 +85,6 @@ export default function FollowUpsPage() {
         <section className="reveal reveal-1 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
             <SectionTag
-              code="CAP·01·A"
               name="Quiet athletes"
               right={
                 <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">

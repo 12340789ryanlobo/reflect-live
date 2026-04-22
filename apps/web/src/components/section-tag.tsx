@@ -13,7 +13,7 @@ export function SectionTag({
   right,
   className,
 }: {
-  code: string;
+  code?: string;
   name: string;
   live?: boolean;
   right?: React.ReactNode;
@@ -27,7 +27,7 @@ export function SectionTag({
       )}
     >
       <div className="flex items-baseline gap-3">
-        <span className="station-code">{code}</span>
+        {code && <span className="station-code">{code}</span>}
         <span className="eyebrow">{name}</span>
         {live && (
           <span className="inline-flex items-center gap-1.5">

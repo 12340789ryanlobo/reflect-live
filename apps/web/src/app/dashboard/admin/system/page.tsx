@@ -48,7 +48,6 @@ export default function AdminSystemPage() {
   return (
     <>
       <PageHeader
-        code="A3"
         eyebrow="System telemetry"
         title="System"
         italic="telemetry."
@@ -61,7 +60,6 @@ export default function AdminSystemPage() {
         <section className="reveal reveal-1 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
             <SectionTag
-              code="A3·A"
               name="Status"
               right={<Stamp tone={status}>{statusText}</Stamp>}
             />
@@ -96,7 +94,7 @@ export default function AdminSystemPage() {
 
         {/* Last polls */}
         <section className="reveal reveal-2 panel p-5">
-          <SectionTag code="A3·B" name="Last polls" />
+          <SectionTag name="Last polls" />
           <dl className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-[200px_1fr] md:gap-y-2 md:gap-x-6">
             <Row label="Twilio poll" value={lastTwilio ? prettyDateTime(lastTwilio) : '—'} />
             <Row label="Weather poll" value={lastWeather ? prettyDateTime(lastWeather) : '—'} />
@@ -106,7 +104,7 @@ export default function AdminSystemPage() {
 
         {/* Errors */}
         <section className="reveal reveal-3 panel p-5">
-          <SectionTag code="A3·C" name="Errors" />
+          <SectionTag name="Errors" />
           <dl className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-[200px_1fr] md:gap-y-2 md:gap-x-6">
             <Row
               label="Consecutive errors"
@@ -129,7 +127,7 @@ export default function AdminSystemPage() {
 
         {/* Backfill */}
         <section className="reveal reveal-4 panel p-5">
-          <SectionTag code="A3·D" name="Backfill" />
+          <SectionTag name="Backfill" />
           <p className="mt-4 text-sm text-[color:var(--bone-soft)] leading-relaxed">
             Backfill is{' '}
             {state?.backfill_complete ? (

@@ -88,7 +88,7 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/athlete')}>
             <UserIcon />
-            <span>Your lane</span>
+            <span>Your view</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/settings')}>
             <Settings />

@@ -113,7 +113,6 @@ export default function CaptainHome() {
   return (
     <>
       <PageHeader
-        code="CAP·00"
         eyebrow="Captain pulse"
         title="Team"
         italic="pulse."
@@ -125,7 +124,7 @@ export default function CaptainHome() {
         {/* Top strip with dial */}
         <section className="reveal reveal-1 grid gap-6 lg:grid-cols-12">
           <div className="panel flex flex-col items-center justify-center gap-4 p-6 lg:col-span-4">
-            <SectionTag code="HERO" name="Team readiness · 7d" className="w-full" />
+            <SectionTag name="Team readiness · 7d" className="w-full" />
             <ReadinessDial
               value={agg.avgReadiness}
               responses={agg.surveyCount}
@@ -137,7 +136,7 @@ export default function CaptainHome() {
           </div>
           <div className="panel lg:col-span-8">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="CAP·A" name="Check-in telemetry" />
+              <SectionTag name="Check-in telemetry" />
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
               <StatReadout
@@ -173,7 +172,6 @@ export default function CaptainHome() {
         <section className="reveal reveal-2 panel">
           <div className="border-b border-[color:var(--hairline)] px-5 py-3">
             <SectionTag
-              code="CAP·B"
               name="Who to follow up with"
               right={
                 overdue.length > 0 && (
@@ -186,11 +184,6 @@ export default function CaptainHome() {
                 )
               }
             />
-            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
-              {overdue.length === 0
-                ? 'Everyone is on the wire.'
-                : `${overdue.length} ${overdue.length === 1 ? "athlete hasn't" : "athletes haven't"} replied in 24 hours.`}
-            </p>
           </div>
           {overdue.length === 0 ? (
             <p className="px-6 py-10 text-center mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
@@ -226,7 +219,6 @@ export default function CaptainHome() {
         {/* Weather */}
         <section className="reveal reveal-3 panel p-5">
           <SectionTag
-            code="CAP·C"
             name="Venue stations"
             live
             right={
@@ -235,9 +227,7 @@ export default function CaptainHome() {
               </span>
             }
           />
-          <p className="mt-2 mb-5 text-xs text-[color:var(--bone-mute)]">
-            Training pool + the upcoming meets on your calendar.
-          </p>
+          <div className="mb-5" />
           <WeatherGrid teamId={prefs.team_id} />
         </section>
 
@@ -245,7 +235,7 @@ export default function CaptainHome() {
         {meets.length > 0 && (
           <section className="reveal reveal-4 panel">
             <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag code="CAP·D" name="Next meets" />
+              <SectionTag name="Next meets" />
             </div>
             <div className="grid gap-0 md:grid-cols-3">
               {meets.map((m, i) => (
