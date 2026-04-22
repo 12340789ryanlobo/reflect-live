@@ -7,7 +7,7 @@ import { LiveFeed } from '@/components/live-feed';
 import { WatchlistPanel } from '@/components/watchlist-panel';
 import { ActivityLogTimeline } from '@/components/activity-log-timeline';
 import { WorkerHealthCard } from '@/components/worker-health-card';
-import { WeatherGrid } from '@/components/weather-grid';
+import { NewsFeed } from '@/components/news-feed';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -92,24 +92,24 @@ export default function Dashboard() {
           <WorkerHealthCard />
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div>
-                <CardTitle className="h-serif text-lg">Weather</CardTitle>
-                <CardDescription>Training + upcoming meets · polls every 10 min</CardDescription>
-              </div>
-              <Link href="/dashboard/events" className="text-xs text-primary underline underline-offset-4">View all events →</Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <WeatherGrid teamId={prefs.team_id} />
-          </CardContent>
-        </Card>
-
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2"><LiveFeed teamId={prefs.team_id} /></div>
           <WatchlistPanel teamId={prefs.team_id} watchlist={prefs.watchlist} />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2"><NewsFeed /></div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="h-serif text-lg">Upcoming meets</CardTitle>
+              <CardDescription>Full venue list + weather is on the Events page</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/dashboard/events" className="inline-flex items-center gap-1 text-sm text-primary underline underline-offset-4">
+                Open events →
+              </Link>
+            </CardContent>
+          </Card>
         </div>
 
         <ActivityLogTimeline teamId={prefs.team_id} />

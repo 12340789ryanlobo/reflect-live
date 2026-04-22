@@ -91,3 +91,14 @@ export interface WeatherSnapshot {
   condition_code: number | null;
   fetched_at: string;
 }
+
+export interface NewsItem {
+  id: number;
+  source: string;
+  title: string;
+  url: string;
+  summary: string | null;
+  image_url: string | null;
+  published_at: string | null;
+  ingested_at: string;
+}

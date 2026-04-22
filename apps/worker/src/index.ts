@@ -3,16 +3,19 @@ import { createServiceClient } from './supabase';
 import { PhoneCache } from './phone-cache';
 import { pollOnce } from './poll';
 import { pollWeatherOnce } from './poll-weather';
+import { pollNewsOnce } from './poll-news';
 import { updateWorkerState } from './state';
 
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 15000);
 const WEATHER_INTERVAL_MS = Number(process.env.WEATHER_INTERVAL_MS ?? 600000);
+const NEWS_INTERVAL_MS = Number(process.env.NEWS_INTERVAL_MS ?? 1800000); // 30 min
 const BACKFILL_DAYS = Number(process.env.BACKFILL_DAYS ?? 90);
 const DEFAULT_TEAM_ID = 1;
 
 let running = true;
 let twilioErrors = 0;
 let weatherErrors = 0;
+let newsErrors = 0;
 
 async function loadPhones(sb: ReturnType<typeof createServiceClient>) {
   return async () => {
@@ -72,6 +75,21 @@ async function weatherLoop(sb: ReturnType<typeof createServiceClient>) {
   }
 }
 
+async function newsLoop(sb: ReturnType<typeof createServiceClient>) {
+  while (running) {
+    try {
+      const n = await pollNewsOnce(sb);
+      console.log('[news] polled, %d items', n);
+      newsErrors = 0;
+    } catch (err) {
+      newsErrors += 1;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[news] error (%d): %s', newsErrors, msg);
+    }
+    await new Promise((r) => setTimeout(r, backoff(NEWS_INTERVAL_MS, newsErrors)));
+  }
+}
+
 async function main() {
   const sb = createServiceClient();
   const tw = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
@@ -80,9 +98,9 @@ async function main() {
   process.on('SIGTERM', () => { running = false; });
   process.on('SIGINT', () => { running = false; });
 
-  console.log('[worker] starting. twilio=%dms weather=%dms', POLL_INTERVAL_MS, WEATHER_INTERVAL_MS);
+  console.log('[worker] starting. twilio=%dms weather=%dms news=%dms', POLL_INTERVAL_MS, WEATHER_INTERVAL_MS, NEWS_INTERVAL_MS);
 
-  await Promise.all([twilioLoop(sb, tw, cache), weatherLoop(sb)]);
+  await Promise.all([twilioLoop(sb, tw, cache), weatherLoop(sb), newsLoop(sb)]);
 
   console.log('[worker] shutdown');
 }
