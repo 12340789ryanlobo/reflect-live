@@ -103,7 +103,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <Context.Provider value={{ prefs, team, role, refresh: async () => { await fetchAll(); } }}>
       <SidebarProvider>
-        <AppSidebar role={role} teamName={team.name} />
+        <AppSidebar role={role} teamName={team.name} hasLinkedAthlete={Boolean(prefs.impersonate_player_id)} />
         <SidebarInset>{children}</SidebarInset>
         <CommandPalette teamId={prefs.team_id} isAdmin={role === 'admin'} />
       </SidebarProvider>

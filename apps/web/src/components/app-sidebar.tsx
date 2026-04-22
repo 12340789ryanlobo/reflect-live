@@ -122,9 +122,11 @@ function NavGroupBlock({ group }: { group: NavGroup }) {
 export function AppSidebar({
   role,
   teamName,
+  hasLinkedAthlete,
 }: {
   role: UserRole;
   teamName?: string;
+  hasLinkedAthlete?: boolean;
 }) {
   const groups: NavGroup[] = [];
 
@@ -136,6 +138,11 @@ export function AppSidebar({
   }
   if (role === 'athlete') {
     groups.push({ label: 'My view', items: ATHLETE_NAV });
+  }
+  // Dual-role: a staff user (coach/captain/admin) linked to a roster player
+  // also gets a personal athlete view link
+  if (hasLinkedAthlete && role !== 'athlete') {
+    groups.push({ label: 'Also you', items: [{ href: '/dashboard/athlete', label: 'My athlete view', icon: UserIcon }] });
   }
   if (role === 'admin') {
     groups.push({ label: 'Administration', items: ADMIN_NAV });

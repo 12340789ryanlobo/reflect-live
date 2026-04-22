@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useUser } from '@clerk/nextjs';
+import { useUser, useClerk } from '@clerk/nextjs';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Team, UserPreferences, WorkerState, Player, UserRole } from '@reflect-live/shared';
@@ -9,7 +9,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { relativeTime } from '@/lib/format';
+import { Phone, CheckCircle2, AlertCircle } from 'lucide-react';
+import { relativeTime, prettyPhone } from '@/lib/format';
 
 const ROLE_OPTIONS: Array<{ value: UserRole; label: string; hint: string }> = [
   { value: 'coach', label: 'Coach', hint: 'See the entire team — all groups, all players.' },
@@ -18,9 +19,12 @@ const ROLE_OPTIONS: Array<{ value: UserRole; label: string; hint: string }> = [
 ];
 
 export default function SettingsPage() {
-  const { role: currentRole } = useDashboard();
+  const { role: currentRole, refresh: refreshShell } = useDashboard();
   const sb = useSupabase();
   const { user } = useUser();
+  const { openUserProfile } = useClerk();
+  const [linking, setLinking] = useState(false);
+  const [linkResult, setLinkResult] = useState<{ ok: boolean; message?: string; playerName?: string } | null>(null);
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [state, setState] = useState<WorkerState | null>(null);
@@ -117,9 +121,25 @@ export default function SettingsPage() {
     setStatus(playerId ? 'Athlete selected.' : 'Athlete cleared.');
   }
 
+  async function linkPhoneToPlayer() {
+    setLinking(true);
+    setLinkResult(null);
+    const res = await fetch('/api/link-phone', { method: 'POST' });
+    const json = await res.json();
+    if (json.ok && json.player) {
+      setLinkResult({ ok: true, playerName: json.player.name });
+      await refresh();
+      await refreshShell();
+    } else {
+      setLinkResult({ ok: false, message: json.message ?? json.error ?? 'Link failed.' });
+    }
+    setLinking(false);
+  }
+
   const lastTwilio = state?.last_twilio_poll_at ? new Date(state.last_twilio_poll_at) : null;
   const lastWeather = state?.last_weather_poll_at ? new Date(state.last_weather_poll_at) : null;
   const impersonatedPlayer = prefs?.impersonate_player_id ? allPlayers.find((p) => p.id === prefs.impersonate_player_id) : null;
+  const verifiedPhones = (user?.phoneNumbers ?? []).filter((p) => p.verification?.status === 'verified').map((p) => p.phoneNumber);
 
   return (
     <>
@@ -185,6 +205,64 @@ export default function SettingsPage() {
                     <Link href="/dashboard/athlete" className="text-primary underline underline-offset-4">Open athlete view</Link>
                   </div>
                 )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="h-serif text-lg flex items-center gap-2">
+              <Phone className="size-4 text-primary" />
+              Link your phone to the roster
+            </CardTitle>
+            <CardDescription>
+              If you&apos;re also a swimmer, link your verified phone number to your roster entry. You keep your current role (e.g. admin) and also get a personal athlete view.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Verified phones on your account</div>
+              {verifiedPhones.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">No verified phone numbers yet. Add one in your profile — Clerk will SMS you a code to prove it&apos;s yours.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {verifiedPhones.map((p) => (
+                    <li key={p} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="size-4 text-[hsl(145_55%_32%)]" />
+                      <span className="font-mono">{prettyPhone(p)}</span>
+                      <span className="text-xs text-muted-foreground">verified</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" onClick={() => openUserProfile()}>
+                {verifiedPhones.length === 0 ? 'Add phone number' : 'Manage phones'}
+              </Button>
+              <Button onClick={linkPhoneToPlayer} disabled={linking || verifiedPhones.length === 0}>
+                {linking ? 'Linking…' : 'Link to a player'}
+              </Button>
+            </div>
+            {impersonatedPlayer && (
+              <div className="rounded-md border border-[hsl(145_55%_32%)]/30 bg-[hsl(145_55%_32%)]/5 px-3 py-2 text-sm">
+                <CheckCircle2 className="inline size-4 text-[hsl(145_55%_32%)] align-[-2px] mr-1" />
+                Linked to <strong>{impersonatedPlayer.name}</strong>
+                {impersonatedPlayer.group && <span className="text-muted-foreground"> · {impersonatedPlayer.group}</span>}.{' '}
+                <Link href="/dashboard/athlete" className="text-primary underline underline-offset-4">Open your athlete view</Link>
+              </div>
+            )}
+            {linkResult && !linkResult.ok && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+                <AlertCircle className="inline size-4 text-destructive align-[-2px] mr-1" />
+                {linkResult.message}
+              </div>
+            )}
+            {linkResult && linkResult.ok && (
+              <div className="rounded-md border border-[hsl(145_55%_32%)]/30 bg-[hsl(145_55%_32%)]/5 px-3 py-2 text-sm">
+                <CheckCircle2 className="inline size-4 text-[hsl(145_55%_32%)] align-[-2px] mr-1" />
+                Linked to <strong>{linkResult.playerName}</strong>.
               </div>
             )}
           </CardContent>
