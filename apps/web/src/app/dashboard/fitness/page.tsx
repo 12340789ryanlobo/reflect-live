@@ -2,22 +2,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { Metric } from '@/components/metric-card';
+import { StatReadout } from '@/components/stat-readout';
+import { SectionTag } from '@/components/section-tag';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { ActivityLog, Player, Location } from '@reflect-live/shared';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Dumbbell, HeartPulse, Users, Activity, Trophy } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { prettyCategory, prettyDate, relativeTime } from '@/lib/format';
 
 const DAY_OPTIONS = [
-  { value: '7', label: 'Last 7 days' },
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-  { value: '365', label: 'Last year' },
+  { value: '7', label: '7 days' },
+  { value: '30', label: '30 days' },
+  { value: '90', label: '90 days' },
+  { value: '365', label: 'Year' },
 ];
 
 function initials(name: string): string {
@@ -47,7 +49,10 @@ export default function FitnessPage() {
       setPlayers((ps ?? []) as Player[]);
       const upcoming = ((locs ?? []) as Location[])
         .filter((l) => l.kind === 'meet' && l.event_date)
-        .map((l) => ({ ...l, daysUntil: Math.round((new Date(l.event_date!).getTime() - Date.now()) / 86400000) }))
+        .map((l) => ({
+          ...l,
+          daysUntil: Math.round((new Date(l.event_date!).getTime() - Date.now()) / 86400000),
+        }))
         .filter((l) => l.daysUntil >= 0)
         .sort((a, b) => a.daysUntil - b.daysUntil);
       setLocations(upcoming);
@@ -73,128 +78,223 @@ export default function FitnessPage() {
   const workoutCount = logs.filter((l) => l.kind === 'workout').length;
   const rehabCount = logs.filter((l) => l.kind === 'rehab').length;
   const activeLoggers = useMemo(() => new Set(logs.map((l) => l.player_id)).size, [logs]);
-  const avgPerPlayer = players.length
-    ? Math.round((logs.length / players.length) * 10) / 10
-    : 0;
+  const avgPerPlayer = players.length ? Math.round((logs.length / players.length) * 10) / 10 : 0;
 
   const filtered = kindFilter === 'all' ? logs : logs.filter((l) => l.kind === kindFilter);
-  const daysLabel = DAY_OPTIONS.find((o) => Number(o.value) === days)?.label.toLowerCase() ?? `${days}d`;
+  const daysShort = DAY_OPTIONS.find((o) => Number(o.value) === days)?.label ?? `${days}d`;
 
   return (
     <>
       <PageHeader
-        title="Fitness"
-        subtitle={`${logs.length} entries · ${daysLabel}`}
+        code="02."
+        eyebrow="The log"
+        title="The"
+        italic="log."
+        subtitle={`${logs.length} ENTRIES · WINDOW ${daysShort.toUpperCase()}`}
         right={
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-            <SelectContent>{DAY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="w-[140px] h-9 mono text-xs uppercase tracking-wider">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DAY_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  Last {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         }
       />
-      <main className="flex flex-1 flex-col gap-6 p-6">
-        <div className="grid gap-3 md:grid-cols-4">
-          <Metric label="Workouts" value={workoutCount} sub={daysLabel} tone="success" icon={<Dumbbell className="size-4" />} />
-          <Metric label="Rehabs" value={rehabCount} sub={daysLabel} tone="warning" icon={<HeartPulse className="size-4" />} />
-          <Metric label="Active loggers" value={activeLoggers} sub={`of ${players.length} swimmers`} tone="primary" icon={<Users className="size-4" />} />
-          <Metric label="Avg per swimmer" value={avgPerPlayer} sub={daysLabel} icon={<Activity className="size-4" />} />
-        </div>
 
+      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
+        {/* Top readouts */}
+        <section className="reveal reveal-1 panel">
+          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+            <SectionTag code="02.A" name="Workload telemetry" />
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
+            <StatReadout label="Workouts" value={workoutCount} sub={daysShort.toUpperCase()} tone="chlorine" />
+            <StatReadout label="Rehabs" value={rehabCount} sub={daysShort.toUpperCase()} tone="amber" />
+            <StatReadout
+              label="Active loggers"
+              value={activeLoggers}
+              sub={`OF ${players.length} ATHLETES`}
+              tone="signal"
+            />
+            <StatReadout
+              label="Avg per athlete"
+              value={avgPerPlayer}
+              sub={daysShort.toUpperCase()}
+              tone="heritage"
+            />
+          </div>
+        </section>
+
+        {/* Upcoming competitions row */}
         {locations.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div>
-                  <CardTitle className="h-serif text-lg flex items-center gap-2"><Trophy className="size-4 text-primary" />Upcoming competitions</CardTitle>
-                  <CardDescription>Weather + countdown to each meet</CardDescription>
-                </div>
-                <Link href="/dashboard/events" className="text-xs text-primary underline underline-offset-4">All events →</Link>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
-                {locations.slice(0, 4).map((l) => (
-                  <div key={l.id} className="rounded-lg border p-4">
-                    <div className="text-sm font-medium leading-snug line-clamp-2">{l.name}</div>
-                    <div className="h-serif text-3xl font-semibold mt-2 tabular">{l.daysUntil}d</div>
-                    <div className="text-xs text-muted-foreground">until {prettyDate(l.event_date!)}</div>
+          <section className="reveal reveal-2 panel">
+            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+              <SectionTag
+                code="02.B"
+                name="Upcoming competitions"
+                right={
+                  <Link
+                    href="/dashboard/events"
+                    className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--signal)] hover:text-[color:var(--bone)] transition"
+                  >
+                    ALL EVENTS →
+                  </Link>
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-0 md:grid-cols-4">
+              {locations.slice(0, 4).map((l, i) => (
+                <div
+                  key={l.id}
+                  className={`p-5 ${i < locations.length - 1 ? 'border-r border-[color:var(--hairline)]' : ''}`}
+                >
+                  <div className="mono text-[0.62rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+                    EVT · {String(l.id).padStart(3, '0')}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="mt-2 text-sm font-semibold leading-tight line-clamp-2">
+                    {l.name}
+                  </div>
+                  <div className="mt-4 flex items-baseline gap-1.5">
+                    <span className="num-display text-[2.2rem] leading-none tabular">
+                      {l.daysUntil}
+                    </span>
+                    <span className="mono text-xs text-[color:var(--bone-mute)]">d</span>
+                  </div>
+                  <div className="mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                    UNTIL {prettyDate(l.event_date!).toUpperCase()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
-        <Card className="bg-muted/40 border-dashed">
-          <CardContent className="text-sm space-y-2">
-            <p><strong>How swimmers log:</strong> text the team WhatsApp number. Start with <strong>&quot;Workout:&quot;</strong> or <strong>&quot;Rehab:&quot;</strong> followed by a description.</p>
-            <div className="rounded-md border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
-              <span className="text-muted-foreground/70">Examples:</span><br />
-              Workout: erg 5x500 @ 2k pace, 1k warmdown<br />
-              Rehab: foam roll quads + hip flexors, 20 min
-            </div>
-          </CardContent>
-        </Card>
+        {/* How-to card */}
+        <section className="reveal reveal-3 panel border-dashed p-5">
+          <SectionTag code="MEMO" name="How athletes log" />
+          <p className="mt-2 text-sm text-[color:var(--bone-soft)] leading-relaxed">
+            Text the team line. Start the message with{' '}
+            <code className="mono bg-[color:var(--panel-raised)] px-1.5 py-0.5 text-[color:var(--signal)]">Workout:</code>{' '}
+            or{' '}
+            <code className="mono bg-[color:var(--panel-raised)] px-1.5 py-0.5 text-[color:var(--amber)]">Rehab:</code>{' '}
+            followed by a description.
+          </p>
+          <div className="mt-4 border-l-2 border-[color:var(--signal)] bg-[color:var(--panel-raised)]/50 p-4 mono text-xs text-[color:var(--bone-soft)] leading-relaxed">
+            <div className="text-[color:var(--bone-dim)] mb-1.5 text-[0.62rem] uppercase tracking-[0.22em]">Examples</div>
+            Workout: erg 5x500 @ 2k pace, 1k warmdown
+            <br />
+            Rehab: foam roll quads + hip flexors, 20 min
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div>
-                <CardTitle className="h-serif text-lg">Past activity</CardTitle>
-                <CardDescription>{filtered.length} entries · {daysLabel}</CardDescription>
-              </div>
-              <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as typeof kindFilter)}>
-                <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All kinds</SelectItem>
-                  <SelectItem value="workout">Workouts</SelectItem>
-                  <SelectItem value="rehab">Rehabs</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent className="px-0">
-            {loading ? (
-              <p className="px-6 text-sm italic text-muted-foreground">Loading…</p>
-            ) : filtered.length === 0 ? (
-              <p className="px-6 text-sm italic text-muted-foreground">No activity logged in this period.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[240px]">Swimmer</TableHead>
-                    <TableHead className="w-[110px]">When</TableHead>
-                    <TableHead className="w-[110px]">Kind</TableHead>
-                    <TableHead>Description</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+        {/* Log table */}
+        <section className="reveal reveal-4 panel overflow-hidden">
+          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+            <SectionTag
+              code="02.C"
+              name={`Past activity · ${filtered.length} entries`}
+              right={
+                <Select
+                  value={kindFilter}
+                  onValueChange={(v) => setKindFilter(v as typeof kindFilter)}
+                >
+                  <SelectTrigger className="w-[140px] h-9 mono text-xs uppercase tracking-wider">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All kinds</SelectItem>
+                    <SelectItem value="workout">Workouts</SelectItem>
+                    <SelectItem value="rehab">Rehabs</SelectItem>
+                  </SelectContent>
+                </Select>
+              }
+            />
+          </div>
+          {loading ? (
+            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+              — loading —
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+              — no activity logged in this period —
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/40">
+                    <th className="w-[240px] px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                      Athlete
+                    </th>
+                    <th className="w-[110px] px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                      When
+                    </th>
+                    <th className="w-[110px] px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                      Kind
+                    </th>
+                    <th className="px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                      Description
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
                   {filtered.map((l) => {
                     const name = l.player?.name ?? 'Unknown';
+                    const tone =
+                      l.kind === 'workout'
+                        ? { color: 'hsl(162 62% 54%)', bg: 'hsl(162 40% 18% / 0.4)', border: 'hsl(162 40% 40%)' }
+                        : { color: 'hsl(38 90% 62%)', bg: 'hsl(38 60% 20% / 0.4)', border: 'hsl(38 60% 40%)' };
                     return (
-                      <TableRow key={l.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="size-6 shrink-0">
-                              <AvatarFallback className="text-[9px] font-medium">{l.player ? initials(name) : '?'}</AvatarFallback>
-                            </Avatar>
+                      <tr key={l.id} className="border-b border-[color:var(--hairline)]/50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="grid size-6 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)] text-[0.58rem] font-semibold">
+                              {l.player ? initials(name) : '?'}
+                            </span>
                             <div className="min-w-0">
-                              <div className="text-sm font-medium truncate">{name}</div>
-                              {l.player?.group && <div className="text-[11px] text-muted-foreground truncate">{l.player.group}</div>}
+                              <div className="text-sm font-semibold text-[color:var(--bone)] truncate">
+                                {name}
+                              </div>
+                              {l.player?.group && (
+                                <div className="mono text-[0.6rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)] truncate">
+                                  {l.player.group}
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground tabular" title={prettyDate(l.logged_at)}>{relativeTime(l.logged_at)}</TableCell>
-                        <TableCell><Badge variant={l.kind === 'workout' ? 'default' : 'secondary'}>{prettyCategory(l.kind)}</Badge></TableCell>
-                        <TableCell className="text-sm leading-snug">{l.description}</TableCell>
-                      </TableRow>
+                        </td>
+                        <td className="px-4 py-3 mono text-[0.7rem] text-[color:var(--bone-mute)] tabular" title={prettyDate(l.logged_at)}>
+                          {relativeTime(l.logged_at)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="mono inline-block px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] rounded-sm"
+                            style={{
+                              color: tone.color,
+                              background: tone.bg,
+                              border: `1px solid ${tone.border}`,
+                            }}
+                          >
+                            {prettyCategory(l.kind)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm leading-snug text-[color:var(--bone-soft)]">
+                          {l.description}
+                        </td>
+                      </tr>
                     );
                   })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </main>
     </>
   );

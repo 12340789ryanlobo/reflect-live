@@ -1,12 +1,19 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/dashboard-shell';
-import { Metric } from '@/components/metric-card';
+import { StatReadout } from '@/components/stat-readout';
+import { SectionTag } from '@/components/section-tag';
 import { useSupabase } from '@/lib/supabase-browser';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Database, Users, MessageSquareText, Activity, MapPin, Cloud, Cpu, Settings } from 'lucide-react';
+import {
+  Database,
+  Users,
+  MessageSquareText,
+  Activity,
+  MapPin,
+  Cloud,
+  Cpu,
+  Settings,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface CountRow {
@@ -62,49 +69,94 @@ export default function AdminDatabasePage() {
 
   return (
     <>
-      <PageHeader title="Database" subtitle={<Badge variant="destructive">Admin only</Badge>} />
-      <main className="flex flex-1 flex-col gap-6 p-6">
-        <div className="grid gap-3 md:grid-cols-4">
-          {highlightRows.map((r) => (
-            <Metric key={r.name} label={r.name} value={r.count} sub={r.note} icon={r.icon} />
-          ))}
-        </div>
+      <PageHeader
+        code="A4"
+        eyebrow="Database"
+        title="The"
+        italic="database."
+        subtitle={loading ? 'COUNTING…' : `${totals.toLocaleString()} ROWS · ${rows.length} TABLES`}
+      />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="h-serif text-lg">Table counts</CardTitle>
-            <CardDescription>{loading ? 'Counting…' : `${totals} rows across ${rows.length} tables`}</CardDescription>
-          </CardHeader>
-          <CardContent className="px-0">
-            {loading ? (
-              <p className="px-6 text-sm italic text-muted-foreground">Loading…</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Table</TableHead>
-                    <TableHead>Rows</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r) => (
-                    <TableRow key={r.name}>
-                      <TableCell>
-                        <span className="inline-flex items-center gap-2 font-mono text-sm">
-                          <span className="text-muted-foreground">{r.icon}</span>
-                          {r.name}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-medium">{r.count.toLocaleString()}</TableCell>
-                      <TableCell className="text-muted-foreground">{r.note}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
+        {/* Highlights */}
+        <section className="reveal reveal-1 panel">
+          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+            <SectionTag code="A4·A" name="Highlighted tables" />
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
+            {highlightRows.map((r) => (
+              <StatReadout
+                key={r.name}
+                label={r.name}
+                value={r.count.toLocaleString()}
+                sub={r.note.toUpperCase()}
+                tone={
+                  r.name === 'players'
+                    ? 'heritage'
+                    : r.name === 'twilio_messages'
+                    ? 'signal'
+                    : r.name === 'activity_logs'
+                    ? 'chlorine'
+                    : 'amber'
+                }
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Full table counts */}
+        <section className="reveal reveal-2 panel overflow-hidden">
+          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+            <SectionTag
+              code="A4·B"
+              name="All tables"
+              right={
+                <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+                  {rows.length} · {totals.toLocaleString()} ROWS
+                </span>
+              }
+            />
+          </div>
+          {loading ? (
+            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+              — loading counts —
+            </p>
+          ) : (
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/40">
+                  <th className="px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                    Table
+                  </th>
+                  <th className="px-4 py-3 text-right mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                    Rows
+                  </th>
+                  <th className="px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                    Notes
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.name} className="border-b border-[color:var(--hairline)]/50">
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-2 mono text-sm text-[color:var(--bone)]">
+                        <span className="text-[color:var(--bone-dim)]">{r.icon}</span>
+                        {r.name}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right num-display text-lg tabular">
+                      {r.count.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[color:var(--bone-mute)]">
+                      {r.note}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       </main>
     </>
   );

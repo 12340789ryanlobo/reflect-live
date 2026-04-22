@@ -2,9 +2,22 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { BrandMark, Wordmark } from '@/components/brand-mark';
+import { SectionTag } from '@/components/section-tag';
 
-interface TeamPub { id: number; name: string; code: string; description: string | null; }
+interface TeamPub {
+  id: number;
+  name: string;
+  code: string;
+  description: string | null;
+}
 
 export default function Onboarding() {
   const router = useRouter();
@@ -35,121 +48,137 @@ export default function Onboarding() {
     router.push('/dashboard');
   }
 
+  const pickedTeam = pickedId ? teams.find((t) => t.id === pickedId) : null;
+
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--paper)] px-6 py-10 text-[var(--ink)]">
-      {/* Ambient lanes */}
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10 text-[color:var(--bone)]">
+      {/* Top broadcast rail */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-48 opacity-60"
-        style={{
-          backgroundImage:
-            'repeating-linear-gradient(to bottom, transparent 0, transparent 22px, hsl(188 72% 42% / 0.09) 22px, hsl(188 72% 42% / 0.09) 23px)',
-        }}
+        className="absolute inset-x-0 top-0 h-[2px]"
+        style={{ background: 'linear-gradient(to right, transparent, hsl(188 82% 58%), transparent)' }}
       />
 
-      <div className="relative grid w-full max-w-3xl grid-cols-1 gap-10 lg:grid-cols-5 lg:gap-12">
+      <div className="relative grid w-full max-w-5xl grid-cols-1 gap-12 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
         {/* Editorial intro */}
-        <div className="reveal reveal-1 lg:col-span-2 lg:pt-6">
-          <div className="mb-5 flex items-center gap-3">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: 'var(--pool)', boxShadow: '0 0 0 4px hsl(188 72% 42% / 0.18)' }}
-            />
-            <span className="eyebrow">Ch. 01 · Enroll</span>
+        <div className="reveal reveal-1 lg:pt-6">
+          <Wordmark size={28} tone="bone" />
+          <div className="mt-10 flex items-center gap-3">
+            <span className="station-code">CH · 01</span>
+            <span className="eyebrow">Enroll</span>
           </div>
-          <h1 className="h-display text-5xl leading-[0.95] md:text-6xl">
+          <h1 className="h-display mt-4 text-6xl leading-[0.9]">
             Welcome,{' '}
-            <span className="h-display-italic" style={{ color: 'var(--maroon)' }}>
+            <span className="h-display-italic" style={{ color: 'var(--heritage)' }}>
               recruit.
             </span>
           </h1>
-          <p className="mt-6 font-serif text-lg leading-relaxed text-[var(--ink-soft)]">
-            Pick the team you belong to. Your role — coach, captain, or athlete — is assigned
-            by your team admin once you&rsquo;re in.
+          <p className="mt-8 max-w-md font-serif text-lg leading-relaxed text-[color:var(--bone-soft)]">
+            Pick the team you belong to. Your role — coach, captain, or athlete — is assigned by
+            your team admin once you&rsquo;re inside.
           </p>
-          <div
-            aria-hidden
-            className="mt-8 h-[3px] w-24"
-            style={{
-              backgroundImage:
-                'repeating-linear-gradient(to right, var(--maroon) 0, var(--maroon) 12px, transparent 12px, transparent 20px)',
-            }}
-          />
+          <div className="mt-10 flex items-center gap-3 text-[color:var(--bone-dim)]">
+            <BrandMark size={20} tone="heritage" />
+            <span className="mono text-[0.66rem] uppercase tracking-[0.22em]">
+              Step 01 of 01 · Enrollment
+            </span>
+          </div>
         </div>
 
         {/* Team picker card */}
-        <div className="reveal reveal-3 lg:col-span-3">
-          <div
-            className="relative border-t-[3px] bg-white px-6 py-7 shadow-[0_18px_48px_hsl(220_22%_10%_/_0.08)] md:px-8 md:py-9"
-            style={{ borderColor: 'var(--maroon)' }}
-          >
-            <div className="eyebrow mb-4">Roster · Team Selection</div>
-
-            {loading ? (
-              <p className="mono text-sm text-[var(--ink-mute)]">Loading teams…</p>
-            ) : teams.length === 0 ? (
-              <div className="space-y-3">
-                <h2 className="h-serif text-xl font-semibold">No teams yet.</h2>
-                <p className="text-sm text-[var(--ink-soft)]">
-                  Contact your admin to spin one up, then come back here.
+        <div className="reveal reveal-3">
+          <div className="panel overflow-hidden">
+            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+              <SectionTag code="R" name="Roster · Team selection" />
+            </div>
+            <div className="p-6">
+              {loading ? (
+                <p className="mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+                  — loading teams —
                 </p>
-              </div>
-            ) : teams.length === 1 ? (
-              <>
-                <div className="mb-6 border-y border-dashed border-[hsl(30_18%_82%)] py-4">
-                  <div className="eyebrow mb-2">Your team</div>
-                  <div className="h-serif text-2xl font-semibold leading-tight">
-                    {teams[0].name}
+              ) : teams.length === 0 ? (
+                <div className="space-y-3">
+                  <h2 className="h-serif text-2xl font-semibold">No teams yet.</h2>
+                  <p className="text-sm text-[color:var(--bone-mute)] leading-relaxed">
+                    Contact your admin to spin one up, then come back here.
+                  </p>
+                </div>
+              ) : teams.length === 1 ? (
+                <div className="space-y-6">
+                  <div className="border-y border-dashed border-[color:var(--hairline)] py-5">
+                    <div className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+                      Your team
+                    </div>
+                    <div className="h-display mt-3 text-3xl font-semibold leading-tight">
+                      {teams[0].name}
+                    </div>
+                    {teams[0].description && (
+                      <div className="mt-3 text-sm leading-relaxed text-[color:var(--bone-soft)]">
+                        {teams[0].description}
+                      </div>
+                    )}
+                    <div className="mt-4 flex items-center gap-3 mono text-[0.66rem] uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                      <span>Code · {teams[0].code}</span>
+                      <span>·</span>
+                      <span>ID · {String(teams[0].id).padStart(3, '0')}</span>
+                    </div>
                   </div>
-                  {teams[0].description && (
-                    <div className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
-                      {teams[0].description}
+                  <Button
+                    onClick={save}
+                    disabled={saving}
+                    className="w-full mono text-[0.75rem] font-semibold uppercase tracking-[0.22em] rounded-sm py-5"
+                    style={{ background: 'var(--heritage)' }}
+                  >
+                    {saving ? 'Setting up…' : `Join ${teams[0].name} →`}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="space-y-1.5">
+                    <label className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+                      Choose
+                    </label>
+                    <Select
+                      value={pickedId ? String(pickedId) : ''}
+                      onValueChange={(v) => setPickedId(Number(v))}
+                    >
+                      <SelectTrigger className="h-11 text-base">
+                        <SelectValue placeholder="Pick your team…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teams.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {pickedTeam && (
+                    <div className="border-y border-dashed border-[color:var(--hairline)] py-4">
+                      <div className="h-serif text-xl font-semibold">{pickedTeam.name}</div>
+                      {pickedTeam.description && (
+                        <div className="mt-2 text-sm text-[color:var(--bone-mute)]">
+                          {pickedTeam.description}
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-                <Button
-                  onClick={save}
-                  disabled={saving}
-                  className="w-full rounded-sm py-5 text-[0.95rem] font-semibold"
-                  style={{ background: 'var(--maroon)' }}
-                >
-                  {saving ? 'Setting up…' : `Join ${teams[0].name} →`}
-                </Button>
-              </>
-            ) : (
-              <div className="space-y-5">
-                <div>
-                  <label className="eyebrow mb-2 block">Choose</label>
-                  <Select
-                    value={pickedId ? String(pickedId) : ''}
-                    onValueChange={(v) => setPickedId(Number(v))}
+                  <Button
+                    onClick={save}
+                    disabled={saving || !pickedId}
+                    className="w-full mono text-[0.75rem] font-semibold uppercase tracking-[0.22em] rounded-sm py-5"
+                    style={{ background: 'var(--heritage)' }}
                   >
-                    <SelectTrigger className="h-11 text-base">
-                      <SelectValue placeholder="Pick your team…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teams.map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {saving ? 'Setting up…' : 'Continue →'}
+                  </Button>
                 </div>
-                <Button
-                  onClick={save}
-                  disabled={saving || !pickedId}
-                  className="w-full rounded-sm py-5 text-[0.95rem] font-semibold"
-                  style={{ background: 'var(--maroon)' }}
-                >
-                  {saving ? 'Setting up…' : 'Continue →'}
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="eyebrow">Fig. 1 — Roster</span>
-            <span className="mono text-[0.72rem] text-[var(--ink-mute)]">step 1 of 1</span>
+          <div className="mt-3 flex items-center justify-between mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+            <span>Fig. 01 — Roster</span>
+            <span>β 0.1</span>
           </div>
         </div>
       </div>

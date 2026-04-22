@@ -2,22 +2,35 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { Metric } from '@/components/metric-card';
+import { StatReadout } from '@/components/stat-readout';
+import { SectionTag } from '@/components/section-tag';
+import { Stamp } from '@/components/stamp';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player } from '@reflect-live/shared';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Star, Users, Activity, Trash2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Star, Trash2, Search } from 'lucide-react';
 import { prettyPhone, relativeTime } from '@/lib/format';
 
 interface PlayerRow extends Player {
   last_inbound: string | null;
   workouts_30d: number;
   rehabs_30d: number;
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function hoursSince(iso: string | null): number | null {
+  if (!iso) return null;
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
 }
 
 export default function PlayersPage() {
@@ -33,13 +46,24 @@ export default function PlayersPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: players } = await sb.from('players').select('*').eq('team_id', prefs.team_id).order('name');
+    const { data: players } = await sb
+      .from('players')
+      .select('*')
+      .eq('team_id', prefs.team_id)
+      .order('name');
     const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-    const { data: msgs } = await sb.from('twilio_messages')
+    const { data: msgs } = await sb
+      .from('twilio_messages')
       .select('player_id,direction,category,date_sent')
       .eq('team_id', prefs.team_id)
       .gte('date_sent', since30);
-    const msgList = (msgs ?? []) as Array<{ player_id: number | null; direction: string; category: string; date_sent: string }>;
+    const msgList =
+      (msgs ?? []) as Array<{
+        player_id: number | null;
+        direction: string;
+        category: string;
+        date_sent: string;
+      }>;
 
     const lastInboundByPlayer = new Map<number, string>();
     const workoutByPlayer = new Map<number, number>();
@@ -50,8 +74,10 @@ export default function PlayersPage() {
         const prev = lastInboundByPlayer.get(m.player_id);
         if (!prev || m.date_sent > prev) lastInboundByPlayer.set(m.player_id, m.date_sent);
       }
-      if (m.category === 'workout') workoutByPlayer.set(m.player_id, (workoutByPlayer.get(m.player_id) ?? 0) + 1);
-      if (m.category === 'rehab') rehabByPlayer.set(m.player_id, (rehabByPlayer.get(m.player_id) ?? 0) + 1);
+      if (m.category === 'workout')
+        workoutByPlayer.set(m.player_id, (workoutByPlayer.get(m.player_id) ?? 0) + 1);
+      if (m.category === 'rehab')
+        rehabByPlayer.set(m.player_id, (rehabByPlayer.get(m.player_id) ?? 0) + 1);
     }
 
     const enriched: PlayerRow[] = (players ?? []).map((p: Player) => ({
@@ -64,7 +90,9 @@ export default function PlayersPage() {
     setLoading(false);
   }, [sb, prefs.team_id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function deletePlayer(p: PlayerRow, ev: React.MouseEvent) {
     ev.stopPropagation();
@@ -110,93 +138,212 @@ export default function PlayersPage() {
 
   return (
     <>
-      <PageHeader title="Players" subtitle={`${rows.length} on roster · ${groups.length} groups`} />
-      <main className="flex flex-1 flex-col gap-6 p-6">
-        <div className="grid gap-3 md:grid-cols-3">
-          <Metric label="Roster" value={rows.length} sub={`${groups.length} groups`} icon={<Users className="size-4" />} />
-          <Metric label="Active this month" value={activeCount} sub="replied in last 30 days" tone="success" icon={<Activity className="size-4" />} />
-          <Metric label="Starred" value={prefs.watchlist.length} sub="on your watchlist" tone="primary" icon={<Star className="size-4" />} />
-        </div>
+      <PageHeader
+        code="01."
+        eyebrow="The roster"
+        title="The"
+        italic="roster."
+        subtitle={`${rows.length} ATHLETES · ${groups.length} GROUPS`}
+      />
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <CardTitle className="h-serif text-lg">Roster ({filtered.length} shown)</CardTitle>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="search"
-                  placeholder="Search by name or phone…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-[220px]"
-                />
-                <Select value={group} onValueChange={setGroup}>
-                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All groups</SelectItem>
-                    {groups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="px-0">
-            {loading ? (
-              <p className="px-6 text-sm italic text-muted-foreground">Loading…</p>
-            ) : filtered.length === 0 ? (
-              <p className="px-6 text-sm italic text-muted-foreground">No players match this filter.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Group</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Last inbound</TableHead>
-                    <TableHead>Workouts 30d</TableHead>
-                    <TableHead>Rehabs 30d</TableHead>
-                    <TableHead>Star</TableHead>
-                    {isAdmin && <TableHead></TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((p) => {
+      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
+        {/* Top telemetry */}
+        <section className="reveal reveal-1 panel">
+          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+            <SectionTag code="01.A" name="Roster summary" />
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
+            <StatReadout label="Roster" value={rows.length} sub={`${groups.length} GROUPS`} tone="heritage" />
+            <StatReadout
+              label="Active this month"
+              value={activeCount}
+              sub="REPLIED · 30D"
+              tone="chlorine"
+            />
+            <StatReadout
+              label="Quiet"
+              value={rows.length - activeCount}
+              sub="NO REPLIES · 30D"
+              tone={rows.length - activeCount > 0 ? 'amber' : 'default'}
+            />
+            <StatReadout
+              label="Starred"
+              value={prefs.watchlist.length}
+              sub="ON YOUR WATCHLIST"
+              tone="signal"
+            />
+          </div>
+        </section>
+
+        {/* Heat sheet */}
+        <section className="reveal reveal-2 panel overflow-hidden">
+          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+            <SectionTag
+              code="01.B"
+              name={`Heat sheet · ${filtered.length} shown`}
+              right={
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--bone-dim)]" />
+                    <Input
+                      type="search"
+                      placeholder="name / phone"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-[200px] h-9 pl-8 mono text-xs"
+                    />
+                  </div>
+                  <Select value={group} onValueChange={setGroup}>
+                    <SelectTrigger className="w-[140px] h-9 mono text-xs uppercase tracking-wider">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All groups</SelectItem>
+                      {groups.map((g) => (
+                        <SelectItem key={g} value={g}>
+                          {g}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              }
+            />
+          </div>
+
+          {loading ? (
+            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+              — loading roster —
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+              — no athletes match this filter —
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/40">
+                    <Th className="w-12">Ln</Th>
+                    <Th>Athlete</Th>
+                    <Th>Group</Th>
+                    <Th>Phone</Th>
+                    <Th right>Status</Th>
+                    <Th right>Last reply</Th>
+                    <Th right>Workouts</Th>
+                    <Th right>Rehabs</Th>
+                    <Th right>Star</Th>
+                    {isAdmin && <Th></Th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((p, i) => {
                     const starred = prefs.watchlist.includes(p.id);
+                    const hrs = hoursSince(p.last_inbound);
+                    const stampTone =
+                      hrs == null ? 'quiet' : hrs < 1 ? 'live' : hrs < 24 ? 'on' : hrs < 72 ? 'watch' : 'quiet';
+                    const stampText =
+                      hrs == null ? 'quiet' : hrs < 1 ? 'live' : hrs < 24 ? 'on wire' : hrs < 72 ? 'watch' : 'quiet';
                     return (
-                      <TableRow key={p.id} className="cursor-pointer" onClick={() => router.push(`/dashboard/player/${p.id}`)}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell>{p.group ? <Badge variant="secondary">{p.group}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{prettyPhone(p.phone_e164)}</TableCell>
-                        <TableCell className="text-muted-foreground">{relativeTime(p.last_inbound)}</TableCell>
-                        <TableCell>{p.workouts_30d}</TableCell>
-                        <TableCell>{p.rehabs_30d}</TableCell>
-                        <TableCell>
-                          {starred ? <Star className="size-4 fill-primary text-primary" /> : <Star className="size-4 text-muted-foreground" />}
-                        </TableCell>
+                      <tr
+                        key={p.id}
+                        className="group cursor-pointer border-b border-[color:var(--hairline)]/50 transition hover:bg-[color:var(--panel-raised)]/50"
+                        onClick={() => router.push(`/dashboard/player/${p.id}`)}
+                      >
+                        <Td>
+                          <span className="mono text-[0.66rem] text-[color:var(--bone-dim)] tabular">
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                        </Td>
+                        <Td>
+                          <div className="flex items-center gap-2.5">
+                            <span className="grid size-7 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)] text-[0.62rem] font-semibold">
+                              {initials(p.name)}
+                            </span>
+                            <span className="font-semibold text-[color:var(--bone)] group-hover:text-[color:var(--signal)] transition">
+                              {p.name}
+                            </span>
+                          </div>
+                        </Td>
+                        <Td>
+                          {p.group ? (
+                            <span className="mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--bone-soft)]">
+                              {p.group}
+                            </span>
+                          ) : (
+                            <span className="mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                              —
+                            </span>
+                          )}
+                        </Td>
+                        <Td>
+                          <span className="mono text-[0.7rem] text-[color:var(--bone-mute)] tabular">
+                            {prettyPhone(p.phone_e164)}
+                          </span>
+                        </Td>
+                        <Td right>
+                          <Stamp tone={stampTone} rotate={i % 2 === 0 ? -1.5 : 1.5}>
+                            {stampText}
+                          </Stamp>
+                        </Td>
+                        <Td right>
+                          <span className="mono text-[0.72rem] text-[color:var(--bone-soft)] tabular">
+                            {p.last_inbound ? relativeTime(p.last_inbound) : '—'}
+                          </span>
+                        </Td>
+                        <Td right>
+                          <span className="num-display text-lg tabular" style={{ color: p.workouts_30d ? 'hsl(162 62% 54%)' : 'hsl(220 16% 34%)' }}>
+                            {p.workouts_30d}
+                          </span>
+                        </Td>
+                        <Td right>
+                          <span className="num-display text-lg tabular" style={{ color: p.rehabs_30d ? 'hsl(38 90% 62%)' : 'hsl(220 16% 34%)' }}>
+                            {p.rehabs_30d}
+                          </span>
+                        </Td>
+                        <Td right>
+                          {starred ? (
+                            <Star className="size-4 fill-[color:var(--signal)] text-[color:var(--signal)] inline" />
+                          ) : (
+                            <Star className="size-4 text-[color:var(--bone-dim)] inline" />
+                          )}
+                        </Td>
                         {isAdmin && (
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          <Td right>
+                            <button
                               onClick={(e) => deletePlayer(p, e)}
                               disabled={deletingId === p.id}
+                              className="rounded-sm p-1.5 text-[color:var(--bone-dim)] hover:bg-[color:var(--siren-ghost)] hover:text-[color:var(--siren)] transition disabled:opacity-50"
                               aria-label={`Delete ${p.name}`}
-                              title="Delete from roster"
                             >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </TableCell>
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </Td>
                         )}
-                      </TableRow>
+                      </tr>
                     );
                   })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </main>
     </>
   );
+}
+
+function Th({ children, right, className }: { children?: React.ReactNode; right?: boolean; className?: string }) {
+  return (
+    <th
+      className={`px-4 py-3 mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)] ${
+        right ? 'text-right' : 'text-left'
+      } ${className ?? ''}`}
+    >
+      {children}
+    </th>
+  );
+}
+function Td({ children, right }: { children?: React.ReactNode; right?: boolean }) {
+  return <td className={`px-4 py-3 ${right ? 'text-right' : ''}`}>{children}</td>;
 }

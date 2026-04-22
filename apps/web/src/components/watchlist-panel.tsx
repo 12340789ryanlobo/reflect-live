@@ -3,22 +3,38 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { Player } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Star } from 'lucide-react';
+import { SectionTag } from '@/components/section-tag';
+import { Stamp } from '@/components/stamp';
 import { relativeTime } from '@/lib/format';
 
 function initials(name: string): string {
   return name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 }
 
+function hoursSince(iso: string | undefined): number | null {
+  if (!iso) return null;
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
+}
+
+/**
+ * WatchlistPanel — "STARRED"
+ *
+ * A compact list of players the coach has starred. Each row is a
+ * clipboard-style card with name, group, a stamped status (LIVE /
+ * WATCH / QUIET depending on recency of last inbound), and the
+ * relative timestamp.
+ */
 export function WatchlistPanel({ teamId, watchlist }: { teamId: number; watchlist: number[] }) {
   const sb = useSupabase();
   const [players, setPlayers] = useState<Player[]>([]);
   const [lastSeen, setLastSeen] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    if (!watchlist.length) { setPlayers([]); setLastSeen({}); return; }
+    if (!watchlist.length) {
+      setPlayers([]);
+      setLastSeen({});
+      return;
+    }
     (async () => {
       const [{ data: ps }, { data: msgs }] = await Promise.all([
         sb.from('players').select('*').in('id', watchlist).eq('team_id', teamId),
@@ -42,47 +58,73 @@ export function WatchlistPanel({ teamId, watchlist }: { teamId: number; watchlis
   }, [players, lastSeen]);
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle className="h-serif text-lg">Watchlist</CardTitle>
-        <CardDescription>
-          {players.length === 0
-            ? 'No starred players yet'
-            : `${players.length} starred player${players.length === 1 ? '' : 's'}`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!players.length ? (
-          <p className="text-sm italic text-muted-foreground">
-            Tap the star on any player page to add them here — they&apos;ll surface first when they message.
-          </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {sorted.map((p) => (
+    <div className="panel p-5">
+      <SectionTag
+        code="★"
+        name="Starred"
+        right={
+          <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+            {players.length} of {watchlist.length}
+          </span>
+        }
+      />
+
+      {!players.length ? (
+        <p className="mt-6 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+          — tap the star on any player to put them on the wire —
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-2">
+          {sorted.map((p, i) => {
+            const ts = lastSeen[p.id];
+            const hrs = hoursSince(ts);
+            const stampTone = hrs == null
+              ? 'quiet'
+              : hrs < 1
+              ? 'live'
+              : hrs < 24
+              ? 'on'
+              : hrs < 72
+              ? 'watch'
+              : 'quiet';
+            const stampText = hrs == null
+              ? '— quiet —'
+              : hrs < 1
+              ? 'live'
+              : hrs < 24
+              ? 'on wire'
+              : hrs < 72
+              ? 'watch'
+              : 'quiet';
+            return (
               <li key={p.id}>
                 <Link
                   href={`/dashboard/player/${p.id}`}
-                  className="flex items-center gap-3 rounded-md border px-3 py-2 hover:border-primary hover:bg-primary/5 transition"
+                  className="group relative flex items-center gap-3 rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/50 px-3 py-2.5 transition hover:border-[color:var(--signal)]/60 hover:bg-[color:var(--panel-raised)]"
                 >
-                  <Avatar className="size-8 shrink-0">
-                    <AvatarFallback className="text-[10px] font-medium">{initials(p.name)}</AvatarFallback>
-                  </Avatar>
+                  <span className="mono text-[0.62rem] text-[color:var(--bone-dim)] tabular w-6 shrink-0">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className="grid size-7 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-over)] text-[0.66rem] font-semibold shrink-0">
+                    {initials(p.name)}
+                  </span>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <Star className="size-3 fill-primary text-primary" />
-                      <span className="truncate text-sm font-medium">{p.name}</span>
+                    <div className="truncate text-sm font-semibold text-[color:var(--bone)]">
+                      {p.name}
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {p.group ?? 'No group'}
-                      {lastSeen[p.id] && <span> · last reply {relativeTime(lastSeen[p.id])}</span>}
+                    <div className="mono truncate text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                      {p.group ?? 'no group'} · {ts ? relativeTime(ts) : 'no messages'}
                     </div>
                   </div>
+                  <Stamp tone={stampTone} rotate={i % 2 === 0 ? -2 : 1.5}>
+                    {stampText}
+                  </Stamp>
                 </Link>
               </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }

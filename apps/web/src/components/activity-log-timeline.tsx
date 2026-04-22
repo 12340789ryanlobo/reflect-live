@@ -2,10 +2,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ActivityLog, Player } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { prettyDate, relativeTime } from '@/lib/format';
+import { SectionTag } from '@/components/section-tag';
+import { relativeTime } from '@/lib/format';
 
+/**
+ * ActivityLogTimeline — "THE LOG"
+ *
+ * A ruled timeline reading like a training-room notebook. Each row has
+ * a time-column, a kind pill, a player name, and the description.
+ * No card chrome — just hairlines and typography.
+ */
 export function ActivityLogTimeline({ teamId }: { teamId: number }) {
   const sb = useSupabase();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -25,38 +31,68 @@ export function ActivityLogTimeline({ teamId }: { teamId: number }) {
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="h-serif text-lg">Recent activity</CardTitle>
-        <CardDescription>Workouts &amp; rehabs the team has logged</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!logs.length ? (
-          <p className="text-sm italic text-muted-foreground">No activity logged yet.</p>
-        ) : (
-          <ul className="divide-y">
-            {logs.map((l) => {
-              const player = l.player_id ? byId.get(l.player_id) : null;
-              return (
-                <li key={l.id} className="flex items-start gap-3 py-2.5">
-                  <Badge variant={l.kind === 'workout' ? 'default' : 'secondary'} className="mt-0.5 shrink-0">
-                    {l.kind === 'workout' ? 'Workout' : 'Rehab'}
-                  </Badge>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-sm font-medium truncate">{player?.name ?? 'Unknown athlete'}</span>
-                      <span className="text-xs text-muted-foreground tabular shrink-0" title={prettyDate(l.logged_at)}>
-                        {relativeTime(l.logged_at)}
-                      </span>
-                    </div>
-                    <div className="text-sm text-muted-foreground leading-snug">{l.description}</div>
+    <div className="panel px-5 py-5">
+      <SectionTag code="05." name="The log" right={
+        <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+          RECENT {logs.length}
+        </span>
+      } />
+      <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
+        Workouts and rehabs, freshest first. Pulled from the reflect import + live texts.
+      </p>
+
+      {!logs.length ? (
+        <p className="mt-6 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+          — no logs recorded yet —
+        </p>
+      ) : (
+        <ul className="mt-4 divide-y divide-[color:var(--hairline)]/70">
+          {logs.map((l) => {
+            const player = l.player_id ? byId.get(l.player_id) : null;
+            const tone = l.kind === 'workout'
+              ? { color: 'hsl(162 62% 54%)', bg: 'hsl(162 40% 18% / 0.4)', border: 'hsl(162 40% 40%)' }
+              : { color: 'hsl(38 90% 62%)',  bg: 'hsl(38 60% 20% / 0.4)',  border: 'hsl(38 60% 40%)' };
+            return (
+              <li key={l.id} className="flex items-start gap-4 py-3">
+                <div className="shrink-0 w-[88px] text-right">
+                  <div className="mono text-[0.7rem] text-[color:var(--bone-soft)] tabular">
+                    {new Date(l.logged_at).toLocaleDateString(undefined, { month: 'short', day: '2-digit' })}
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+                  <div className="mono text-[0.6rem] text-[color:var(--bone-dim)] tabular">
+                    {relativeTime(l.logged_at)}
+                  </div>
+                </div>
+                <div className="shrink-0 w-px self-stretch bg-[color:var(--hairline)]" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className="mono px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] rounded-sm"
+                      style={{
+                        color: tone.color,
+                        background: tone.bg,
+                        border: `1px solid ${tone.border}`,
+                      }}
+                    >
+                      {l.kind}
+                    </span>
+                    <span className="text-sm font-semibold text-[color:var(--bone)]">
+                      {player?.name ?? 'Unknown athlete'}
+                    </span>
+                    {player?.group && (
+                      <span className="mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                        {player.group}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-sm leading-relaxed text-[color:var(--bone-soft)]">
+                    {l.description}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }

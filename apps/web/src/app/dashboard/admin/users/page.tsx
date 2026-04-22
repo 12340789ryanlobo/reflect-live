@@ -1,12 +1,17 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/dashboard-shell';
+import { SectionTag } from '@/components/section-tag';
+import { Stamp } from '@/components/stamp';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player } from '@reflect-live/shared';
-import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { prettyDate } from '@/lib/format';
 
 interface UserRow {
@@ -18,6 +23,13 @@ interface UserRow {
   impersonate_player_id: number | null;
   created_at: string;
 }
+
+const ROLE_TONE: Record<string, 'flag' | 'on' | 'watch' | 'live' | 'quiet'> = {
+  admin: 'flag',
+  coach: 'live',
+  captain: 'watch',
+  athlete: 'on',
+};
 
 export default function AdminUsersPage() {
   const sb = useSupabase();
@@ -37,7 +49,9 @@ export default function AdminUsersPage() {
     setPlayers((playerData ?? []) as Player[]);
     setLoading(false);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function setRole(id: string, role: string) {
     setBusyId(id);
@@ -79,54 +93,101 @@ export default function AdminUsersPage() {
 
   return (
     <>
-      <PageHeader title="Users & roles" subtitle={<Badge variant="destructive">Admin only</Badge>} />
-      <main className="flex flex-1 flex-col gap-6 p-6">
-        <p className="text-xs text-muted-foreground">
-          Roles take effect immediately. Users can&apos;t change their own role. Linking a user to a roster player gives them a personal &ldquo;My athlete view&rdquo; — useful when a coach is also a swimmer.
+      <PageHeader
+        code="A1"
+        eyebrow="Users & roles"
+        title="Users"
+        italic="& roles."
+        subtitle={`${rows.length} USERS · ${playersByTeam.size} TEAMS`}
+      />
+
+      <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
+        <p className="mono text-[0.72rem] leading-relaxed text-[color:var(--bone-mute)]">
+          Roles take effect immediately. Users can&rsquo;t change their own role. Linking a user
+          to a roster player gives them a personal &ldquo;your lane&rdquo; view — useful when a
+          coach is also a swimmer.
         </p>
-        <Card>
-          <CardContent className="px-0">
-            {loading ? <p className="p-6 text-sm italic text-muted-foreground">Loading…</p> : rows.length === 0 ? (
-              <p className="p-6 text-sm italic text-muted-foreground">No users yet.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Linked player</TableHead>
-                    <TableHead>Joined</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+
+        <section className="reveal reveal-1 panel overflow-hidden">
+          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+            <SectionTag code="A1·A" name="Users" />
+          </div>
+          {loading ? (
+            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+              — loading —
+            </p>
+          ) : rows.length === 0 ? (
+            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+              — no users yet —
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/40">
+                    <Th>Email</Th>
+                    <Th>Name</Th>
+                    <Th>Role</Th>
+                    <Th>Linked athlete</Th>
+                    <Th>Joined</Th>
+                  </tr>
+                </thead>
+                <tbody>
                   {rows.map((u) => {
                     const teamPlayers = playersByTeam.get(u.team_id) ?? [];
-                    const linked = u.impersonate_player_id ? playerById.get(u.impersonate_player_id) : null;
+                    const linked = u.impersonate_player_id
+                      ? playerById.get(u.impersonate_player_id)
+                      : null;
                     return (
-                      <TableRow key={u.clerk_user_id}>
-                        <TableCell className="font-mono text-xs">
-                          {u.email ?? <span className="text-muted-foreground italic">— (not loaded)</span>}
-                        </TableCell>
-                        <TableCell>{u.name ?? '—'}</TableCell>
-                        <TableCell>
-                          <Select value={u.role} onValueChange={(v) => setRole(u.clerk_user_id, v)} disabled={busyId === u.clerk_user_id}>
-                            <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="coach">Coach</SelectItem>
-                              <SelectItem value="captain">Captain</SelectItem>
-                              <SelectItem value="athlete">Athlete</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
+                      <tr
+                        key={u.clerk_user_id}
+                        className="border-b border-[color:var(--hairline)]/50"
+                      >
+                        <Td>
+                          {u.email ? (
+                            <span className="mono text-[0.72rem] text-[color:var(--bone-soft)]">
+                              {u.email}
+                            </span>
+                          ) : (
+                            <span className="mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                              — not loaded —
+                            </span>
+                          )}
+                        </Td>
+                        <Td>
+                          <span className="text-[color:var(--bone)]">{u.name ?? '—'}</span>
+                        </Td>
+                        <Td>
+                          <div className="flex items-center gap-2">
+                            <Stamp tone={ROLE_TONE[u.role] ?? 'quiet'}>{u.role}</Stamp>
+                            <Select
+                              value={u.role}
+                              onValueChange={(v) => setRole(u.clerk_user_id, v)}
+                              disabled={busyId === u.clerk_user_id}
+                            >
+                              <SelectTrigger className="w-28 h-8 mono text-[0.7rem] uppercase tracking-wider">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="coach">Coach</SelectItem>
+                                <SelectItem value="captain">Captain</SelectItem>
+                                <SelectItem value="athlete">Athlete</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </Td>
+                        <Td>
                           <Select
-                            value={u.impersonate_player_id ? String(u.impersonate_player_id) : '__none__'}
-                            onValueChange={(v) => setLinkedPlayer(u.clerk_user_id, v === '__none__' ? null : Number(v))}
+                            value={
+                              u.impersonate_player_id ? String(u.impersonate_player_id) : '__none__'
+                            }
+                            onValueChange={(v) =>
+                              setLinkedPlayer(u.clerk_user_id, v === '__none__' ? null : Number(v))
+                            }
                             disabled={busyId === u.clerk_user_id || teamPlayers.length === 0}
                           >
-                            <SelectTrigger className="w-56 h-8">
+                            <SelectTrigger className="w-56 h-8 mono text-[0.72rem]">
                               <SelectValue placeholder="— none —" />
                             </SelectTrigger>
                             <SelectContent>
@@ -138,18 +199,37 @@ export default function AdminUsersPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                          {linked && <div className="text-[10px] text-muted-foreground mt-1">linked to {linked.name}</div>}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground whitespace-nowrap">{prettyDate(u.created_at)}</TableCell>
-                      </TableRow>
+                          {linked && (
+                            <div className="mono text-[0.6rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)] mt-1">
+                              linked → {linked.name}
+                            </div>
+                          )}
+                        </Td>
+                        <Td>
+                          <span className="mono text-[0.7rem] text-[color:var(--bone-mute)] tabular whitespace-nowrap">
+                            {prettyDate(u.created_at)}
+                          </span>
+                        </Td>
+                      </tr>
                     );
                   })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </main>
     </>
   );
+}
+
+function Th({ children }: { children?: React.ReactNode }) {
+  return (
+    <th className="px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+      {children}
+    </th>
+  );
+}
+function Td({ children }: { children?: React.ReactNode }) {
+  return <td className="px-4 py-3 align-top">{children}</td>;
 }

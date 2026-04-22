@@ -3,28 +3,41 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
+import { SectionTag } from '@/components/section-tag';
+import { Stamp } from '@/components/stamp';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Team, UserPreferences, WorkerState, Player, UserRole } from '@reflect-live/shared';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Phone, CheckCircle2, AlertCircle } from 'lucide-react';
 import { relativeTime, prettyPhone } from '@/lib/format';
 
-const ROLE_OPTIONS: Array<{ value: UserRole; label: string; hint: string }> = [
-  { value: 'coach', label: 'Coach', hint: 'See the entire team — all groups, all players.' },
-  { value: 'captain', label: 'Captain', hint: 'See your group only (set default group below).' },
-  { value: 'athlete', label: 'Athlete', hint: 'See only your own data (pick a player to impersonate).' },
+const ROLE_OPTIONS: Array<{ value: UserRole; label: string; hint: string; tone: 'flag' | 'live' | 'watch' | 'on' }> = [
+  { value: 'coach',   label: 'Coach',   hint: 'See the entire team — all groups, all players.', tone: 'live' },
+  { value: 'captain', label: 'Captain', hint: 'See your group only (set default group below).',  tone: 'watch' },
+  { value: 'athlete', label: 'Athlete', hint: 'See only your own data (pick a player to impersonate).', tone: 'on' },
 ];
+
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+      {children}
+    </label>
+  );
+}
 
 export default function SettingsPage() {
   const { role: currentRole, refresh: refreshShell } = useDashboard();
   const sb = useSupabase();
   const { user } = useUser();
 
-  // Phone-OTP flow state
   const [phoneInput, setPhoneInput] = useState('');
   const [codeInput, setCodeInput] = useState('');
   const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
@@ -52,7 +65,14 @@ export default function SettingsPage() {
     setPrefs(p);
     setGroupFilter(p.group_filter ?? '');
     setRole((p.role as UserRole) ?? 'coach');
-    const [{ data: teamData }, { data: ws }, { count: pCount }, { count: mCount }, { count: aCount }, { data: ps }] = await Promise.all([
+    const [
+      { data: teamData },
+      { data: ws },
+      { count: pCount },
+      { count: mCount },
+      { count: aCount },
+      { data: ps },
+    ] = await Promise.all([
       sb.from('teams').select('*').eq('id', p.team_id).single(),
       sb.from('worker_state').select('*').eq('id', 1).maybeSingle(),
       sb.from('players').select('id', { count: 'exact', head: true }).eq('team_id', p.team_id),
@@ -70,7 +90,9 @@ export default function SettingsPage() {
     setGroups(Array.from(groupSet).sort());
   }
 
-  useEffect(() => { refresh(); }, [sb]);
+  useEffect(() => {
+    refresh();
+  }, [sb]);
 
   async function save() {
     if (!prefs) return;
@@ -83,7 +105,7 @@ export default function SettingsPage() {
         team_id: prefs.team_id,
         watchlist: prefs.watchlist,
         group_filter: groupFilter || null,
-        role: canEditRole ? role : (prefs.role ?? 'coach'),
+        role: canEditRole ? role : prefs.role ?? 'coach',
         impersonate_player_id: role === 'athlete' ? prefs.impersonate_player_id : null,
       }),
     });
@@ -142,7 +164,10 @@ export default function SettingsPage() {
       setOtpSentTo(json.phone);
       setOtpStep('code');
       const via = json.channel === 'whatsapp' ? 'WhatsApp' : 'SMS';
-      setOtpMessage({ tone: 'ok', text: `Code sent via ${via} to ${prettyPhone(json.phone)}. It expires in 10 minutes.` });
+      setOtpMessage({
+        tone: 'ok',
+        text: `Code sent via ${via} to ${prettyPhone(json.phone)}. It expires in 10 minutes.`,
+      });
     } else {
       setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Could not send code.' });
     }
@@ -159,7 +184,10 @@ export default function SettingsPage() {
     const json = await res.json();
     setOtpVerifying(false);
     if (res.ok && json.ok && json.linked) {
-      setOtpMessage({ tone: 'ok', text: `Linked to ${json.player.name}. You now have an athlete view in the sidebar.` });
+      setOtpMessage({
+        tone: 'ok',
+        text: `Linked to ${json.player.name}. You now have an athlete view in the sidebar.`,
+      });
       setOtpStep('phone');
       setCodeInput('');
       setPhoneInput('');
@@ -167,7 +195,10 @@ export default function SettingsPage() {
       await refresh();
       await refreshShell();
     } else if (res.ok && json.verified && !json.linked) {
-      setOtpMessage({ tone: 'err', text: json.message ?? 'Phone verified but not on the team roster. Ask the admin to add you.' });
+      setOtpMessage({
+        tone: 'err',
+        text: json.message ?? 'Phone verified but not on the team roster. Ask the admin to add you.',
+      });
     } else {
       setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Verification failed.' });
     }
@@ -175,132 +206,190 @@ export default function SettingsPage() {
 
   const lastTwilio = state?.last_twilio_poll_at ? new Date(state.last_twilio_poll_at) : null;
   const lastWeather = state?.last_weather_poll_at ? new Date(state.last_weather_poll_at) : null;
-  const impersonatedPlayer = prefs?.impersonate_player_id ? allPlayers.find((p) => p.id === prefs.impersonate_player_id) : null;
+  const impersonatedPlayer = prefs?.impersonate_player_id
+    ? allPlayers.find((p) => p.id === prefs.impersonate_player_id)
+    : null;
 
   return (
     <>
-      <PageHeader title="Settings" />
-      <main className="flex flex-1 flex-col gap-6 p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="h-serif text-lg">Role / view</CardTitle>
-            <CardDescription>
-              {canEditRole
-                ? 'As an admin, you can try each view to see what other users will see.'
-                : `Your view is set to ${currentRole.charAt(0).toUpperCase() + currentRole.slice(1)}. Contact the team admin to change how this page shows up.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {canEditRole ? (
-              <div className="grid gap-3 md:grid-cols-3">
-                {ROLE_OPTIONS.map((opt) => {
-                  const active = role === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setRole(opt.value)}
-                      className={`flex flex-col items-start gap-1 rounded-md border px-4 py-3 text-left transition ${active ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={`size-3.5 rounded-full border ${active ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`} />
-                        <strong>{opt.label}</strong>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{opt.hint}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-md border px-4 py-3">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Current role</div>
-                <div className="mt-1 flex items-center gap-2">
-                  <Badge variant="default" className="capitalize">{currentRole}</Badge>
-                  <span className="text-xs text-muted-foreground">Contact the team admin to change your role.</span>
+      <PageHeader
+        code="SET"
+        eyebrow="Settings"
+        title="Settings"
+        subtitle="PROFILE · PREFERENCES · TELEMETRY"
+      />
+
+      <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
+        {/* Role */}
+        <section className="reveal reveal-1 panel p-5">
+          <SectionTag
+            code="S1"
+            name="Role / view"
+            right={<Stamp tone={ROLE_OPTIONS.find((r) => r.value === currentRole)?.tone ?? 'on'}>{currentRole}</Stamp>}
+          />
+          <p className="mt-2 text-sm text-[color:var(--bone-soft)] leading-relaxed">
+            {canEditRole
+              ? 'As an admin, you can try each view to see what other users will see.'
+              : `Your view is set to ${currentRole}. Contact the team admin to change how the page shows up.`}
+          </p>
+
+          {canEditRole ? (
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {ROLE_OPTIONS.map((opt) => {
+                const active = role === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setRole(opt.value)}
+                    className={`flex flex-col gap-2 rounded-sm border px-4 py-3 text-left transition ${
+                      active
+                        ? 'border-[color:var(--signal)] bg-[color:var(--signal-ghost)]'
+                        : 'border-[color:var(--hairline)] hover:border-[color:var(--signal)]/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`size-3 rounded-full border ${active ? 'border-[color:var(--signal)] bg-[color:var(--signal)]' : 'border-[color:var(--bone-dim)]'}`}
+                      />
+                      <span className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--bone)]">
+                        {opt.label}
+                      </span>
+                    </div>
+                    <span className="text-xs text-[color:var(--bone-mute)]">{opt.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {canEditRole && role === 'athlete' && (
+            <div className="mt-5 space-y-2">
+              <Label>Impersonate athlete</Label>
+              <Select
+                value={prefs?.impersonate_player_id ? String(prefs.impersonate_player_id) : ''}
+                onValueChange={(v) => setAthlete(v ? Number(v) : null)}
+              >
+                <SelectTrigger className="w-[280px] h-9">
+                  <SelectValue placeholder="— select an athlete —" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allPlayers.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name} ({p.group ?? 'no group'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {impersonatedPlayer && (
+                <div className="mono text-[0.72rem] text-[color:var(--bone-mute)]">
+                  simulating <strong className="text-[color:var(--bone)]">{impersonatedPlayer.name}</strong>.{' '}
+                  <Link
+                    href="/dashboard/athlete"
+                    className="text-[color:var(--signal)] hover:underline underline-offset-4"
+                  >
+                    open your lane →
+                  </Link>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          )}
+        </section>
 
-            {canEditRole && role === 'athlete' && (
-              <div className="space-y-1.5">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Impersonate player</div>
-                <Select
-                  value={prefs?.impersonate_player_id ? String(prefs.impersonate_player_id) : ''}
-                  onValueChange={(v) => setAthlete(v ? Number(v) : null)}
-                >
-                  <SelectTrigger className="w-[280px]"><SelectValue placeholder="— select a player —" /></SelectTrigger>
-                  <SelectContent>
-                    {allPlayers.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.name} ({p.group ?? 'no group'})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {impersonatedPlayer && (
-                  <div className="text-xs text-muted-foreground">
-                    Currently impersonating <strong>{impersonatedPlayer.name}</strong>.{' '}
-                    <Link href="/dashboard/athlete" className="text-primary underline underline-offset-4">Open athlete view</Link>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Phone link */}
+        <section className="reveal reveal-2 panel p-5">
+          <SectionTag
+            code="S2"
+            name="Link your phone to the roster"
+            right={<Phone className="size-4 text-[color:var(--signal)]" />}
+          />
+          <p className="mt-2 text-sm text-[color:var(--bone-soft)] leading-relaxed">
+            If you&rsquo;re also an athlete, verify your number and we&rsquo;ll link it to your roster
+            entry. You keep your current role and gain a personal &ldquo;your lane&rdquo; view.
+          </p>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="h-serif text-lg flex items-center gap-2">
-              <Phone className="size-4 text-primary" />
-              Link your phone to the roster
-            </CardTitle>
-            <CardDescription>
-              If you&apos;re also a swimmer, verify your phone number and we&apos;ll link it to your roster entry. You keep your current role (e.g. admin) and gain a personal athlete view.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <div className="mt-5 space-y-4">
             {impersonatedPlayer && (
-              <div className="rounded-md border border-[hsl(145_55%_32%)]/30 bg-[hsl(145_55%_32%)]/5 px-3 py-2 text-sm">
-                <CheckCircle2 className="inline size-4 text-[hsl(145_55%_32%)] align-[-2px] mr-1" />
-                Currently linked to <strong>{impersonatedPlayer.name}</strong>
-                {impersonatedPlayer.group && <span className="text-muted-foreground"> · {impersonatedPlayer.group}</span>}.{' '}
-                <Link href="/dashboard/athlete" className="text-primary underline underline-offset-4">Open athlete view</Link>
+              <div
+                className="flex items-start gap-3 rounded-sm border px-4 py-3 text-sm"
+                style={{
+                  borderColor: 'hsl(162 40% 40%)',
+                  background: 'hsl(162 40% 18% / 0.3)',
+                }}
+              >
+                <CheckCircle2 className="size-4 text-[color:var(--chlorine)] mt-0.5 shrink-0" />
+                <div>
+                  Currently linked to <strong>{impersonatedPlayer.name}</strong>
+                  {impersonatedPlayer.group && (
+                    <span className="text-[color:var(--bone-mute)]"> · {impersonatedPlayer.group}</span>
+                  )}
+                  .{' '}
+                  <Link
+                    href="/dashboard/athlete"
+                    className="text-[color:var(--signal)] hover:underline underline-offset-4"
+                  >
+                    open your lane →
+                  </Link>
+                </div>
               </div>
             )}
 
             {otpStep === 'phone' ? (
               <div className="space-y-2">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Phone number</div>
+                <Label>Phone number</Label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Input
                     value={phoneInput}
                     onChange={(e) => setPhoneInput(e.target.value)}
                     placeholder="+1 (321) 406-2958"
-                    className="max-w-xs"
+                    className="mono max-w-xs"
                   />
-                  <Button onClick={requestOtp} disabled={otpSending || !phoneInput.trim()}>
+                  <Button
+                    onClick={requestOtp}
+                    disabled={otpSending || !phoneInput.trim()}
+                    className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em]"
+                  >
                     {otpSending ? 'Sending…' : 'Send code'}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Include your country code (<span className="font-mono">+1</span>, <span className="font-mono">+61</span>, etc.). We SMS a 6-digit code via the team&apos;s Twilio number.
+                <p className="mono text-[0.68rem] text-[color:var(--bone-mute)] leading-relaxed">
+                  Include your country code (+1, +61, etc.). We SMS a 6-digit code via the team&rsquo;s
+                  Twilio number.
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Code sent to <span className="font-mono text-foreground">{otpSentTo ? prettyPhone(otpSentTo) : '—'}</span>
-                </div>
+                <Label>
+                  CODE SENT TO{' '}
+                  <span className="text-[color:var(--bone)]">
+                    {otpSentTo ? prettyPhone(otpSentTo) : '—'}
+                  </span>
+                </Label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Input
                     value={codeInput}
                     onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="123456"
                     maxLength={6}
-                    className="max-w-[140px] font-mono tabular text-center text-lg tracking-[0.3em]"
+                    className="mono max-w-[140px] text-center text-lg tracking-[0.3em]"
                   />
-                  <Button onClick={verifyOtp} disabled={otpVerifying || codeInput.length !== 6}>
+                  <Button
+                    onClick={verifyOtp}
+                    disabled={otpVerifying || codeInput.length !== 6}
+                    className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em]"
+                  >
                     {otpVerifying ? 'Verifying…' : 'Verify & link'}
                   </Button>
-                  <Button variant="ghost" onClick={() => { setOtpStep('phone'); setCodeInput(''); setOtpSentTo(null); setOtpMessage(null); }}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setOtpStep('phone');
+                      setCodeInput('');
+                      setOtpSentTo(null);
+                      setOtpMessage(null);
+                    }}
+                    className="mono text-[0.7rem] uppercase tracking-[0.18em]"
+                  >
                     Change phone
                   </Button>
                 </div>
@@ -308,104 +397,194 @@ export default function SettingsPage() {
             )}
 
             {otpMessage && (
-              <div className={`rounded-md border px-3 py-2 text-sm ${otpMessage.tone === 'ok'
-                  ? 'border-[hsl(145_55%_32%)]/30 bg-[hsl(145_55%_32%)]/5'
-                  : 'border-destructive/30 bg-destructive/5'}`}>
-                {otpMessage.tone === 'ok'
-                  ? <CheckCircle2 className="inline size-4 text-[hsl(145_55%_32%)] align-[-2px] mr-1" />
-                  : <AlertCircle className="inline size-4 text-destructive align-[-2px] mr-1" />}
+              <div
+                className="flex items-start gap-2 rounded-sm border px-3 py-2 text-sm"
+                style={{
+                  borderColor: otpMessage.tone === 'ok' ? 'hsl(162 40% 40%)' : 'hsl(356 60% 42%)',
+                  background: otpMessage.tone === 'ok' ? 'hsl(162 40% 18% / 0.3)' : 'hsl(356 60% 22% / 0.3)',
+                }}
+              >
+                {otpMessage.tone === 'ok' ? (
+                  <CheckCircle2 className="size-4 text-[color:var(--chlorine)] mt-0.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="size-4 text-[color:var(--siren)] mt-0.5 shrink-0" />
+                )}
                 {otpMessage.text}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="h-serif text-lg">Preferences</CardTitle>
-              <CardDescription>Default group filter + watchlist</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        {/* Prefs + account */}
+        <section className="reveal reveal-3 grid gap-6 lg:grid-cols-2">
+          <div className="panel p-5">
+            <SectionTag code="S3" name="Preferences" />
+            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
+              Default group filter + watchlist management.
+            </p>
+            <div className="mt-5 space-y-4">
               <div className="space-y-1.5">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Default group filter</div>
-                <Select value={groupFilter || 'all'} onValueChange={(v) => setGroupFilter(v === 'all' ? '' : v)}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <Label>Default group filter</Label>
+                <Select
+                  value={groupFilter || 'all'}
+                  onValueChange={(v) => setGroupFilter(v === 'all' ? '' : v)}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All groups</SelectItem>
-                    {groups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                    {groups.map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {g}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <div className="text-xs text-muted-foreground">Applies to the dashboard when your role is Captain, or always if you pick one as a Coach.</div>
+                <p className="mono text-[0.66rem] text-[color:var(--bone-mute)]">
+                  Applies when your role is captain, or always if you pick one as coach.
+                </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save preferences'}</Button>
-                <Button variant="outline" onClick={resetWatchlist}>Reset watchlist ({prefs?.watchlist.length ?? 0})</Button>
-                {status && <span className="text-xs text-muted-foreground">{status}</span>}
+                <Button
+                  onClick={save}
+                  disabled={saving}
+                  className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em]"
+                >
+                  {saving ? 'Saving…' : 'Save preferences'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={resetWatchlist}
+                  className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em]"
+                >
+                  Reset watchlist ({prefs?.watchlist.length ?? 0})
+                </Button>
+                {status && (
+                  <span className="mono text-[0.68rem] uppercase tracking-[0.2em] text-[color:var(--bone-mute)]">
+                    {status}
+                  </span>
+                )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="h-serif text-lg">Account</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-[minmax(100px,1fr)_2fr] gap-y-2 gap-x-4 text-sm">
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Email</dt>
-                <dd>{user?.primaryEmailAddress?.emailAddress ?? '—'}</dd>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Name</dt>
-                <dd>{user?.fullName ?? '—'}</dd>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Team</dt>
-                <dd>{team?.name ?? '—'} <span className="text-muted-foreground">({team?.code ?? '—'})</span></dd>
-                <dt className="text-xs uppercase tracking-wider text-muted-foreground">Role</dt>
-                <dd><Badge variant="default" className="capitalize">{currentRole}</Badge></dd>
-              </dl>
-              {canEditRole && (
-                <details className="mt-4 text-xs">
-                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Developer details</summary>
-                  <dl className="mt-2 grid grid-cols-[minmax(100px,1fr)_2fr] gap-y-2 gap-x-4">
-                    <dt className="text-xs uppercase tracking-wider text-muted-foreground">Clerk ID</dt>
-                    <dd className="font-mono text-xs text-muted-foreground break-all">{prefs?.clerk_user_id ?? '—'}</dd>
-                  </dl>
-                </details>
+          <div className="panel p-5">
+            <SectionTag code="S4" name="Account" />
+            <dl className="mt-5 grid grid-cols-[100px_1fr] gap-y-2 gap-x-4 text-sm">
+              <Dt>Email</Dt>
+              <Dd mono>{user?.primaryEmailAddress?.emailAddress ?? '—'}</Dd>
+              <Dt>Name</Dt>
+              <Dd>{user?.fullName ?? '—'}</Dd>
+              <Dt>Team</Dt>
+              <Dd>
+                {team?.name ?? '—'}{' '}
+                <span className="text-[color:var(--bone-mute)] mono">({team?.code ?? '—'})</span>
+              </Dd>
+              <Dt>Role</Dt>
+              <Dd>
+                <Stamp tone={ROLE_OPTIONS.find((r) => r.value === currentRole)?.tone ?? 'on'}>
+                  {currentRole}
+                </Stamp>
+              </Dd>
+            </dl>
+            {canEditRole && (
+              <details className="mt-5 text-xs">
+                <summary className="cursor-pointer mono uppercase tracking-[0.2em] text-[0.66rem] text-[color:var(--bone-mute)] hover:text-[color:var(--bone)]">
+                  Developer details
+                </summary>
+                <dl className="mt-2 grid grid-cols-[100px_1fr] gap-y-2 gap-x-4">
+                  <Dt>Clerk ID</Dt>
+                  <Dd mono>
+                    <span className="text-[color:var(--bone-mute)] break-all">
+                      {prefs?.clerk_user_id ?? '—'}
+                    </span>
+                  </Dd>
+                </dl>
+              </details>
+            )}
+          </div>
+        </section>
+
+        {/* Database + worker */}
+        <section className="reveal reveal-4 grid gap-6 lg:grid-cols-2">
+          <div className="panel p-5">
+            <SectionTag code="S5" name="Database" />
+            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">Records scoped to your team.</p>
+            <ul className="mt-4 space-y-2">
+              <KV label="Athletes" value={stats?.players ?? 0} tone="heritage" />
+              <KV label="Messages indexed" value={stats?.messages ?? 0} tone="signal" />
+              <KV label="Activity log entries" value={stats?.activity ?? 0} tone="chlorine" />
+            </ul>
+          </div>
+          <div className="panel p-5">
+            <SectionTag code="S6" name="Worker health" />
+            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">Last polls and error state.</p>
+            <ul className="mt-4 space-y-2">
+              <KV label="Twilio poll" value={relativeTime(lastTwilio)} mono />
+              <KV label="Weather poll" value={relativeTime(lastWeather)} mono />
+              <KV
+                label="Consecutive errors"
+                value={state?.consecutive_errors ?? 0}
+                tone={(state?.consecutive_errors ?? 0) > 0 ? 'siren' : 'chlorine'}
+              />
+              <KV label="Backfill" value={state?.backfill_complete ? 'complete' : 'in progress'} mono />
+              {state?.last_error && (
+                <li className="mono text-[0.68rem] text-[color:var(--siren)] leading-snug mt-2">
+                  <span className="text-[color:var(--bone-dim)] uppercase tracking-[0.16em]">Last error: </span>
+                  {state.last_error}
+                </li>
               )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="h-serif text-lg">Database</CardTitle>
-              <CardDescription>Records scoped to your team</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-sm space-y-1.5">
-                <li><strong>{stats?.players ?? 0}</strong> <span className="text-muted-foreground">players</span></li>
-                <li><strong>{stats?.messages ?? 0}</strong> <span className="text-muted-foreground">messages indexed</span></li>
-                <li><strong>{stats?.activity ?? 0}</strong> <span className="text-muted-foreground">activity log entries</span></li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="h-serif text-lg">Worker health</CardTitle>
-              <CardDescription>Last polls + error state</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-sm space-y-1.5">
-                <li>Twilio poll: <strong>{relativeTime(lastTwilio)}</strong></li>
-                <li>Weather poll: <strong>{relativeTime(lastWeather)}</strong></li>
-                <li>Consecutive errors: <strong>{state?.consecutive_errors ?? 0}</strong></li>
-                <li>Backfill complete: <strong>{state?.backfill_complete ? 'yes' : 'no'}</strong></li>
-                {state?.last_error && <li className="text-xs">Last error: <code>{state.last_error}</code></li>}
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
+            </ul>
+          </div>
+        </section>
       </main>
     </>
+  );
+}
+
+function Dt({ children }: { children: React.ReactNode }) {
+  return (
+    <dt className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)] py-1">
+      {children}
+    </dt>
+  );
+}
+function Dd({ children, mono }: { children: React.ReactNode; mono?: boolean }) {
+  return (
+    <dd className={`py-1 text-[color:var(--bone)] ${mono ? 'mono text-xs' : ''}`}>{children}</dd>
+  );
+}
+function KV({
+  label,
+  value,
+  mono,
+  tone,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+  tone?: 'heritage' | 'signal' | 'chlorine' | 'siren';
+}) {
+  const color = tone
+    ? {
+        heritage: 'hsl(358 78% 58%)',
+        signal: 'hsl(188 82% 58%)',
+        chlorine: 'hsl(162 62% 54%)',
+        siren: 'hsl(356 82% 62%)',
+      }[tone]
+    : 'var(--bone)';
+  return (
+    <li className="flex items-baseline justify-between gap-3 border-b border-dashed border-[color:var(--hairline)] pb-2 last:border-0 last:pb-0">
+      <span className="mono text-[0.66rem] uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+        {label}
+      </span>
+      <span
+        className={`${mono ? 'mono' : 'num-display'} text-sm font-semibold tabular`}
+        style={{ color }}
+      >
+        {value}
+      </span>
+    </li>
   );
 }

@@ -24,8 +24,9 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata = {
-  title: 'reflect-live · UChicago Swim & Dive',
-  description: 'Real-time team pulse for UChicago Swim & Dive coaches.',
+  title: 'reflect·live · the team pulse, live',
+  description:
+    'Broadcast-grade coach instrument panel. Every message, every workout, every signal — the second it fires.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -33,7 +34,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <ClerkProvider>
       <html
         lang="en"
-        className={`${fraunces.variable} ${instrument.variable} ${jetbrains.variable}`}
+        className={`dark ${fraunces.variable} ${instrument.variable} ${jetbrains.variable}`}
+        suppressHydrationWarning
       >
         <body className="grain">
           <TooltipProvider delayDuration={120}>{children}</TooltipProvider>

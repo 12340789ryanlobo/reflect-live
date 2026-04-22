@@ -2,18 +2,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { Metric } from '@/components/metric-card';
+import { StatReadout } from '@/components/stat-readout';
+import { ReadinessDial } from '@/components/readiness-dial';
+import { SectionTag } from '@/components/section-tag';
+import { Stamp } from '@/components/stamp';
 import { WeatherGrid } from '@/components/weather-grid';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, Location } from '@reflect-live/shared';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { bucketize } from '@/components/sparkline';
 import { relativeTime, prettyDate } from '@/lib/format';
-import { Users, TrendingUp, Heart, Flag, AlertCircle } from 'lucide-react';
 
-function initials(n: string) { return n.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase(); }
+function initials(n: string) {
+  return n.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+}
 
 export default function CaptainHome() {
   const { prefs, team } = useDashboard();
@@ -21,19 +22,38 @@ export default function CaptainHome() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [lastInbound, setLastInbound] = useState<Map<number, string>>(new Map());
   const [spark, setSpark] = useState<number[]>([]);
-  const [agg, setAgg] = useState({ checkedIn: 0, pending: 0, responseRate: 0, avgReadiness: null as number | null, flags: 0, activeCount: 0 });
+  const [agg, setAgg] = useState({
+    checkedIn: 0,
+    pending: 0,
+    responseRate: 0,
+    avgReadiness: null as number | null,
+    flags: 0,
+    activeCount: 0,
+    surveyCount: 0,
+  });
   const [meets, setMeets] = useState<Array<Location & { daysUntil: number }>>([]);
 
   useEffect(() => {
     (async () => {
       const [{ data: ps }, { data: msgs }, { data: locs }] = await Promise.all([
         sb.from('players').select('*').eq('team_id', prefs.team_id).eq('active', true),
-        sb.from('twilio_messages').select('player_id,direction,category,body,date_sent').eq('team_id', prefs.team_id).gte('date_sent', new Date(Date.now() - 7 * 86400000).toISOString()),
+        sb
+          .from('twilio_messages')
+          .select('player_id,direction,category,body,date_sent')
+          .eq('team_id', prefs.team_id)
+          .gte('date_sent', new Date(Date.now() - 7 * 86400000).toISOString()),
         sb.from('locations').select('*').eq('team_id', prefs.team_id),
       ]);
       const playerList = (ps ?? []) as Player[];
       setPlayers(playerList);
-      const m = (msgs ?? []) as Array<{ player_id: number | null; direction: string; category: string; body: string | null; date_sent: string }>;
+      const m =
+        (msgs ?? []) as Array<{
+          player_id: number | null;
+          direction: string;
+          category: string;
+          body: string | null;
+          date_sent: string;
+        }>;
 
       const last = new Map<number, string>();
       for (const row of m) {
@@ -57,16 +77,23 @@ export default function CaptainHome() {
         const n = Number(mm[1]);
         if (n >= 1 && n <= 10) readings.push(n);
       }
-      const avg = readings.length ? Math.round((readings.reduce((a, b) => a + b, 0) / readings.length) * 10) / 10 : null;
+      const avg = readings.length
+        ? Math.round((readings.reduce((a, b) => a + b, 0) / readings.length) * 10) / 10
+        : null;
       const flags = readings.filter((n) => n <= 4).length;
 
-      setAgg({ checkedIn, pending, responseRate: responseRate7d, avgReadiness: avg, flags, activeCount });
+      setAgg({ checkedIn, pending, responseRate: responseRate7d, avgReadiness: avg, flags, activeCount, surveyCount: readings.length });
 
-      setSpark(bucketize(m.filter((r) => r.direction === 'inbound').map((r) => r.date_sent), 24, 86400000));
+      setSpark(
+        bucketize(m.filter((r) => r.direction === 'inbound').map((r) => r.date_sent), 24, 86400000),
+      );
 
       const upcoming = (locs ?? [])
         .filter((l: Location) => l.kind === 'meet' && l.event_date)
-        .map((l: Location) => ({ ...l, daysUntil: Math.round((new Date(l.event_date!).getTime() - Date.now()) / 86400000) }))
+        .map((l: Location) => ({
+          ...l,
+          daysUntil: Math.round((new Date(l.event_date!).getTime() - Date.now()) / 86400000),
+        }))
         .filter((l) => l.daysUntil >= 0)
         .sort((a, b) => a.daysUntil - b.daysUntil)
         .slice(0, 3);
@@ -76,7 +103,7 @@ export default function CaptainHome() {
 
   const overdue = players
     .map((p) => ({ p, ts: lastInbound.get(p.id) ?? null }))
-    .filter(({ ts }) => !ts || (Date.now() - new Date(ts).getTime()) > 86400000)
+    .filter(({ ts }) => !ts || Date.now() - new Date(ts).getTime() > 86400000)
     .sort((a, b) => {
       const ta = a.ts ? new Date(a.ts).getTime() : 0;
       const tb = b.ts ? new Date(b.ts).getTime() : 0;
@@ -85,78 +112,161 @@ export default function CaptainHome() {
 
   return (
     <>
-      <PageHeader title="Team pulse" subtitle={team.name} right={<Badge variant="secondary">Captain view</Badge>} />
-      <main className="flex flex-1 flex-col gap-6 p-6">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <Metric label="Checked in today" value={`${agg.checkedIn}/${agg.activeCount}`} sub="active players" spark={spark} tone="success" icon={<Users className="size-4" />} />
-          <Metric label="Still pending" value={agg.pending} sub="haven't replied today" tone={agg.pending > 0 ? 'warning' : 'default'} icon={<AlertCircle className="size-4" />} />
-          <Metric label="Response rate" value={`${agg.responseRate}%`} sub="last 7 days" tone={agg.responseRate >= 70 ? 'success' : 'warning'} icon={<TrendingUp className="size-4" />} />
-          <Metric label="Avg readiness" value={agg.avgReadiness ?? '—'} sub={agg.avgReadiness !== null ? 'team average · last 7d' : 'no surveys'} icon={<Heart className="size-4" />} />
-          <Metric label="Flags" value={agg.flags} sub="low readiness reports · 7d" tone={agg.flags > 0 ? 'danger' : 'default'} icon={<Flag className="size-4" />} />
-        </div>
+      <PageHeader
+        code="CAP·00"
+        eyebrow="Captain pulse"
+        title="Team"
+        italic="pulse."
+        subtitle={`${team.name.toUpperCase()} · CAPTAIN VIEW`}
+        live
+      />
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div>
-                <CardTitle className="h-serif text-lg">Who to follow up with</CardTitle>
-                <CardDescription>
-                  {overdue.length} active {overdue.length === 1 ? "player hasn't" : "players haven't"} replied in the last 24 hours
-                </CardDescription>
-              </div>
-              {overdue.length > 0 && <Link href="/dashboard/captain/follow-ups" className="text-xs text-primary underline underline-offset-4">Full list →</Link>}
+      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
+        {/* Top strip with dial */}
+        <section className="reveal reveal-1 grid gap-6 lg:grid-cols-12">
+          <div className="panel flex flex-col items-center justify-center gap-4 p-6 lg:col-span-4">
+            <SectionTag code="HERO" name="Team readiness · 7d" className="w-full" />
+            <ReadinessDial
+              value={agg.avgReadiness}
+              responses={agg.surveyCount}
+              flagged={agg.flags}
+              size={260}
+              label="Readiness"
+              sublabel={agg.surveyCount > 0 ? `${agg.surveyCount} RESPONSES · 7D` : 'NO SURVEYS YET'}
+            />
+          </div>
+          <div className="panel lg:col-span-8">
+            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+              <SectionTag code="CAP·A" name="Check-in telemetry" />
             </div>
-          </CardHeader>
-          <CardContent>
-            {overdue.length === 0 ? (
-              <p className="text-sm italic text-muted-foreground">Everyone checked in recently. Nice.</p>
-            ) : (
-              <ul className="grid gap-2 md:grid-cols-2">
-                {overdue.slice(0, 10).map(({ p, ts }) => (
-                  <li key={p.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
-                    <Avatar className="size-8 shrink-0">
-                      <AvatarFallback className="text-[10px] font-medium">{initials(p.name)}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{p.name}</div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {p.group ?? 'No group'} · {ts ? `last reply ${relativeTime(ts)}` : 'no messages yet'}
-                      </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
+              <StatReadout
+                label="Checked in today"
+                value={`${agg.checkedIn}/${agg.activeCount}`}
+                sub="ACTIVE ROSTER"
+                spark={spark}
+                tone="chlorine"
+              />
+              <StatReadout
+                label="Still pending"
+                value={agg.pending}
+                sub="NO REPLY TODAY"
+                tone={agg.pending > 0 ? 'amber' : 'default'}
+              />
+              <StatReadout
+                label="Response rate"
+                value={`${agg.responseRate}%`}
+                sub="LAST 7D"
+                tone={agg.responseRate >= 70 ? 'chlorine' : 'amber'}
+              />
+              <StatReadout
+                label="Flags"
+                value={agg.flags}
+                sub="READINESS ≤ 4"
+                tone={agg.flags > 0 ? 'siren' : 'default'}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Follow-ups */}
+        <section className="reveal reveal-2 panel">
+          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+            <SectionTag
+              code="CAP·B"
+              name="Who to follow up with"
+              right={
+                overdue.length > 0 && (
+                  <Link
+                    href="/dashboard/captain/follow-ups"
+                    className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--signal)] hover:text-[color:var(--bone)] transition"
+                  >
+                    FULL LIST →
+                  </Link>
+                )
+              }
+            />
+            <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
+              {overdue.length === 0
+                ? 'Everyone is on the wire.'
+                : `${overdue.length} ${overdue.length === 1 ? "athlete hasn't" : "athletes haven't"} replied in 24 hours.`}
+            </p>
+          </div>
+          {overdue.length === 0 ? (
+            <p className="px-6 py-10 text-center mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+              — everyone checked in. Nice. —
+            </p>
+          ) : (
+            <ul className="grid gap-0 md:grid-cols-2">
+              {overdue.slice(0, 10).map(({ p, ts }, i) => (
+                <li
+                  key={p.id}
+                  className={`flex items-center gap-3 border-b border-[color:var(--hairline)]/60 px-5 py-3 ${
+                    i % 2 === 0 ? 'md:border-r md:border-[color:var(--hairline)]/60' : ''
+                  }`}
+                >
+                  <span className="grid size-8 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)] text-[0.66rem] font-semibold shrink-0">
+                    {initials(p.name)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-[color:var(--bone)]">
+                      {p.name}
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="h-serif text-lg">Weather at your venues</CardTitle>
-            <CardDescription>Training pool + upcoming meets</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WeatherGrid teamId={prefs.team_id} />
-          </CardContent>
-        </Card>
-
-        {meets.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="h-serif text-lg">Next meets</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 md:grid-cols-3">
-                {meets.map((m) => (
-                  <div key={m.id} className="rounded-lg border p-4">
-                    <div className="text-sm font-medium">{m.name}</div>
-                    <div className="h-serif text-3xl font-semibold mt-1 tabular">{m.daysUntil}d</div>
-                    <div className="text-xs text-muted-foreground">until {prettyDate(m.event_date!)}</div>
+                    <div className="mono truncate text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                      {p.group ?? 'no group'} · {ts ? `last reply ${relativeTime(ts)}` : 'never'}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  <Stamp tone={ts ? 'watch' : 'quiet'}>{ts ? 'watch' : 'silent'}</Stamp>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Weather */}
+        <section className="reveal reveal-3 panel p-5">
+          <SectionTag
+            code="CAP·C"
+            name="Venue stations"
+            live
+            right={
+              <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+                POLL EVERY 10M
+              </span>
+            }
+          />
+          <p className="mt-2 mb-5 text-xs text-[color:var(--bone-mute)]">
+            Training pool + the upcoming meets on your calendar.
+          </p>
+          <WeatherGrid teamId={prefs.team_id} />
+        </section>
+
+        {/* Next meets */}
+        {meets.length > 0 && (
+          <section className="reveal reveal-4 panel">
+            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
+              <SectionTag code="CAP·D" name="Next meets" />
+            </div>
+            <div className="grid gap-0 md:grid-cols-3">
+              {meets.map((m, i) => (
+                <div
+                  key={m.id}
+                  className={`p-5 ${i < meets.length - 1 ? 'border-r border-[color:var(--hairline)]' : ''}`}
+                >
+                  <div className="text-sm font-semibold text-[color:var(--bone)]">{m.name}</div>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="num-display text-[2.2rem] leading-none tabular">
+                      {m.daysUntil}
+                    </span>
+                    <span className="mono text-xs text-[color:var(--bone-mute)]">d</span>
+                  </div>
+                  <div className="mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                    UNTIL {prettyDate(m.event_date!).toUpperCase()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
       </main>
     </>

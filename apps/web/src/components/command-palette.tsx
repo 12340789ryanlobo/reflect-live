@@ -46,7 +46,11 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
 
   useEffect(() => {
     (async () => {
-      const { data } = await sb.from('players').select('id,name,group,phone_e164').eq('team_id', teamId).order('name');
+      const { data } = await sb
+        .from('players')
+        .select('id,name,group,phone_e164')
+        .eq('team_id', teamId)
+        .order('name');
       if (data) setPlayers(data as Player[]);
     })();
   }, [sb, teamId]);
@@ -58,31 +62,33 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a player name or jump to a page…" />
+      <CommandInput placeholder="Jump to a page or search the roster…" />
       <CommandList>
-        <CommandEmpty>No results.</CommandEmpty>
+        <CommandEmpty className="px-4 py-6 text-sm mono text-[color:var(--bone-mute)]">
+          — no matches —
+        </CommandEmpty>
         <CommandGroup heading="Navigate">
           <CommandItem onSelect={() => go('/dashboard')}>
             <LayoutDashboard />
-            <span>Dashboard</span>
-            <CommandShortcut>G D</CommandShortcut>
+            <span>Control room</span>
+            <CommandShortcut>⌘D</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/players')}>
             <Users />
-            <span>Players</span>
-            <CommandShortcut>G P</CommandShortcut>
+            <span>The roster</span>
+            <CommandShortcut>⌘R</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/fitness')}>
             <Dumbbell />
-            <span>Fitness</span>
+            <span>The log</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/events')}>
             <Calendar />
-            <span>Events</span>
+            <span>The calendar</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/athlete')}>
             <UserIcon />
-            <span>Athlete view</span>
+            <span>Your lane</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/settings')}>
             <Settings />
@@ -104,7 +110,7 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
               </CommandItem>
               <CommandItem onSelect={() => go('/dashboard/admin/system')}>
                 <Activity />
-                <span>System</span>
+                <span>System telemetry</span>
               </CommandItem>
               <CommandItem onSelect={() => go('/dashboard/admin/database')}>
                 <Database />
@@ -117,7 +123,7 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
         {players.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Players">
+            <CommandGroup heading="Roster">
               {players.map((p) => (
                 <CommandItem
                   key={p.id}
@@ -126,7 +132,11 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
                 >
                   <Star className="opacity-70" />
                   <span>{p.name}</span>
-                  {p.group && <span className="ml-auto text-xs text-muted-foreground">{p.group}</span>}
+                  {p.group && (
+                    <span className="ml-auto mono text-[0.7rem] uppercase tracking-wider text-[color:var(--bone-mute)]">
+                      {p.group}
+                    </span>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>

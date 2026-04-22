@@ -83,7 +83,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <SidebarProvider>
         <AppSidebar role="coach" />
         <SidebarInset>
-          <header className="flex h-14 items-center gap-2 border-b px-4">
+          <header className="flex h-16 items-center gap-2 border-b border-[color:var(--hairline)] px-4">
             <SidebarTrigger />
             <Separator orientation="vertical" className="mx-2 h-4" />
             <Skeleton className="h-5 w-48" />
@@ -111,39 +111,74 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * PageHeader — the editorial masthead at the top of every dashboard page.
+ * Station code + eyebrow + display-serif title + optional right-side controls.
+ * The bottom border is a hairline, the top edge picks up a cyan LIVE indicator.
+ */
 export function PageHeader({
+  code,
   title,
+  italic,
+  eyebrow,
   subtitle,
   right,
-  eyebrow,
+  live,
 }: {
-  title: string;
+  code?: string;
+  title: ReactNode;
+  italic?: ReactNode;
+  eyebrow?: ReactNode;
   subtitle?: ReactNode;
   right?: ReactNode;
-  eyebrow?: ReactNode;
+  live?: boolean;
 }) {
   return (
-    <header
-      className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-      style={{
-        backgroundImage:
-          'linear-gradient(to right, hsl(0 0% 100% / 0) 0, hsl(0 0% 100% / 0) calc(100% - 120px), hsl(188 72% 42% / 0.08) calc(100% - 120px), hsl(188 72% 42% / 0.08) 100%)',
-      }}
-    >
-      <SidebarTrigger />
-      <Separator orientation="vertical" className="mx-2 h-6" />
-      <div className="flex flex-1 items-baseline gap-3 min-w-0">
-        <div className="flex min-w-0 flex-col leading-tight">
-          {eyebrow ? (
-            <span className="eyebrow hidden sm:block">{eyebrow}</span>
-          ) : (
-            <span className="eyebrow hidden sm:block">reflect·live</span>
-          )}
-          <h1 className="h-serif text-2xl font-semibold truncate tracking-tight">{title}</h1>
+    <header className="sticky top-0 z-20 border-b border-[color:var(--hairline)] bg-[color:var(--ink)]/85 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--ink)]/70">
+      {/* Top hairline — cyan when live */}
+      <div
+        className="h-[2px] w-full"
+        style={{
+          background: live
+            ? 'linear-gradient(to right, transparent, hsl(188 82% 58%) 50%, transparent)'
+            : 'linear-gradient(to right, transparent, hsl(220 16% 22%) 50%, transparent)',
+        }}
+      />
+      <div className="flex flex-col gap-1 px-4 py-3 md:px-6 md:py-4">
+        <div className="flex items-center gap-2">
+          <SidebarTrigger className="text-[color:var(--bone-mute)] hover:text-[color:var(--bone)]" />
+          <Separator orientation="vertical" className="mx-1 h-4 bg-[color:var(--hairline)]" />
+          <div className="flex flex-1 items-center gap-3">
+            {code && <span className="station-code">{code}</span>}
+            {eyebrow && <span className="eyebrow">{eyebrow}</span>}
+            {live && (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="live-dot" />
+                <span className="eyebrow-signal">LIVE</span>
+              </span>
+            )}
+          </div>
+          {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
         </div>
-        {subtitle && <div className="text-sm text-muted-foreground truncate hidden md:block">{subtitle}</div>}
+        <div className="flex items-baseline gap-3 flex-wrap pl-1">
+          <h1 className="h-serif text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
+            {title}
+            {italic && (
+              <>
+                {' '}
+                <span className="h-display-italic" style={{ color: 'var(--heritage)' }}>
+                  {italic}
+                </span>
+              </>
+            )}
+          </h1>
+          {subtitle && (
+            <div className="text-sm text-[color:var(--bone-mute)] mono">
+              {subtitle}
+            </div>
+          )}
+        </div>
       </div>
-      {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
     </header>
   );
 }

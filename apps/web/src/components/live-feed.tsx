@@ -3,12 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { TwilioMessage, Category, Player } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { buildPhoneIndex, prettyCategory, prettyDirection, prettyPhone, relativeTime } from '@/lib/format';
+import { SectionTag } from '@/components/section-tag';
+import { buildPhoneIndex, prettyCategory, prettyPhone, relativeTime } from '@/lib/format';
 
 const CATS: Array<{ value: Category | 'all'; label: string }> = [
   { value: 'all', label: 'All' },
@@ -18,11 +16,11 @@ const CATS: Array<{ value: Category | 'all'; label: string }> = [
   { value: 'chat', label: 'Chat' },
 ];
 
-const CAT_VARIANT: Record<Category, React.ComponentProps<typeof Badge>['variant']> = {
-  workout: 'default',
-  rehab: 'secondary',
-  survey: 'outline',
-  chat: 'outline',
+const CAT_TONE: Record<Category, { color: string; bg: string; border: string }> = {
+  workout: { color: 'hsl(162 62% 54%)', bg: 'hsl(162 40% 18% / 0.4)', border: 'hsl(162 40% 40%)' },
+  rehab:   { color: 'hsl(38 90% 62%)',  bg: 'hsl(38 60% 20% / 0.4)',  border: 'hsl(38 60% 40%)' },
+  survey:  { color: 'hsl(188 82% 58%)', bg: 'hsl(188 60% 20% / 0.4)', border: 'hsl(188 60% 40%)' },
+  chat:    { color: 'hsl(36 10% 62%)',  bg: 'hsl(220 14% 14%)',       border: 'hsl(220 14% 24%)' },
 };
 
 function initials(name: string): string {
@@ -34,6 +32,22 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
+function clockStamp(ts: string): string {
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+/**
+ * LiveFeed — "THE WIRE"
+ *
+ * A broadcast-ticker style stream. Each row is a time-stamped entry with
+ * a station-code time (hh:mm:ss), a category pill, the sender name (or
+ * a phone when the roster doesn't resolve), and the message body.
+ * New entries slide in with a cyan accent stripe that fades.
+ */
 export function LiveFeed({ teamId }: { teamId: number }) {
   const sb = useSupabase();
   const [msgs, setMsgs] = useState<TwilioMessage[]>([]);
@@ -43,7 +57,6 @@ export function LiveFeed({ teamId }: { teamId: number }) {
   const [now, setNow] = useState(Date.now());
   const mountedRef = useRef(true);
 
-  // Tick every 30s so relative times stay fresh
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
@@ -62,18 +75,31 @@ export function LiveFeed({ teamId }: { teamId: number }) {
         if (p) setPlayers(p as Player[]);
       }
     })();
-    const ch = sb.channel('messages').on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'twilio_messages', filter: `team_id=eq.${teamId}` },
-      (pl) => {
-        const next = pl.new as TwilioMessage;
-        setMsgs((prev) => [next, ...prev].slice(0, 200));
-        setNewIds((prev) => new Set(prev).add(next.sid));
-        setTimeout(() => {
-          if (!mountedRef.current) return;
-          setNewIds((prev) => { const n = new Set(prev); n.delete(next.sid); return n; });
-        }, 2200);
-      }).subscribe();
-    return () => { mountedRef.current = false; cancelled = true; sb.removeChannel(ch); };
+    const ch = sb
+      .channel('messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'twilio_messages', filter: `team_id=eq.${teamId}` },
+        (pl) => {
+          const next = pl.new as TwilioMessage;
+          setMsgs((prev) => [next, ...prev].slice(0, 200));
+          setNewIds((prev) => new Set(prev).add(next.sid));
+          setTimeout(() => {
+            if (!mountedRef.current) return;
+            setNewIds((prev) => {
+              const n = new Set(prev);
+              n.delete(next.sid);
+              return n;
+            });
+          }, 2400);
+        },
+      )
+      .subscribe();
+    return () => {
+      mountedRef.current = false;
+      cancelled = true;
+      sb.removeChannel(ch);
+    };
   }, [sb, teamId]);
 
   const phoneIndex = useMemo(() => buildPhoneIndex(players), [players]);
@@ -83,7 +109,6 @@ export function LiveFeed({ teamId }: { teamId: number }) {
 
   function resolvePlayer(m: TwilioMessage): Player | null {
     if (m.player_id) return playerByIdMap.get(m.player_id) ?? null;
-    // For outbound messages, the Twilio account is the sender — the player is the recipient.
     const raw = m.direction === 'inbound' ? m.from_number : m.to_number;
     const clean = (raw ?? '').replace(/^(whatsapp|sms):/i, '');
     return phoneIndex.get(clean) ?? null;
@@ -95,67 +120,130 @@ export function LiveFeed({ teamId }: { teamId: number }) {
   }
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div>
-            <CardTitle className="h-serif text-lg">Live feed</CardTitle>
-            <CardDescription>Messages streaming in from the team, in real time</CardDescription>
-          </div>
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as Category | 'all')}>
-            <TabsList>
-              {CATS.map((c) => <TabsTrigger key={c.value} value={c.value}>{c.label}</TabsTrigger>)}
-            </TabsList>
-          </Tabs>
+    <div className="panel overflow-hidden">
+      <div className="px-5 pt-4 pb-3">
+        <SectionTag
+          code="01."
+          name="The wire"
+          live
+          right={
+            <Tabs value={filter} onValueChange={(v) => setFilter(v as Category | 'all')}>
+              <TabsList className="h-8 bg-[color:var(--panel-raised)] border border-[color:var(--hairline)]">
+                {CATS.map((c) => (
+                  <TabsTrigger
+                    key={c.value}
+                    value={c.value}
+                    className="text-[0.72rem] mono uppercase tracking-wider data-[state=active]:bg-[color:var(--panel-over)] data-[state=active]:text-[color:var(--signal)]"
+                  >
+                    {c.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          }
+        />
+        <p className="mt-2 text-xs text-[color:var(--bone-mute)]">
+          Every SMS, the second it fires. Workouts, rehabs, check-ins, chat — sorted on arrival.
+        </p>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="border-t border-[color:var(--hairline)] px-6 py-10 text-center">
+          <p className="mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+            — no signals in this filter —
+          </p>
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {filtered.length === 0 ? (
-          <p className="px-6 pb-6 text-sm text-muted-foreground italic">No messages in this filter yet.</p>
-        ) : (
-          <ScrollArea className="h-[440px]">
-            <ul className="divide-y">
-              {filtered.map((m) => {
-                const player = resolvePlayer(m);
-                const otherPhone = otherPartyPhone(m);
-                const senderLabel = player ? player.name : 'Unknown sender';
-                const senderSub = player ? (player.group ?? prettyPhone(otherPhone)) : prettyPhone(otherPhone);
-                return (
-                  <li key={m.sid} className={`px-5 py-3 transition ${newIds.has(m.sid) ? 'slide-in-row' : ''}`}>
-                    <div className="flex items-start gap-3">
-                      <Avatar className="size-8 shrink-0 mt-0.5">
-                        <AvatarImage alt={senderLabel} />
-                        <AvatarFallback className="text-[10px] font-medium">
-                          {player ? initials(player.name) : '?'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {player ? (
-                            <Link href={`/dashboard/player/${player.id}`} className="text-sm font-medium hover:underline">
-                              {senderLabel}
-                            </Link>
-                          ) : (
-                            <span className="text-sm font-medium text-muted-foreground">{senderLabel}</span>
-                          )}
-                          <Badge variant={CAT_VARIANT[m.category] ?? 'outline'} className="text-[10px]">
-                            {prettyCategory(m.category)}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground tabular ml-auto">{relativeTime(m.date_sent, now)}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {senderSub}{player ? '' : ' · no roster match'} · {prettyDirection(m.direction)}
-                        </div>
-                        {m.body && <div className="mt-1 text-sm leading-snug">{m.body}</div>}
+      ) : (
+        <ScrollArea className="h-[440px] border-t border-[color:var(--hairline)]">
+          <ul>
+            {filtered.map((m, i) => {
+              const player = resolvePlayer(m);
+              const otherPhone = otherPartyPhone(m);
+              const senderLabel = player ? player.name : 'Unknown';
+              const catTone = CAT_TONE[m.category] ?? CAT_TONE.chat;
+              return (
+                <li
+                  key={m.sid}
+                  className={`group border-b border-[color:var(--hairline)]/60 px-5 py-3 transition hover:bg-[color:var(--panel-raised)]/40 ${
+                    newIds.has(m.sid) ? 'slide-in-row' : ''
+                  } ${i === 0 ? 'pt-3' : ''}`}
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Time column */}
+                    <div className="shrink-0 w-[88px] text-right">
+                      <div className="mono text-[0.7rem] text-[color:var(--signal)] tabular">
+                        {clockStamp(m.date_sent)}
+                      </div>
+                      <div className="mono text-[0.62rem] text-[color:var(--bone-dim)] tabular mt-0.5">
+                        {relativeTime(m.date_sent, now)}
                       </div>
                     </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </ScrollArea>
-        )}
-      </CardContent>
-    </Card>
+
+                    {/* Divider */}
+                    <div className="shrink-0 w-px self-stretch bg-[color:var(--hairline)]" />
+
+                    {/* Content */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="mono px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] rounded-sm"
+                          style={{
+                            color: catTone.color,
+                            background: catTone.bg,
+                            border: `1px solid ${catTone.border}`,
+                          }}
+                        >
+                          {prettyCategory(m.category)}
+                        </span>
+                        {player ? (
+                          <Link
+                            href={`/dashboard/player/${player.id}`}
+                            className="text-sm font-semibold text-[color:var(--bone)] hover:text-[color:var(--signal)] transition"
+                          >
+                            {senderLabel}
+                          </Link>
+                        ) : (
+                          <span className="text-sm font-semibold text-[color:var(--bone-mute)]">
+                            {senderLabel}
+                          </span>
+                        )}
+                        <span className="mono text-[0.62rem] text-[color:var(--bone-dim)] uppercase tracking-wider">
+                          {player?.group ?? prettyPhone(otherPhone)}
+                        </span>
+                        <span
+                          className="mono text-[0.58rem] text-[color:var(--bone-dim)] uppercase tracking-wider ml-auto"
+                          aria-label="direction"
+                        >
+                          {m.direction === 'inbound' ? '← IN' : 'OUT →'}
+                        </span>
+                      </div>
+                      {m.body && (
+                        <div className="mt-1.5 text-sm leading-relaxed text-[color:var(--bone-soft)]">
+                          {m.body}
+                        </div>
+                      )}
+                      <div className="mt-1 flex items-center gap-3 text-[0.62rem] text-[color:var(--bone-dim)] mono uppercase tracking-widest">
+                        <span>
+                          {player ? `#${String(player.id).padStart(3, '0')}` : '— no roster match —'}
+                        </span>
+                        <Avatar initials={player ? initials(player.name) : '?'} />
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </ScrollArea>
+      )}
+    </div>
+  );
+}
+
+function Avatar({ initials }: { initials: string }) {
+  return (
+    <span className="grid size-4 place-items-center rounded-[2px] bg-[color:var(--panel-raised)] border border-[color:var(--hairline)] text-[0.52rem] font-bold">
+      {initials}
+    </span>
   );
 }
