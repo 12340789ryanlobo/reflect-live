@@ -1,10 +1,14 @@
 /**
- * Minimal Twilio REST client for sending SMS from the Next.js runtime.
- * Avoids pulling the full `twilio` npm package into the web bundle —
- * we're only sending one SMS per OTP, REST is fine.
+ * Minimal Twilio REST client for sending SMS or WhatsApp from the Next.js
+ * runtime. Avoids pulling the full `twilio` npm package into the web bundle —
+ * we're only sending one message per OTP, REST is fine.
  *
- * Credentials come from per-team config (teams.twilio_*) when set, else
- * fall back to the TWILIO_* env vars shared with the worker.
+ * Channel routing is inferred from the team's configured `twilio_phone_number`:
+ *   - "+13214062958"           → SMS
+ *   - "whatsapp:+13214062958"  → WhatsApp (recipient must have opted in)
+ *
+ * Credentials come from per-team config (teams.twilio_*) when set, else fall
+ * back to TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER env vars.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -12,7 +16,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export interface TwilioConfig {
   accountSid: string;
   authToken: string;
+  /** As stored — may include `whatsapp:` prefix. */
   fromNumber: string;
+}
+
+export type TwilioChannel = 'sms' | 'whatsapp';
+
+function channelOf(fromNumber: string): TwilioChannel {
+  return fromNumber.toLowerCase().startsWith('whatsapp:') ? 'whatsapp' : 'sms';
 }
 
 export async function getTwilioConfigForTeam(sb: SupabaseClient, teamId: number): Promise<TwilioConfig> {
@@ -34,13 +45,24 @@ export async function getTwilioConfigForTeam(sb: SupabaseClient, teamId: number)
   return { accountSid, authToken, fromNumber };
 }
 
+/**
+ * Error surfaced when Twilio rejects the message for a user-actionable reason
+ * (most commonly WhatsApp error 63024: recipient not opted in).
+ */
+export class TwilioUserFixableError extends Error {
+  constructor(message: string, public code: number, public channel: TwilioChannel) {
+    super(message);
+    this.name = 'TwilioUserFixableError';
+  }
+}
+
 export async function sendSms(cfg: TwilioConfig, toE164: string, body: string): Promise<void> {
+  const channel = channelOf(cfg.fromNumber);
+  const from = cfg.fromNumber;
+  const to = channel === 'whatsapp' ? `whatsapp:${toE164}` : toE164;
+
   const authHeader = 'Basic ' + Buffer.from(`${cfg.accountSid}:${cfg.authToken}`).toString('base64');
-  const params = new URLSearchParams({
-    To: toE164,
-    From: cfg.fromNumber,
-    Body: body,
-  });
+  const params = new URLSearchParams({ To: to, From: from, Body: body });
   const res = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${cfg.accountSid}/Messages.json`,
     {
@@ -52,17 +74,27 @@ export async function sendSms(cfg: TwilioConfig, toE164: string, body: string): 
       body: params,
     },
   );
-  if (!res.ok) {
-    const text = await res.text();
-    let msg = `Twilio responded ${res.status}`;
-    try {
-      const j = JSON.parse(text);
-      msg = j.message ?? msg;
-    } catch {
-      msg = `${msg}: ${text.slice(0, 200)}`;
-    }
-    throw new Error(msg);
+  if (res.ok) return;
+
+  const text = await res.text();
+  let code = 0;
+  let msg = `Twilio responded ${res.status}`;
+  try {
+    const j = JSON.parse(text) as { message?: string; code?: number };
+    if (j.message) msg = j.message;
+    if (typeof j.code === 'number') code = j.code;
+  } catch {
+    msg = `${msg}: ${text.slice(0, 200)}`;
   }
+
+  // Common, user-fixable Twilio errors
+  // 63024 = WhatsApp recipient not opted in / not WhatsApp-enabled
+  // 21608 = Twilio trial: recipient is not a verified caller ID
+  // 21614 = "To" is not a valid mobile number
+  if (code === 63024 || code === 21608 || code === 21614) {
+    throw new TwilioUserFixableError(msg, code, channel);
+  }
+  throw new Error(msg);
 }
 
 /**

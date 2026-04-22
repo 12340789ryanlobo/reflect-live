@@ -141,7 +141,8 @@ export default function SettingsPage() {
     if (res.ok && json.ok) {
       setOtpSentTo(json.phone);
       setOtpStep('code');
-      setOtpMessage({ tone: 'ok', text: `Code sent to ${prettyPhone(json.phone)}. It expires in 10 minutes.` });
+      const via = json.channel === 'whatsapp' ? 'WhatsApp' : 'SMS';
+      setOtpMessage({ tone: 'ok', text: `Code sent via ${via} to ${prettyPhone(json.phone)}. It expires in 10 minutes.` });
     } else {
       setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Could not send code.' });
     }

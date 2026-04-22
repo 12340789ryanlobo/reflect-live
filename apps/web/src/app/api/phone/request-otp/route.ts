@@ -9,7 +9,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { getTwilioConfigForTeam, sendSms, toE164 } from '@/lib/twilio-sms';
+import { getTwilioConfigForTeam, sendSms, toE164, TwilioUserFixableError } from '@/lib/twilio-sms';
 import { randomInt } from 'node:crypto';
 
 function serviceClient() {
@@ -62,13 +62,27 @@ export async function POST(req: Request) {
   });
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
 
+  let channelUsed: 'sms' | 'whatsapp' = 'sms';
   try {
     const cfg = await getTwilioConfigForTeam(sb, prefs.team_id);
+    channelUsed = cfg.fromNumber.toLowerCase().startsWith('whatsapp:') ? 'whatsapp' : 'sms';
     await sendSms(cfg, phone, `Your reflect-live verification code is ${code}. It expires in 10 minutes.`);
   } catch (err) {
+    if (err instanceof TwilioUserFixableError) {
+      // Map Twilio error codes to advice the end user can actually act on.
+      let advice = err.message;
+      if (err.code === 63024) {
+        advice = 'WhatsApp requires you to opt in first. Send any message to the team WhatsApp number, then try again.';
+      } else if (err.code === 21608) {
+        advice = 'Twilio is in trial mode — this phone has to be verified on the Twilio dashboard first, or ask your admin to upgrade.';
+      } else if (err.code === 21614) {
+        advice = 'That number isn’t a valid mobile number.';
+      }
+      return NextResponse.json({ error: 'sms_blocked', code: err.code, channel: err.channel, message: advice }, { status: 400 });
+    }
     const msg = err instanceof Error ? err.message : 'Failed to send SMS.';
     return NextResponse.json({ error: 'sms_failed', message: msg }, { status: 502 });
   }
 
-  return NextResponse.json({ ok: true, phone });
+  return NextResponse.json({ ok: true, phone, channel: channelUsed });
 }

@@ -163,7 +163,10 @@ function EditTeamDialog({ team, onClose, onDone }: { team: TeamRow; onClose: () 
           </div>
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground">Twilio phone number</label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+14155550100" />
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+14155550100 or whatsapp:+14155550100" />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Prefix with <code className="rounded bg-muted px-1">whatsapp:</code> to route OTP codes via WhatsApp instead of SMS. Recipients must already be opted in (any prior WhatsApp exchange counts).
+            </p>
           </div>
         </div>
         <DialogFooter>
