@@ -17,3 +17,6 @@ dist/
 # Personal contact data — keep local, commit an .example instead
 data/*.csv
 !data/*.example.csv
+
+# Build artifacts
+*.tsbuildinfo

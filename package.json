@@ -1,7 +1,7 @@
 {
   "name": "reflect-live",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": ["apps/*", "packages/*", "scripts"],
   "scripts": {
     "dev:web": "bun --cwd apps/web run dev",
     "dev:worker": "bun --cwd apps/worker run dev",
