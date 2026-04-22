@@ -13,3 +13,7 @@ dist/
 *.db
 *.db-journal
 /tmp/
+
+# Personal contact data — keep local, commit an .example instead
+data/*.csv
+!data/*.example.csv
