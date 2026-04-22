@@ -91,7 +91,8 @@ export async function sendSms(cfg: TwilioConfig, toE164: string, body: string): 
   // 63024 = WhatsApp recipient not opted in / not WhatsApp-enabled
   // 21608 = Twilio trial: recipient is not a verified caller ID
   // 21614 = "To" is not a valid mobile number
-  if (code === 63024 || code === 21608 || code === 21614) {
+  // 21408 = SMS geo-permissions block this destination country
+  if (code === 63024 || code === 21608 || code === 21614 || code === 21408) {
     throw new TwilioUserFixableError(msg, code, channel);
   }
   throw new Error(msg);

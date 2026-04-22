@@ -77,6 +77,8 @@ export async function POST(req: Request) {
         advice = 'Twilio is in trial mode — this phone has to be verified on the Twilio dashboard first, or ask your admin to upgrade.';
       } else if (err.code === 21614) {
         advice = 'That number isn’t a valid mobile number.';
+      } else if (err.code === 21408) {
+        advice = 'Your Twilio account hasn’t enabled SMS to this country. Either enable the country in Twilio → Messaging → Geo Permissions, or switch the team to WhatsApp mode in Admin → Teams (prefix the phone with “whatsapp:”).';
       }
       return NextResponse.json({ error: 'sms_blocked', code: err.code, channel: err.channel, message: advice }, { status: 400 });
     }
