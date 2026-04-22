@@ -115,18 +115,33 @@ export function PageHeader({
   title,
   subtitle,
   right,
+  eyebrow,
 }: {
   title: string;
   subtitle?: ReactNode;
   right?: ReactNode;
+  eyebrow?: ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header
+      className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+      style={{
+        backgroundImage:
+          'linear-gradient(to right, hsl(0 0% 100% / 0) 0, hsl(0 0% 100% / 0) calc(100% - 120px), hsl(188 72% 42% / 0.08) calc(100% - 120px), hsl(188 72% 42% / 0.08) 100%)',
+      }}
+    >
       <SidebarTrigger />
       <Separator orientation="vertical" className="mx-2 h-6" />
       <div className="flex flex-1 items-baseline gap-3 min-w-0">
-        <h1 className="h-serif text-2xl font-semibold truncate">{title}</h1>
-        {subtitle && <div className="text-sm text-muted-foreground truncate hidden sm:block">{subtitle}</div>}
+        <div className="flex min-w-0 flex-col leading-tight">
+          {eyebrow ? (
+            <span className="eyebrow hidden sm:block">{eyebrow}</span>
+          ) : (
+            <span className="eyebrow hidden sm:block">reflect·live</span>
+          )}
+          <h1 className="h-serif text-2xl font-semibold truncate tracking-tight">{title}</h1>
+        </div>
+        {subtitle && <div className="text-sm text-muted-foreground truncate hidden md:block">{subtitle}</div>}
       </div>
       {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
     </header>

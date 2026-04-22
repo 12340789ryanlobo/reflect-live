@@ -58,20 +58,25 @@ export function WeatherGrid({ teamId }: { teamId: number }) {
             </div>
             {s ? (
               <>
-                <div className="h-serif text-3xl font-semibold leading-none">
-                  {s.temp_c != null ? `${Math.round(s.temp_c)}°C` : '—'}
+                <div className="h-display tabular text-[2.2rem] font-semibold leading-none">
+                  {s.temp_c != null ? (
+                    <>
+                      {Math.round(s.temp_c)}
+                      <span className="mono text-base align-top ml-0.5 text-[var(--pool-deep)]">°C</span>
+                    </>
+                  ) : '—'}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {s.condition_code != null ? (WMO_LABEL[s.condition_code] ?? `code ${s.condition_code}`) : '—'}
                   {s.wind_kph != null && ` · wind ${Math.round(s.wind_kph)} kph`}
                   {s.precip_mm != null && s.precip_mm > 0 && ` · ${s.precip_mm} mm`}
                 </div>
-                <div className="text-[11px] text-muted-foreground/80">updated {new Date(s.fetched_at).toLocaleTimeString()}</div>
+                <div className="mono text-[10.5px] text-muted-foreground/80">updated {new Date(s.fetched_at).toLocaleTimeString()}</div>
               </>
             ) : (
               <div className="text-xs italic text-muted-foreground">waiting for first snapshot…</div>
             )}
-            {l.event_date && <div className="text-xs text-muted-foreground">meet {new Date(l.event_date).toLocaleDateString()}</div>}
+            {l.event_date && <div className="mono text-[11px] text-muted-foreground">meet {new Date(l.event_date).toLocaleDateString()}</div>}
           </Card>
         );
       })}

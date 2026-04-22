@@ -1,19 +1,25 @@
 import { ClerkProvider } from '@clerk/nextjs';
-import { Inter, Playfair_Display } from 'next/font/google';
+import { Fraunces, Instrument_Sans, JetBrains_Mono } from 'next/font/google';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import './globals.css';
 import type { ReactNode } from 'react';
 
-const inter = Inter({
+const fraunces = Fraunces({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-fraunces',
+  display: 'swap',
+  axes: ['SOFT', 'WONK', 'opsz'],
+});
+
+const instrument = Instrument_Sans({
+  subsets: ['latin'],
+  variable: '--font-instrument',
   display: 'swap',
 });
 
-const playfair = Playfair_Display({
+const jetbrains = JetBrains_Mono({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
-  variable: '--font-playfair',
+  variable: '--font-jetbrains',
   display: 'swap',
 });
 
@@ -25,8 +31,11 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider>
-      <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
-        <body>
+      <html
+        lang="en"
+        className={`${fraunces.variable} ${instrument.variable} ${jetbrains.variable}`}
+      >
+        <body className="grain">
           <TooltipProvider delayDuration={120}>{children}</TooltipProvider>
         </body>
       </html>

@@ -154,12 +154,18 @@ export function AppSidebar({
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-1 py-1.5">
-          <div className="grid size-8 shrink-0 place-items-center rounded-md bg-[hsl(0_100%_40%)] text-white font-serif font-semibold text-sm leading-none">
+          <div
+            className="grid size-8 shrink-0 place-items-center rounded-sm text-white font-serif font-semibold text-sm leading-none"
+            style={{
+              background: 'var(--maroon)',
+              boxShadow: 'inset 0 -2px 0 hsl(188 72% 42% / 0.7)',
+            }}
+          >
             rl
           </div>
           <div className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate font-serif text-base font-semibold">reflect-live</span>
-            <span className="truncate text-xs text-sidebar-foreground/70">{teamName ?? 'UChicago Swim & Dive'}</span>
+            <span className="truncate font-serif text-base font-semibold tracking-tight">reflect·live</span>
+            <span className="truncate text-[0.7rem] uppercase tracking-[0.16em] text-sidebar-foreground/70">{teamName ?? 'UChicago Swim & Dive'}</span>
           </div>
         </div>
         <div className="flex items-center justify-between px-1 pb-1">
