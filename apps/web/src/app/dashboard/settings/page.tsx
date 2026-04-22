@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useUser, useClerk } from '@clerk/nextjs';
+import { useUser } from '@clerk/nextjs';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Team, UserPreferences, WorkerState, Player, UserRole } from '@reflect-live/shared';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Phone, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -22,9 +23,15 @@ export default function SettingsPage() {
   const { role: currentRole, refresh: refreshShell } = useDashboard();
   const sb = useSupabase();
   const { user } = useUser();
-  const { openUserProfile } = useClerk();
-  const [linking, setLinking] = useState(false);
-  const [linkResult, setLinkResult] = useState<{ ok: boolean; message?: string; playerName?: string } | null>(null);
+
+  // Phone-OTP flow state
+  const [phoneInput, setPhoneInput] = useState('');
+  const [codeInput, setCodeInput] = useState('');
+  const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpSentTo, setOtpSentTo] = useState<string | null>(null);
+  const [otpMessage, setOtpMessage] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [state, setState] = useState<WorkerState | null>(null);
@@ -121,25 +128,53 @@ export default function SettingsPage() {
     setStatus(playerId ? 'Athlete selected.' : 'Athlete cleared.');
   }
 
-  async function linkPhoneToPlayer() {
-    setLinking(true);
-    setLinkResult(null);
-    const res = await fetch('/api/link-phone', { method: 'POST' });
+  async function requestOtp() {
+    setOtpSending(true);
+    setOtpMessage(null);
+    const res = await fetch('/api/phone/request-otp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone: phoneInput }),
+    });
     const json = await res.json();
-    if (json.ok && json.player) {
-      setLinkResult({ ok: true, playerName: json.player.name });
+    setOtpSending(false);
+    if (res.ok && json.ok) {
+      setOtpSentTo(json.phone);
+      setOtpStep('code');
+      setOtpMessage({ tone: 'ok', text: `Code sent to ${prettyPhone(json.phone)}. It expires in 10 minutes.` });
+    } else {
+      setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Could not send code.' });
+    }
+  }
+
+  async function verifyOtp() {
+    setOtpVerifying(true);
+    setOtpMessage(null);
+    const res = await fetch('/api/phone/verify-otp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone: otpSentTo, code: codeInput }),
+    });
+    const json = await res.json();
+    setOtpVerifying(false);
+    if (res.ok && json.ok && json.linked) {
+      setOtpMessage({ tone: 'ok', text: `Linked to ${json.player.name}. You now have an athlete view in the sidebar.` });
+      setOtpStep('phone');
+      setCodeInput('');
+      setPhoneInput('');
+      setOtpSentTo(null);
       await refresh();
       await refreshShell();
+    } else if (res.ok && json.verified && !json.linked) {
+      setOtpMessage({ tone: 'err', text: json.message ?? 'Phone verified but not on the team roster. Ask the admin to add you.' });
     } else {
-      setLinkResult({ ok: false, message: json.message ?? json.error ?? 'Link failed.' });
+      setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Verification failed.' });
     }
-    setLinking(false);
   }
 
   const lastTwilio = state?.last_twilio_poll_at ? new Date(state.last_twilio_poll_at) : null;
   const lastWeather = state?.last_weather_poll_at ? new Date(state.last_weather_poll_at) : null;
   const impersonatedPlayer = prefs?.impersonate_player_id ? allPlayers.find((p) => p.id === prefs.impersonate_player_id) : null;
-  const verifiedPhones = (user?.phoneNumbers ?? []).filter((p) => p.verification?.status === 'verified').map((p) => p.phoneNumber);
 
   return (
     <>
@@ -217,52 +252,68 @@ export default function SettingsPage() {
               Link your phone to the roster
             </CardTitle>
             <CardDescription>
-              If you&apos;re also a swimmer, link your verified phone number to your roster entry. You keep your current role (e.g. admin) and also get a personal athlete view.
+              If you&apos;re also a swimmer, verify your phone number and we&apos;ll link it to your roster entry. You keep your current role (e.g. admin) and gain a personal athlete view.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Verified phones on your account</div>
-              {verifiedPhones.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">No verified phone numbers yet. Add one in your profile — Clerk will SMS you a code to prove it&apos;s yours.</p>
-              ) : (
-                <ul className="space-y-1">
-                  {verifiedPhones.map((p) => (
-                    <li key={p} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="size-4 text-[hsl(145_55%_32%)]" />
-                      <span className="font-mono">{prettyPhone(p)}</span>
-                      <span className="text-xs text-muted-foreground">verified</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button variant="outline" onClick={() => openUserProfile()}>
-                {verifiedPhones.length === 0 ? 'Add phone number' : 'Manage phones'}
-              </Button>
-              <Button onClick={linkPhoneToPlayer} disabled={linking || verifiedPhones.length === 0}>
-                {linking ? 'Linking…' : 'Link to a player'}
-              </Button>
-            </div>
             {impersonatedPlayer && (
               <div className="rounded-md border border-[hsl(145_55%_32%)]/30 bg-[hsl(145_55%_32%)]/5 px-3 py-2 text-sm">
                 <CheckCircle2 className="inline size-4 text-[hsl(145_55%_32%)] align-[-2px] mr-1" />
-                Linked to <strong>{impersonatedPlayer.name}</strong>
+                Currently linked to <strong>{impersonatedPlayer.name}</strong>
                 {impersonatedPlayer.group && <span className="text-muted-foreground"> · {impersonatedPlayer.group}</span>}.{' '}
-                <Link href="/dashboard/athlete" className="text-primary underline underline-offset-4">Open your athlete view</Link>
+                <Link href="/dashboard/athlete" className="text-primary underline underline-offset-4">Open athlete view</Link>
               </div>
             )}
-            {linkResult && !linkResult.ok && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-                <AlertCircle className="inline size-4 text-destructive align-[-2px] mr-1" />
-                {linkResult.message}
+
+            {otpStep === 'phone' ? (
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Phone number</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Input
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    placeholder="+1 (321) 406-2958"
+                    className="max-w-xs"
+                  />
+                  <Button onClick={requestOtp} disabled={otpSending || !phoneInput.trim()}>
+                    {otpSending ? 'Sending…' : 'Send code'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Include your country code (<span className="font-mono">+1</span>, <span className="font-mono">+61</span>, etc.). We SMS a 6-digit code via the team&apos;s Twilio number.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Code sent to <span className="font-mono text-foreground">{otpSentTo ? prettyPhone(otpSentTo) : '—'}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Input
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="123456"
+                    maxLength={6}
+                    className="max-w-[140px] font-mono tabular text-center text-lg tracking-[0.3em]"
+                  />
+                  <Button onClick={verifyOtp} disabled={otpVerifying || codeInput.length !== 6}>
+                    {otpVerifying ? 'Verifying…' : 'Verify & link'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => { setOtpStep('phone'); setCodeInput(''); setOtpSentTo(null); setOtpMessage(null); }}>
+                    Change phone
+                  </Button>
+                </div>
               </div>
             )}
-            {linkResult && linkResult.ok && (
-              <div className="rounded-md border border-[hsl(145_55%_32%)]/30 bg-[hsl(145_55%_32%)]/5 px-3 py-2 text-sm">
-                <CheckCircle2 className="inline size-4 text-[hsl(145_55%_32%)] align-[-2px] mr-1" />
-                Linked to <strong>{linkResult.playerName}</strong>.
+
+            {otpMessage && (
+              <div className={`rounded-md border px-3 py-2 text-sm ${otpMessage.tone === 'ok'
+                  ? 'border-[hsl(145_55%_32%)]/30 bg-[hsl(145_55%_32%)]/5'
+                  : 'border-destructive/30 bg-destructive/5'}`}>
+                {otpMessage.tone === 'ok'
+                  ? <CheckCircle2 className="inline size-4 text-[hsl(145_55%_32%)] align-[-2px] mr-1" />
+                  : <AlertCircle className="inline size-4 text-destructive align-[-2px] mr-1" />}
+                {otpMessage.text}
               </div>
             )}
           </CardContent>
