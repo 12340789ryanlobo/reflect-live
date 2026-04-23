@@ -59,10 +59,9 @@ export default function EventsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="The calendar"
-        title="The"
-        italic="calendar."
-        subtitle={`${future.length} UPCOMING · ${training.length} TRAINING · ${past.length} PAST`}
+        eyebrow="Events & venues"
+        title="Schedule"
+        subtitle={`${future.length} UPCOMING · ${training.length} TRAINING`}
         live
       />
 

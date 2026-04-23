@@ -86,10 +86,9 @@ export default function FitnessPage() {
   return (
     <>
       <PageHeader
-        eyebrow="The log"
-        title="The"
-        italic="log."
-        subtitle={`${logs.length} ENTRIES · WINDOW ${daysShort.toUpperCase()}`}
+        eyebrow="Workouts & rehabs"
+        title="Activity"
+        subtitle={`${logs.length} ENTRIES · ${daysShort.toUpperCase()}`}
         right={
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
             <SelectTrigger className="w-[140px] h-9 mono text-xs uppercase tracking-wider">

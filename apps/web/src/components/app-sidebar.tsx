@@ -50,7 +50,6 @@ type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  code: string;
 };
 
 type NavGroup = {
@@ -59,29 +58,29 @@ type NavGroup = {
 };
 
 const COACH_NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Control room', icon: LayoutDashboard, code: '00' },
-  { href: '/dashboard/players', label: 'The roster', icon: Users, code: '01' },
-  { href: '/dashboard/fitness', label: 'The log', icon: Dumbbell, code: '02' },
-  { href: '/dashboard/events', label: 'The calendar', icon: Calendar, code: '03' },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/players', label: 'Athletes', icon: Users },
+  { href: '/dashboard/fitness', label: 'Activity', icon: Dumbbell },
+  { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
 ];
 
 const ATHLETE_NAV: NavItem[] = [
-  { href: '/dashboard/athlete', label: 'Your view', icon: UserIcon, code: '00' },
-  { href: '/dashboard/athlete#messages', label: 'Your messages', icon: MessageSquareText, code: '01' },
+  { href: '/dashboard/athlete', label: 'My view', icon: UserIcon },
+  { href: '/dashboard/athlete#messages', label: 'My messages', icon: MessageSquareText },
 ];
 
 const CAPTAIN_NAV: NavItem[] = [
-  { href: '/dashboard/captain', label: 'Team pulse', icon: LayoutDashboard, code: '00' },
-  { href: '/dashboard/captain/follow-ups', label: 'Follow-ups', icon: Users, code: '01' },
-  { href: '/dashboard/events', label: 'The calendar', icon: Calendar, code: '02' },
+  { href: '/dashboard/captain', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/captain/follow-ups', label: 'Follow-ups', icon: Users },
+  { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { href: '/dashboard/admin', label: 'Overview', icon: Shield, code: 'A0' },
-  { href: '/dashboard/admin/users', label: 'Users & roles', icon: Users, code: 'A1' },
-  { href: '/dashboard/admin/teams', label: 'Teams', icon: Building2, code: 'A2' },
-  { href: '/dashboard/admin/system', label: 'System', icon: Activity, code: 'A3' },
-  { href: '/dashboard/admin/database', label: 'Database', icon: Database, code: 'A4' },
+  { href: '/dashboard/admin', label: 'Admin', icon: Shield },
+  { href: '/dashboard/admin/users', label: 'Users', icon: Users },
+  { href: '/dashboard/admin/teams', label: 'Teams', icon: Building2 },
+  { href: '/dashboard/admin/system', label: 'System', icon: Activity },
+  { href: '/dashboard/admin/database', label: 'Database', icon: Database },
 ];
 
 const ROLE_DETAILS: Record<
@@ -111,15 +110,9 @@ function NavGroupBlock({ group }: { group: NavGroup }) {
             return (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-                  <Link href={item.href} className="group">
+                  <Link href={item.href}>
                     <Icon className="size-4" />
-                    <span className="flex-1">{item.label}</span>
-                    <span
-                      className="mono text-[0.62rem] opacity-60 group-hover:opacity-100 transition"
-                      style={active ? { color: 'hsl(188 82% 58%)', opacity: 1 } : undefined}
-                    >
-                      {item.code}
-                    </span>
+                    <span>{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -154,7 +147,7 @@ export function AppSidebar({
   if (hasLinkedAthlete && role !== 'athlete') {
     groups.push({
       label: 'Also you',
-      items: [{ href: '/dashboard/athlete', label: 'Your view', icon: UserIcon, code: 'ME' }],
+      items: [{ href: '/dashboard/athlete', label: 'My view', icon: UserIcon }],
     });
   }
   if (role === 'admin') {

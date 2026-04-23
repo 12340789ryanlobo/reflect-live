@@ -109,11 +109,9 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   return (
     <>
       <PageHeader
-        code={`#${String(player.id).padStart(3, '0')}`}
-        eyebrow="Athlete card"
-        title={player.name.split(' ')[0]}
-        italic={player.name.split(' ').slice(1).join(' ')}
-        subtitle={`${player.group ?? 'NO GROUP'} · ${prettyPhone(player.phone_e164).toUpperCase()}`}
+        eyebrow="Profile"
+        title={player.name}
+        subtitle={`${player.group ?? 'NO GROUP'} · ${prettyPhone(player.phone_e164)}`}
         right={<StarButton playerId={playerId} initial={starred} />}
       />
 

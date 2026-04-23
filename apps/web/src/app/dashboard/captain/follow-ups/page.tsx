@@ -63,10 +63,9 @@ export default function FollowUpsPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Follow-ups"
-        title="Follow-"
-        italic="ups."
-        subtitle={`${overdue.length} ATHLETES · QUIET ≥ ${sinceLabel}`}
+        eyebrow="Who to chase"
+        title="Follow-ups"
+        subtitle={`${overdue.length} · QUIET ≥ ${sinceLabel}`}
         right={
           <Select value={String(since)} onValueChange={(v) => setSince(Number(v))}>
             <SelectTrigger className="w-[180px] h-9 mono text-xs uppercase tracking-wider">

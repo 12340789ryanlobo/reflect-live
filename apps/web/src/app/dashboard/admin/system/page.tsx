@@ -48,10 +48,9 @@ export default function AdminSystemPage() {
   return (
     <>
       <PageHeader
-        eyebrow="System telemetry"
+        eyebrow="Worker health"
         title="System"
-        italic="telemetry."
-        subtitle="WORKER · POLL · ERRORS"
+        subtitle="POLLS · ERRORS · BACKFILL"
         live
       />
 

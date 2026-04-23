@@ -139,10 +139,9 @@ export default function PlayersPage() {
   return (
     <>
       <PageHeader
-        eyebrow="The roster"
-        title="The"
-        italic="roster."
-        subtitle={`${rows.length} ATHLETES · ${groups.length} GROUPS`}
+        eyebrow="Roster"
+        title="Athletes"
+        subtitle={`${rows.length} · ${groups.length} GROUPS`}
       />
 
       <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">

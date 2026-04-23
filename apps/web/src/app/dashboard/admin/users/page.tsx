@@ -94,9 +94,8 @@ export default function AdminUsersPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Users & roles"
+        eyebrow="Roles & links"
         title="Users"
-        italic="& roles."
         subtitle={`${rows.length} USERS · ${playersByTeam.size} TEAMS`}
       />
 

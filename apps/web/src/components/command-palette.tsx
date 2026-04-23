@@ -70,25 +70,25 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
         <CommandGroup heading="Navigate">
           <CommandItem onSelect={() => go('/dashboard')}>
             <LayoutDashboard />
-            <span>Control room</span>
+            <span>Dashboard</span>
             <CommandShortcut>⌘D</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/players')}>
             <Users />
-            <span>The roster</span>
+            <span>Athletes</span>
             <CommandShortcut>⌘R</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/fitness')}>
             <Dumbbell />
-            <span>The log</span>
+            <span>Activity</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/events')}>
             <Calendar />
-            <span>The calendar</span>
+            <span>Schedule</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/athlete')}>
             <UserIcon />
-            <span>Your view</span>
+            <span>My view</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/settings')}>
             <Settings />
@@ -102,15 +102,15 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
             <CommandGroup heading="Administration">
               <CommandItem onSelect={() => go('/dashboard/admin')}>
                 <Shield />
-                <span>Admin overview</span>
+                <span>Admin</span>
               </CommandItem>
               <CommandItem onSelect={() => go('/dashboard/admin/users')}>
                 <Users />
-                <span>Users & roles</span>
+                <span>Users</span>
               </CommandItem>
               <CommandItem onSelect={() => go('/dashboard/admin/system')}>
                 <Activity />
-                <span>System telemetry</span>
+                <span>System</span>
               </CommandItem>
               <CommandItem onSelect={() => go('/dashboard/admin/database')}>
                 <Database />
@@ -123,7 +123,7 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
         {players.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Roster">
+            <CommandGroup heading="Athletes">
               {players.map((p) => (
                 <CommandItem
                   key={p.id}

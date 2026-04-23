@@ -23,15 +23,6 @@ const CAT_TONE: Record<Category, { color: string; bg: string; border: string }> 
   chat:    { color: 'hsl(36 10% 62%)',  bg: 'hsl(220 14% 14%)',       border: 'hsl(220 14% 24%)' },
 };
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 function clockStamp(ts: string): string {
   const d = new Date(ts);
   const hh = String(d.getHours()).padStart(2, '0');
@@ -123,8 +114,7 @@ export function LiveFeed({ teamId }: { teamId: number }) {
     <div className="panel overflow-hidden">
       <div className="px-5 pt-4 pb-3">
         <SectionTag
-          name="The wire"
-          live
+          name="Messages"
           right={
             <Tabs value={filter} onValueChange={(v) => setFilter(v as Category | 'all')}>
               <TabsList className="h-8 bg-[color:var(--panel-raised)] border border-[color:var(--hairline)]">
@@ -203,27 +193,17 @@ export function LiveFeed({ teamId }: { teamId: number }) {
                             {senderLabel}
                           </span>
                         )}
-                        <span className="mono text-[0.62rem] text-[color:var(--bone-dim)] uppercase tracking-wider">
-                          {player?.group ?? prettyPhone(otherPhone)}
-                        </span>
-                        <span
-                          className="mono text-[0.58rem] text-[color:var(--bone-dim)] uppercase tracking-wider ml-auto"
-                          aria-label="direction"
-                        >
-                          {m.direction === 'inbound' ? '← IN' : 'OUT →'}
-                        </span>
+                        {!player && (
+                          <span className="mono text-[0.62rem] text-[color:var(--bone-dim)] uppercase tracking-wider">
+                            {prettyPhone(otherPhone)}
+                          </span>
+                        )}
                       </div>
                       {m.body && (
                         <div className="mt-1.5 text-sm leading-relaxed text-[color:var(--bone-soft)]">
                           {m.body}
                         </div>
                       )}
-                      <div className="mt-1 flex items-center gap-3 text-[0.62rem] text-[color:var(--bone-dim)] mono uppercase tracking-widest">
-                        <span>
-                          {player ? `#${String(player.id).padStart(3, '0')}` : '— no roster match —'}
-                        </span>
-                        <Avatar initials={player ? initials(player.name) : '?'} />
-                      </div>
                     </div>
                   </div>
                 </li>
@@ -236,10 +216,3 @@ export function LiveFeed({ teamId }: { teamId: number }) {
   );
 }
 
-function Avatar({ initials }: { initials: string }) {
-  return (
-    <span className="grid size-4 place-items-center rounded-[2px] bg-[color:var(--panel-raised)] border border-[color:var(--hairline)] text-[0.52rem] font-bold">
-      {initials}
-    </span>
-  );
-}

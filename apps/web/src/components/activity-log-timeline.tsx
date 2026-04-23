@@ -33,7 +33,7 @@ export function ActivityLogTimeline({ teamId }: { teamId: number }) {
   return (
     <div className="panel px-5 py-5">
       <SectionTag
-        name="Activity log"
+        name="Activity"
         right={
           <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
             {logs.length}

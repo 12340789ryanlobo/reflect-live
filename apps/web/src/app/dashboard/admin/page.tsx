@@ -68,9 +68,8 @@ export default function AdminOverview() {
   return (
     <>
       <PageHeader
-        eyebrow="Admin overview"
+        eyebrow="Overview"
         title="Admin"
-        italic="room."
         subtitle="FULL-ACCESS PANEL"
       />
 

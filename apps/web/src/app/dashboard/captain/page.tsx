@@ -113,10 +113,9 @@ export default function CaptainHome() {
   return (
     <>
       <PageHeader
-        eyebrow="Captain pulse"
-        title="Team"
-        italic="pulse."
-        subtitle={`${team.name.toUpperCase()} · CAPTAIN VIEW`}
+        eyebrow="Today"
+        title="Dashboard"
+        subtitle={`${team.name.toUpperCase()} · CAPTAIN`}
         live
       />
 

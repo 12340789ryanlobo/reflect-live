@@ -289,42 +289,46 @@ function FlowArrow() {
 
 function DashboardMock() {
   return (
-    <div className="panel relative overflow-hidden">
+    <div
+      className="relative overflow-hidden rounded-lg border border-[color:var(--hairline)]"
+      style={{
+        background: 'hsl(220 22% 11%)',
+        boxShadow: '0 24px 48px hsl(220 100% 0% / 0.5)',
+      }}
+    >
+      {/* Browser chrome — traffic lights + URL bar. Signals 'illustration' not 'live app' */}
       <div
-        className="h-[2px]"
-        style={{ background: 'linear-gradient(to right, transparent, hsl(188 82% 58%) 50%, transparent)' }}
-      />
-      <div className="flex items-center justify-between border-b border-[color:var(--hairline)] px-5 py-3">
-        <div className="flex items-center gap-3">
-          <span className="eyebrow">Control room</span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="live-dot" />
-            <span className="eyebrow-signal">LIVE</span>
-          </span>
+        className="flex items-center gap-3 border-b border-[color:var(--hairline)] px-4 py-2.5"
+        style={{ background: 'hsl(220 22% 14%)' }}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="size-[11px] rounded-full" style={{ background: 'hsl(356 70% 55%)' }} />
+          <span className="size-[11px] rounded-full" style={{ background: 'hsl(38 70% 55%)' }} />
+          <span className="size-[11px] rounded-full" style={{ background: 'hsl(142 50% 50%)' }} />
         </div>
-        <span className="mono text-[0.62rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-          WINDOW · 24H
-        </span>
+        <div
+          className="flex-1 rounded-md px-3 py-0.5 mono text-[0.62rem] text-[color:var(--bone-mute)] tracking-wider"
+          style={{ background: 'hsl(220 22% 8%)' }}
+        >
+          reflect.live/dashboard
+        </div>
       </div>
 
+      {/* App content */}
       <div className="grid grid-cols-1 gap-0 sm:grid-cols-[auto_1fr]">
         <div className="flex flex-col items-center justify-center border-b border-[color:var(--hairline)] p-5 sm:border-b-0 sm:border-r">
           <ReadinessDial value={7.2} responses={19} size={200} label="Team readiness" sublabel="19 RESPONSES" />
         </div>
 
         <div className="p-5">
-          <div className="mb-3 flex items-center gap-3 border-b border-[color:var(--hairline)] pb-2">
-            <span className="eyebrow">The wire</span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="live-dot" />
-              <span className="eyebrow-signal">LIVE</span>
-            </span>
+          <div className="mb-3 border-b border-[color:var(--hairline)] pb-2">
+            <span className="eyebrow">Messages</span>
           </div>
           <ul className="space-y-2">
-            <WireRow time="07:14:02" cat="SURVEY" tone="signal" name="A. Patel" group="MID-DIST" body="7" highlight />
-            <WireRow time="07:12:44" cat="WORKOUT" tone="chlorine" name="M. Lin" group="SPRINT" body="erg 5×500 @ 2k pace, 1k warmdown" />
-            <WireRow time="06:58:11" cat="REHAB" tone="amber" name="J. Hayes" group="DIVE" body="foam roll quads + hip flexors, 20 min" />
-            <WireRow time="06:41:30" cat="SURVEY" tone="signal" name="K. Okafor" group="DIST" body="6" />
+            <WireRow time="07:14:02" cat="SURVEY" tone="signal" name="A. Patel" body="7" highlight />
+            <WireRow time="07:12:44" cat="WORKOUT" tone="chlorine" name="M. Lin" body="erg 5×500 @ 2k pace, 1k warmdown" />
+            <WireRow time="06:58:11" cat="REHAB" tone="amber" name="J. Hayes" body="foam roll quads + hip flexors, 20 min" />
+            <WireRow time="06:41:30" cat="SURVEY" tone="signal" name="K. Okafor" body="6" />
           </ul>
         </div>
       </div>
@@ -343,7 +347,6 @@ function WireRow({
   cat,
   tone,
   name,
-  group,
   body,
   highlight,
 }: {
@@ -351,7 +354,6 @@ function WireRow({
   cat: string;
   tone: 'signal' | 'chlorine' | 'amber';
   name: string;
-  group: string;
   body: string;
   highlight?: boolean;
 }) {
@@ -369,12 +371,7 @@ function WireRow({
         {cat}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[0.82rem] font-semibold text-[color:var(--bone)]">{name}</span>
-          <span className="mono text-[0.56rem] uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-            {group}
-          </span>
-        </div>
+        <span className="text-[0.82rem] font-semibold text-[color:var(--bone)]">{name}</span>
         <div className="text-[0.78rem] text-[color:var(--bone-soft)] leading-snug">{body}</div>
       </div>
     </li>

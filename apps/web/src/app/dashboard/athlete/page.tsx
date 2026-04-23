@@ -132,9 +132,8 @@ export default function AthletePage() {
     return (
       <>
         <PageHeader
-          eyebrow="Your view"
-          title="Your"
-          italic="view."
+          eyebrow="Athlete simulator"
+          title="My view"
           subtitle="PICK AN ATHLETE TO SIMULATE"
         />
         <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
@@ -187,11 +186,9 @@ export default function AthletePage() {
   return (
     <>
       <PageHeader
-        code={`ME·${String(me.id).padStart(3, '0')}`}
-        eyebrow="Your lane"
-        title={me.name.split(' ')[0]}
-        italic={`${me.name.split(' ').slice(1).join(' ')}.`}
-        subtitle={`${me.group ? me.group.toUpperCase() : 'NO GROUP'} · WINDOW ${daysShort}`}
+        eyebrow="My view"
+        title={me.name}
+        subtitle={`${me.group ? me.group.toUpperCase() : 'NO GROUP'} · ${daysShort}`}
         right={
           <div className="flex items-center gap-2">
             <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>

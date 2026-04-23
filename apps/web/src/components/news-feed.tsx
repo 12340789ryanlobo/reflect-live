@@ -78,7 +78,7 @@ export function NewsFeed() {
     <div className="panel overflow-hidden">
       <div className="px-5 pt-4 pb-3">
         <SectionTag
-          name="Headlines"
+          name="News"
           right={
             <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
               {items.length} · 30m

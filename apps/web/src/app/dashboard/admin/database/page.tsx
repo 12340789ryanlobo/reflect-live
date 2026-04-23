@@ -70,9 +70,8 @@ export default function AdminDatabasePage() {
   return (
     <>
       <PageHeader
-        eyebrow="Database"
-        title="The"
-        italic="database."
+        eyebrow="Tables"
+        title="Database"
         subtitle={loading ? 'COUNTING…' : `${totals.toLocaleString()} ROWS · ${rows.length} TABLES`}
       />
 

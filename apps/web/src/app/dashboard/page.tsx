@@ -1,13 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { StatReadout } from '@/components/stat-readout';
 import { ReadinessDial } from '@/components/readiness-dial';
 import { LiveFeed } from '@/components/live-feed';
 import { WatchlistPanel } from '@/components/watchlist-panel';
 import { ActivityLogTimeline } from '@/components/activity-log-timeline';
-import { NewsFeed } from '@/components/news-feed';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { bucketize } from '@/components/sparkline';
@@ -118,9 +116,8 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        eyebrow="Control room"
-        title="Control"
-        italic="room."
+        eyebrow="Today"
+        title="Dashboard"
         subtitle={scopedSubtitle}
         live
         right={
@@ -194,27 +191,12 @@ export default function Dashboard() {
           <LiveFeed teamId={prefs.team_id} />
         </section>
 
-        {/* SECONDARY — starred + news side-by-side. */}
+        {/* STARRED + ACTIVITY — side-by-side. */}
         <section className="reveal reveal-3 grid gap-6 lg:grid-cols-3">
           <WatchlistPanel teamId={prefs.team_id} watchlist={prefs.watchlist} />
           <div className="lg:col-span-2">
-            <NewsFeed />
+            <ActivityLogTimeline teamId={prefs.team_id} />
           </div>
-        </section>
-
-        {/* THE LOG — bottom. */}
-        <section className="reveal reveal-4">
-          <ActivityLogTimeline teamId={prefs.team_id} />
-        </section>
-
-        {/* Thin footer — calendar link */}
-        <section className="reveal reveal-5 border-t border-[color:var(--hairline)] pt-6">
-          <Link
-            href="/dashboard/events"
-            className="inline-flex items-center gap-2 mono text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[color:var(--bone-soft)] hover:text-[color:var(--signal)] transition"
-          >
-            Venue calendar →
-          </Link>
         </section>
       </main>
     </>
