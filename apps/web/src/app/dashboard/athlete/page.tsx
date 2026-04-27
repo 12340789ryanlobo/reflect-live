@@ -6,6 +6,7 @@ import { Pill } from '@/components/v3/pill';
 import { ReadinessBar } from '@/components/v3/readiness-bar';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog, Category } from '@reflect-live/shared';
+import { computeLeaderboard, weekStartCT, type LeaderboardRow } from '@/lib/scoring';
 import {
   Select,
   SelectContent,
@@ -39,7 +40,7 @@ function clockHM(ts: string): string {
 }
 
 export default function AthletePage() {
-  const { prefs, refresh } = useDashboard();
+  const { prefs, team, refresh } = useDashboard();
   const sb = useSupabase();
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [me, setMe] = useState<Player | null>(null);
@@ -47,6 +48,8 @@ export default function AthletePage() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [days, setDays] = useState(30);
   const [saving, setSaving] = useState(false);
+  const [weekRank, setWeekRank] = useState<number | null>(null);
+  const [allTimeRank, setAllTimeRank] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -89,6 +92,24 @@ export default function AthletePage() {
       setLogs((l ?? []) as ActivityLog[]);
     })();
   }, [sb, me, days]);
+
+  useEffect(() => {
+    if (!me) return;
+    (async () => {
+      const scoring = team.scoring_json;
+      const sinceISO = weekStartCT().toISOString();
+      const [week, allTime] = await Promise.all([
+        computeLeaderboard(sb, prefs.team_id, scoring, sinceISO),
+        computeLeaderboard(sb, prefs.team_id, scoring),
+      ]);
+      const findRank = (rows: LeaderboardRow[], pid: number): number | null => {
+        const idx = rows.findIndex((r) => r.player_id === pid);
+        return idx === -1 ? null : idx + 1;
+      };
+      setWeekRank(findRank(week, me.id));
+      setAllTimeRank(findRank(allTime, me.id));
+    })();
+  }, [sb, prefs.team_id, team.scoring_json, me?.id]);
 
   async function setAthlete(playerId: number | null) {
     setSaving(true);
@@ -247,9 +268,20 @@ export default function AthletePage() {
                 />
               </div>
             </div>
-            <div className="px-6 pb-5 pt-3 flex items-center gap-2">
+            <div className="px-6 pb-5 pt-3 flex items-center gap-2 flex-wrap">
               <Pill tone="green">athlete view</Pill>
               <span className="text-[12px] text-[color:var(--ink-mute)]">Simulating {me.name}</span>
+              <span className="text-[12px] text-[color:var(--ink-mute)]">·</span>
+              <div className="text-[12px] text-[color:var(--ink-mute)]">
+                Your rank:{' '}
+                <span className="font-semibold text-[color:var(--ink)]">
+                  {weekRank != null ? `#${weekRank} this week` : 'unranked this week'}
+                </span>
+                {' · '}
+                <span className="font-semibold text-[color:var(--ink)]">
+                  {allTimeRank != null ? `#${allTimeRank} all-time` : 'unranked all-time'}
+                </span>
+              </div>
             </div>
           </div>
 
