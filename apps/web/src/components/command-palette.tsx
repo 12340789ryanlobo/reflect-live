@@ -64,7 +64,7 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput placeholder="Jump to a page or search the roster…" />
       <CommandList>
-        <CommandEmpty className="px-4 py-6 text-sm mono text-[color:var(--bone-mute)]">
+        <CommandEmpty className="px-4 py-6 text-sm mono text-[color:var(--ink-mute)]">
           — no matches —
         </CommandEmpty>
         <CommandGroup heading="Navigate">
@@ -133,7 +133,7 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
                   <Star className="opacity-70" />
                   <span>{p.name}</span>
                   {p.group && (
-                    <span className="ml-auto mono text-[0.7rem] uppercase tracking-wider text-[color:var(--bone-mute)]">
+                    <span className="ml-auto mono text-[0.7rem] uppercase tracking-wider text-[color:var(--ink-mute)]">
                       {p.group}
                     </span>
                   )}
