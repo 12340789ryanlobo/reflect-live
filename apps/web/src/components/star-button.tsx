@@ -11,10 +11,7 @@ export function StarButton({ playerId, initial }: { playerId: number; initial: b
 
   async function toggle() {
     setBusy(true);
-    const { data: pref } = await sb
-      .from('user_preferences')
-      .select('clerk_user_id, watchlist')
-      .maybeSingle();
+    const { data: pref } = await sb.from('user_preferences').select('clerk_user_id, watchlist').maybeSingle();
     if (!pref) {
       setBusy(false);
       return;
@@ -34,10 +31,10 @@ export function StarButton({ playerId, initial }: { playerId: number; initial: b
       onClick={toggle}
       disabled={busy}
       className={cn(
-        'inline-flex items-center gap-2 rounded-sm border px-3 py-1.5 font-mono text-[0.72rem] font-semibold uppercase tracking-[0.2em] transition disabled:opacity-60',
+        'inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-[12px] font-semibold transition disabled:opacity-60',
         starred
-          ? 'border-[color:var(--signal)] bg-[hsl(188_60%_20%_/_0.4)] text-[color:var(--signal)] hover:bg-[hsl(188_60%_26%_/_0.5)]'
-          : 'border-[color:var(--hairline-strong)] text-[color:var(--bone-soft)] hover:border-[color:var(--signal)] hover:text-[color:var(--signal)]',
+          ? 'bg-[color:var(--blue-soft)] border-[color:var(--blue-soft-2)] text-[color:var(--blue)] hover:bg-[color:var(--blue-soft-2)]'
+          : 'border-[color:var(--border)] text-[color:var(--ink-soft)] hover:border-[color:var(--blue)] hover:text-[color:var(--blue)]',
       )}
     >
       <Star className={cn('size-3.5', starred && 'fill-current')} />

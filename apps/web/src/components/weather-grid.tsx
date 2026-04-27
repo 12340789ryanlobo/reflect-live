@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import type { Location, WeatherSnapshot } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
+import { Pill } from './v3/pill';
 
 const WMO_LABEL: Record<number, string> = {
   0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
@@ -17,14 +18,6 @@ function clockHM(ts: string): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-/**
- * WeatherGrid — "VENUE STATIONS"
- *
- * Instrument tiles — one per venue. Kind pill in the header (TRAINING /
- * MEET), big display-serif temperature with a cyan °C unit, mono
- * condition line with wind + precip, and a monospaced "updated HH:MM"
- * telemetry stamp along the bottom edge.
- */
 export function WeatherGrid({ teamId }: { teamId: number }) {
   const sb = useSupabase();
   const [locs, setLocs] = useState<Location[]>([]);
@@ -59,12 +52,7 @@ export function WeatherGrid({ teamId }: { teamId: number }) {
       .channel('weather')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'weather_snapshots',
-          filter: `team_id=eq.${teamId}`,
-        },
+        { event: 'INSERT', schema: 'public', table: 'weather_snapshots', filter: `team_id=eq.${teamId}` },
         (p) => {
           const s = p.new as WeatherSnapshot;
           setLatest((prev) => ({ ...prev, [s.location_id]: s }));
@@ -78,88 +66,41 @@ export function WeatherGrid({ teamId }: { teamId: number }) {
   }, [sb, teamId]);
 
   if (!locs.length) {
-    return (
-      <p className="mono text-xs uppercase tracking-widest text-[color:var(--bone-mute)]">
-        — no venues configured —
-      </p>
-    );
+    return <p className="text-[13px] text-[color:var(--ink-mute)]">— no venues configured —</p>;
   }
 
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
       {locs.map((l) => {
         const s = latest[l.id];
-        const kindTone =
-          l.kind === 'training'
-            ? { color: 'hsl(162 62% 54%)', bg: 'hsl(162 40% 18% / 0.3)', border: 'hsl(162 40% 40%)' }
-            : { color: 'hsl(358 78% 58%)', bg: 'hsl(358 40% 22% / 0.3)', border: 'hsl(358 60% 40%)' };
-
+        const tone = l.kind === 'training' ? 'green' : 'blue';
         return (
           <div
             key={l.id}
-            className="panel relative overflow-hidden p-4"
-            style={{
-              borderLeft: `2px solid ${kindTone.color}`,
-            }}
+            className="rounded-xl bg-[color:var(--card)] border p-4"
+            style={{ borderColor: 'var(--border)' }}
           >
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="mono text-[0.62rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-                  STN · {String(l.id).padStart(3, '0')}
-                </div>
-                <div className="mt-1 text-[0.95rem] font-semibold leading-tight text-[color:var(--bone)]">
-                  {l.name}
-                </div>
-              </div>
-              <span
-                className="mono px-1.5 py-0.5 text-[0.58rem] font-semibold uppercase tracking-[0.22em] rounded-sm shrink-0"
-                style={{
-                  color: kindTone.color,
-                  background: kindTone.bg,
-                  border: `1px solid ${kindTone.border}`,
-                }}
-              >
-                {l.kind}
-              </span>
+              <div className="text-[14px] font-semibold text-[color:var(--ink)]">{l.name}</div>
+              <Pill tone={tone}>{l.kind}</Pill>
             </div>
-
             {s ? (
               <>
                 <div className="mt-3 flex items-baseline gap-1">
-                  <div className="num-display text-[2.8rem] leading-none text-[color:var(--bone)]">
+                  <span className="text-[34px] font-bold tabular leading-none text-[color:var(--ink)]">
                     {s.temp_c != null ? Math.round(s.temp_c) : '—'}
-                  </div>
-                  <div className="mono text-sm text-[color:var(--signal)] leading-none pb-1">°C</div>
-                </div>
-                <div className="mt-1 text-xs text-[color:var(--bone-mute)] leading-snug">
-                  {s.condition_code != null
-                    ? WMO_LABEL[s.condition_code] ?? `code ${s.condition_code}`
-                    : '—'}
-                  {s.wind_kph != null && (
-                    <span className="mono"> · wind {Math.round(s.wind_kph)} kph</span>
-                  )}
-                  {s.precip_mm != null && s.precip_mm > 0 && (
-                    <span className="mono"> · {s.precip_mm} mm</span>
-                  )}
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 text-[0.62rem]">
-                    <span className="live-dot" />
-                    <span className="mono uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-                      UPDATED {clockHM(s.fetched_at)}
-                    </span>
                   </span>
-                  {l.event_date && (
-                    <span className="mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
-                      MEET {new Date(l.event_date).toLocaleDateString()}
-                    </span>
-                  )}
+                  <span className="text-[14px] text-[color:var(--ink-mute)]">°C</span>
                 </div>
+                <div className="mt-1 text-[12px] text-[color:var(--ink-mute)]">
+                  {s.condition_code != null ? WMO_LABEL[s.condition_code] ?? `code ${s.condition_code}` : '—'}
+                  {s.wind_kph != null && ` · wind ${Math.round(s.wind_kph)} kph`}
+                  {s.precip_mm != null && s.precip_mm > 0 && ` · ${s.precip_mm} mm`}
+                </div>
+                <div className="mt-3 mono text-[11px] text-[color:var(--ink-mute)] tabular">updated {clockHM(s.fetched_at)}</div>
               </>
             ) : (
-              <div className="mt-3 mono text-xs uppercase tracking-widest text-[color:var(--bone-mute)]">
-                — waiting for first snapshot —
-              </div>
+              <div className="mt-3 text-[13px] text-[color:var(--ink-mute)]">— waiting for first reading —</div>
             )}
           </div>
         );

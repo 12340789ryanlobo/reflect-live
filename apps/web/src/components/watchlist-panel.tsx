@@ -3,27 +3,22 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { Player } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
-import { SectionTag } from '@/components/section-tag';
-import { Stamp } from '@/components/stamp';
+import { Pill } from './v3/pill';
 import { relativeTime } from '@/lib/format';
 
 function initials(name: string): string {
   return name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 }
 
-function hoursSince(iso: string | undefined): number | null {
-  if (!iso) return null;
-  return (Date.now() - new Date(iso).getTime()) / 3600000;
+function statusOf(iso: string | undefined): { tone: 'green' | 'amber' | 'mute'; label: string } {
+  if (!iso) return { tone: 'mute', label: 'Quiet' };
+  const hrs = (Date.now() - new Date(iso).getTime()) / 3600000;
+  if (hrs < 1) return { tone: 'green', label: 'On wire' };
+  if (hrs < 24) return { tone: 'green', label: 'Today' };
+  if (hrs < 72) return { tone: 'amber', label: 'Watch' };
+  return { tone: 'mute', label: 'Quiet' };
 }
 
-/**
- * WatchlistPanel — "STARRED"
- *
- * A compact list of players the coach has starred. Each row is a
- * clipboard-style card with name, group, a stamped status (LIVE /
- * WATCH / QUIET depending on recency of last inbound), and the
- * relative timestamp.
- */
 export function WatchlistPanel({ teamId, watchlist }: { teamId: number; watchlist: number[] }) {
   const sb = useSupabase();
   const [players, setPlayers] = useState<Player[]>([]);
@@ -58,72 +53,42 @@ export function WatchlistPanel({ teamId, watchlist }: { teamId: number; watchlis
   }, [players, lastSeen]);
 
   return (
-    <div className="panel p-5">
-      <SectionTag
-        name="Starred"
-        right={
-          <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-            {players.length}
-          </span>
-        }
-      />
+    <section className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+      <header className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-bold text-[color:var(--ink)]">Starred athletes</h2>
+        <span className="text-[11.5px] text-[color:var(--ink-mute)]">{players.length}</span>
+      </header>
 
       {!players.length ? (
-        <p className="mt-6 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-          — star an athlete to track them here —
-        </p>
+        <p className="text-[13px] text-[color:var(--ink-mute)]">— star an athlete to track them here —</p>
       ) : (
-        <ul className="mt-4 space-y-2">
-          {sorted.map((p, i) => {
+        <ul className="space-y-2">
+          {sorted.map((p) => {
             const ts = lastSeen[p.id];
-            const hrs = hoursSince(ts);
-            const stampTone = hrs == null
-              ? 'quiet'
-              : hrs < 1
-              ? 'live'
-              : hrs < 24
-              ? 'on'
-              : hrs < 72
-              ? 'watch'
-              : 'quiet';
-            const stampText = hrs == null
-              ? '— quiet —'
-              : hrs < 1
-              ? 'live'
-              : hrs < 24
-              ? 'on wire'
-              : hrs < 72
-              ? 'watch'
-              : 'quiet';
+            const status = statusOf(ts);
             return (
               <li key={p.id}>
                 <Link
                   href={`/dashboard/player/${p.id}`}
-                  className="group relative flex items-center gap-3 rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/50 px-3 py-2.5 transition hover:border-[color:var(--signal)]/60 hover:bg-[color:var(--panel-raised)]"
+                  className="flex items-center gap-3 rounded-xl border px-3 py-2.5 transition hover:bg-[color:var(--card-hover)] hover:border-[color:var(--blue-soft-2)]"
+                  style={{ borderColor: 'var(--border)' }}
                 >
-                  <span className="mono text-[0.62rem] text-[color:var(--bone-dim)] tabular w-6 shrink-0">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span className="grid size-7 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-over)] text-[0.66rem] font-semibold shrink-0">
+                  <span className="grid size-8 place-items-center rounded-md border bg-[color:var(--paper)] text-[10.5px] font-bold text-[color:var(--ink-soft)]" style={{ borderColor: 'var(--border)' }}>
                     {initials(p.name)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-[color:var(--bone)]">
-                      {p.name}
-                    </div>
-                    <div className="mono truncate text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
-                      {p.group ?? 'no group'} · {ts ? relativeTime(ts) : 'no messages'}
+                    <div className="text-[14px] font-semibold text-[color:var(--ink)] truncate">{p.name}</div>
+                    <div className="text-[11.5px] text-[color:var(--ink-mute)] truncate">
+                      {p.group ?? 'No group'}{ts ? ` · ${relativeTime(ts)}` : ''}
                     </div>
                   </div>
-                  <Stamp tone={stampTone} rotate={i % 2 === 0 ? -2 : 1.5}>
-                    {stampText}
-                  </Stamp>
+                  <Pill tone={status.tone}>{status.label}</Pill>
                 </Link>
               </li>
             );
           })}
         </ul>
       )}
-    </div>
+    </section>
   );
 }

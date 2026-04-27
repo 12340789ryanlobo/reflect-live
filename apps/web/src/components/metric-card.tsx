@@ -1,22 +1,20 @@
 'use client';
 
 import * as React from 'react';
-import { StatReadout, type ReadoutTone } from './stat-readout';
+import { StatCell, type StatTone } from './v3/stat-cell';
 
 export type MetricTone = 'default' | 'primary' | 'success' | 'warning' | 'danger';
 
-const TONE_MAP: Record<MetricTone, ReadoutTone> = {
+const MAP: Record<MetricTone, StatTone> = {
   default: 'default',
-  primary: 'heritage',
-  success: 'chlorine',
+  primary: 'blue',
+  success: 'green',
   warning: 'amber',
-  danger: 'siren',
+  danger: 'red',
 };
 
 /**
- * Legacy `<Metric>` alias — existing pages pass `tone="primary" | "success" | etc.`
- * We map those onto the new StatReadout tones so all pages inherit the new
- * editorial readout style without page-by-page rewrites.
+ * Compat wrapper. Existing pages use `<Metric>`; new pages prefer `<StatCell>` directly.
  */
 export function Metric({
   label,
@@ -24,7 +22,6 @@ export function Metric({
   sub,
   tone = 'default',
   icon: _icon,
-  spark,
 }: {
   label: string;
   value: React.ReactNode;
@@ -33,13 +30,5 @@ export function Metric({
   icon?: React.ReactNode;
   spark?: number[];
 }) {
-  return (
-    <StatReadout
-      label={label}
-      value={value}
-      sub={sub}
-      tone={TONE_MAP[tone]}
-      spark={spark}
-    />
-  );
+  return <StatCell label={label} value={value} sub={sub} tone={MAP[tone]} />;
 }

@@ -43,7 +43,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { BrandMark } from './brand-mark';
+import { Brand } from './v3/brand';
+import { Pill } from './v3/pill';
 import type { UserRole } from '@reflect-live/shared';
 
 type NavItem = {
@@ -83,23 +84,18 @@ const ADMIN_NAV: NavItem[] = [
   { href: '/dashboard/admin/database', label: 'Database', icon: Database },
 ];
 
-const ROLE_DETAILS: Record<
-  UserRole,
-  { label: string; hint: string; color: string; border: string; bg: string }
-> = {
-  admin:   { label: 'ADMIN',   hint: 'full access',   color: 'hsl(356 82% 62%)', border: 'hsl(356 60% 42%)', bg: 'hsl(356 60% 22% / 0.3)' },
-  coach:   { label: 'COACH',   hint: 'team-wide',     color: 'hsl(358 78% 58%)', border: 'hsl(358 60% 42%)', bg: 'hsl(358 40% 22% / 0.3)' },
-  captain: { label: 'CAPTAIN', hint: 'team captain',  color: 'hsl(38 90% 62%)',  border: 'hsl(38 60% 42%)',  bg: 'hsl(38 60% 20% / 0.3)'  },
-  athlete: { label: 'ATHLETE', hint: 'personal view', color: 'hsl(162 62% 54%)', border: 'hsl(162 40% 40%)', bg: 'hsl(162 40% 18% / 0.3)' },
+const ROLE_PILL: Record<UserRole, { tone: 'red' | 'blue' | 'amber' | 'green'; label: string }> = {
+  admin:   { tone: 'red',   label: 'Admin' },
+  coach:   { tone: 'blue',  label: 'Coach' },
+  captain: { tone: 'amber', label: 'Captain' },
+  athlete: { tone: 'green', label: 'Athlete' },
 };
 
 function NavGroupBlock({ group }: { group: NavGroup }) {
   const pathname = usePathname();
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="station-code !text-[0.62rem] !tracking-[0.22em] !text-[color:var(--bone-dim)]">
-        {group.label}
-      </SidebarGroupLabel>
+      <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {group.items.map((item) => {
@@ -135,83 +131,44 @@ export function AppSidebar({
 }) {
   const groups: NavGroup[] = [];
 
-  if (role === 'coach' || role === 'admin') {
-    groups.push({ label: 'Team', items: COACH_NAV });
-  }
-  if (role === 'captain') {
-    groups.push({ label: 'Captain', items: CAPTAIN_NAV });
-  }
-  if (role === 'athlete') {
-    groups.push({ label: 'Your view', items: ATHLETE_NAV });
-  }
+  if (role === 'coach' || role === 'admin') groups.push({ label: 'Team', items: COACH_NAV });
+  if (role === 'captain') groups.push({ label: 'Captain', items: CAPTAIN_NAV });
+  if (role === 'athlete') groups.push({ label: 'Your view', items: ATHLETE_NAV });
   if (hasLinkedAthlete && role !== 'athlete') {
     groups.push({
       label: 'Also you',
       items: [{ href: '/dashboard/athlete', label: 'My view', icon: UserIcon }],
     });
   }
-  if (role === 'admin') {
-    groups.push({ label: 'Administration', items: ADMIN_NAV });
-  }
+  if (role === 'admin') groups.push({ label: 'Administration', items: ADMIN_NAV });
 
-  const roleMeta = ROLE_DETAILS[role];
+  const rolePill = ROLE_PILL[role];
 
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2.5 px-1 py-1.5 transition hover:opacity-90"
-        >
-          <BrandMark size={30} tone="heritage" />
-          <div className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate h-serif text-[1rem] font-semibold tracking-tight text-[color:var(--bone)]">
-              reflect<span className="opacity-50">·</span>live
-            </span>
-            <span className="truncate mono text-[0.62rem] uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-              {teamName ?? 'Team'}
-            </span>
-          </div>
+        <Link href="/dashboard" className="flex items-center gap-2.5 px-2 py-1.5 transition hover:opacity-90">
+          <Brand size="md" />
         </Link>
-        <div
-          className="mx-1 mt-1 flex items-center justify-between gap-2 rounded-sm border px-2 py-1"
-          style={{ borderColor: roleMeta.border, background: roleMeta.bg }}
-        >
-          <span className="flex items-center gap-1.5">
-            <span
-              className="size-1.5 rounded-full"
-              style={{ background: roleMeta.color, boxShadow: `0 0 6px ${roleMeta.color}` }}
-            />
-            <span
-              className="mono text-[0.66rem] font-semibold tracking-[0.22em]"
-              style={{ color: roleMeta.color }}
-            >
-              {roleMeta.label}
+        <div className="flex items-center justify-between gap-2 px-2 pb-2">
+          <Pill tone={rolePill.tone}>{rolePill.label}</Pill>
+          {teamName && (
+            <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
+              {teamName}
             </span>
-          </span>
-          <span className="mono text-[0.58rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
-            {roleMeta.hint}
-          </span>
+          )}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        {groups.map((g) => (
-          <NavGroupBlock key={g.label} group={g} />
-        ))}
+        {groups.map((g) => <NavGroupBlock key={g.label} group={g} />)}
 
         <SidebarGroup>
-          <SidebarGroupLabel className="station-code !text-[0.62rem] !tracking-[0.22em] !text-[color:var(--bone-dim)]">
-            Account
-          </SidebarGroupLabel>
+          <SidebarGroupLabel>Account</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={usePathname() === '/dashboard/settings'}
-                  tooltip="Settings"
-                >
+                <SidebarMenuButton asChild isActive={usePathname() === '/dashboard/settings'} tooltip="Settings">
                   <Link href="/dashboard/settings">
                     <Settings className="size-4" />
                     <span>Settings</span>
@@ -247,32 +204,29 @@ function UserMenuBlock() {
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <Avatar className="h-8 w-8 rounded-sm">
+            <SidebarMenuButton size="lg">
+              <Avatar className="h-8 w-8 rounded-md">
                 {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
-                <AvatarFallback className="rounded-sm bg-sidebar-accent text-sidebar-accent-foreground font-mono text-[0.7rem]">
+                <AvatarFallback className="rounded-md bg-[color:var(--blue-soft)] text-[color:var(--blue)] font-bold text-[10.5px]">
                   {initials || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{name}</span>
-                <span className="truncate mono text-[0.65rem] text-sidebar-foreground/60">{email}</span>
+                <span className="truncate font-semibold">{name}</span>
+                <span className="truncate text-[11.5px] text-[color:var(--ink-mute)]">{email}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4 opacity-60" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="end" className="w-60">
             <DropdownMenuLabel className="flex items-center gap-2">
-              <Avatar className="h-8 w-8 rounded-sm">
+              <Avatar className="h-8 w-8 rounded-md">
                 {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
-                <AvatarFallback className="rounded-sm">{initials || 'U'}</AvatarFallback>
+                <AvatarFallback className="rounded-md">{initials || 'U'}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{name}</span>
-                <span className="truncate mono text-[0.65rem] text-muted-foreground">{email}</span>
+                <span className="truncate font-semibold">{name}</span>
+                <span className="truncate text-[11.5px] text-[color:var(--ink-mute)]">{email}</span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

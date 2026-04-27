@@ -3,9 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { TwilioMessage, Category, Player } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { SectionTag } from '@/components/section-tag';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Pill, type PillTone } from './v3/pill';
 import { buildPhoneIndex, prettyCategory, prettyPhone, relativeTime } from '@/lib/format';
 
 const CATS: Array<{ value: Category | 'all'; label: string }> = [
@@ -16,29 +16,18 @@ const CATS: Array<{ value: Category | 'all'; label: string }> = [
   { value: 'chat', label: 'Chat' },
 ];
 
-const CAT_TONE: Record<Category, { color: string; bg: string; border: string }> = {
-  workout: { color: 'hsl(162 62% 54%)', bg: 'hsl(162 40% 18% / 0.4)', border: 'hsl(162 40% 40%)' },
-  rehab:   { color: 'hsl(38 90% 62%)',  bg: 'hsl(38 60% 20% / 0.4)',  border: 'hsl(38 60% 40%)' },
-  survey:  { color: 'hsl(188 82% 58%)', bg: 'hsl(188 60% 20% / 0.4)', border: 'hsl(188 60% 40%)' },
-  chat:    { color: 'hsl(36 10% 62%)',  bg: 'hsl(220 14% 14%)',       border: 'hsl(220 14% 24%)' },
+const CAT_TONE: Record<Category, PillTone> = {
+  workout: 'green',
+  rehab: 'amber',
+  survey: 'blue',
+  chat: 'mute',
 };
 
-function clockStamp(ts: string): string {
+function clockHM(ts: string): string {
   const d = new Date(ts);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${hh}:${mm}:${ss}`;
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-/**
- * LiveFeed — "THE WIRE"
- *
- * A broadcast-ticker style stream. Each row is a time-stamped entry with
- * a station-code time (hh:mm:ss), a category pill, the sender name (or
- * a phone when the roster doesn't resolve), and the message body.
- * New entries slide in with a cyan accent stripe that fades.
- */
 export function LiveFeed({ teamId }: { teamId: number }) {
   const sb = useSupabase();
   const [msgs, setMsgs] = useState<TwilioMessage[]>([]);
@@ -111,108 +100,74 @@ export function LiveFeed({ teamId }: { teamId: number }) {
   }
 
   return (
-    <div className="panel overflow-hidden">
-      <div className="px-5 pt-4 pb-3">
-        <SectionTag
-          name="Messages"
-          right={
-            <Tabs value={filter} onValueChange={(v) => setFilter(v as Category | 'all')}>
-              <TabsList className="h-8 bg-[color:var(--panel-raised)] border border-[color:var(--hairline)]">
-                {CATS.map((c) => (
-                  <TabsTrigger
-                    key={c.value}
-                    value={c.value}
-                    className="text-[0.72rem] mono uppercase tracking-wider data-[state=active]:bg-[color:var(--panel-over)] data-[state=active]:text-[color:var(--signal)]"
-                  >
-                    {c.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          }
-        />
-      </div>
+    <section
+      className="rounded-2xl bg-[color:var(--card)] border"
+      style={{ borderColor: 'var(--border)' }}
+    >
+      <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-bold text-[color:var(--ink)]">Messages</h2>
+        </div>
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as Category | 'all')}>
+          <TabsList className="h-9 bg-[color:var(--paper)] border" style={{ borderColor: 'var(--border)' }}>
+            {CATS.map((c) => (
+              <TabsTrigger
+                key={c.value}
+                value={c.value}
+                className="text-[12px] font-semibold data-[state=active]:bg-[color:var(--card)] data-[state=active]:text-[color:var(--blue)]"
+              >
+                {c.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </header>
 
       {filtered.length === 0 ? (
-        <div className="border-t border-[color:var(--hairline)] px-6 py-10 text-center">
-          <p className="mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-            — no signals in this filter —
-          </p>
+        <div className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">
+          — no messages in this filter —
         </div>
       ) : (
-        <ScrollArea className="h-[440px] border-t border-[color:var(--hairline)]">
-          <ul>
-            {filtered.map((m, i) => {
-              const player = resolvePlayer(m);
-              const otherPhone = otherPartyPhone(m);
-              const senderLabel = player ? player.name : 'Unknown';
-              const catTone = CAT_TONE[m.category] ?? CAT_TONE.chat;
-              return (
-                <li
-                  key={m.sid}
-                  className={`group border-b border-[color:var(--hairline)]/60 px-5 py-3 transition hover:bg-[color:var(--panel-raised)]/40 ${
-                    newIds.has(m.sid) ? 'slide-in-row' : ''
-                  } ${i === 0 ? 'pt-3' : ''}`}
-                >
-                  <div className="flex items-start gap-4">
-                    {/* Time column */}
-                    <div className="shrink-0 w-[88px] text-right">
-                      <div className="mono text-[0.7rem] text-[color:var(--signal)] tabular">
-                        {clockStamp(m.date_sent)}
-                      </div>
-                      <div className="mono text-[0.62rem] text-[color:var(--bone-dim)] tabular mt-0.5">
-                        {relativeTime(m.date_sent, now)}
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="shrink-0 w-px self-stretch bg-[color:var(--hairline)]" />
-
-                    {/* Content */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className="mono px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] rounded-sm"
-                          style={{
-                            color: catTone.color,
-                            background: catTone.bg,
-                            border: `1px solid ${catTone.border}`,
-                          }}
-                        >
-                          {prettyCategory(m.category)}
-                        </span>
-                        {player ? (
-                          <Link
-                            href={`/dashboard/player/${player.id}`}
-                            className="text-sm font-semibold text-[color:var(--bone)] hover:text-[color:var(--signal)] transition"
-                          >
-                            {senderLabel}
-                          </Link>
-                        ) : (
-                          <span className="text-sm font-semibold text-[color:var(--bone-mute)]">
-                            {senderLabel}
-                          </span>
-                        )}
-                        {!player && (
-                          <span className="mono text-[0.62rem] text-[color:var(--bone-dim)] uppercase tracking-wider">
-                            {prettyPhone(otherPhone)}
-                          </span>
-                        )}
-                      </div>
-                      {m.body && (
-                        <div className="mt-1.5 text-sm leading-relaxed text-[color:var(--bone-soft)]">
-                          {m.body}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+        <ScrollArea className="h-[460px]">
+          {filtered.map((m) => {
+            const player = resolvePlayer(m);
+            const otherPhone = otherPartyPhone(m);
+            const senderLabel = player ? player.name : 'Unknown';
+            const tone = CAT_TONE[m.category] ?? 'mute';
+            const isHighlight = newIds.has(m.sid);
+            return (
+              <div
+                key={m.sid}
+                className={`flex items-start gap-4 px-6 py-3.5 border-b last:border-b-0 transition ${isHighlight ? 'slide-in-row' : ''}`}
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <div className="mono text-[12px] font-semibold text-[color:var(--ink-mute)] tabular min-w-[52px] pt-[3px]">
+                  {clockHM(m.date_sent)}
+                </div>
+                <div className="pt-[3px]">
+                  <Pill tone={tone}>{prettyCategory(m.category)}</Pill>
+                </div>
+                <div className="min-w-0 flex-1">
+                  {player ? (
+                    <Link href={`/dashboard/player/${player.id}`} className="text-[14px] font-semibold text-[color:var(--ink)] hover:text-[color:var(--blue)] transition">
+                      {senderLabel}
+                    </Link>
+                  ) : (
+                    <span className="text-[14px] font-semibold text-[color:var(--ink-mute)]">{senderLabel}</span>
+                  )}
+                  {!player && otherPhone && (
+                    <span className="ml-2 text-[11.5px] text-[color:var(--ink-mute)]">{prettyPhone(otherPhone)}</span>
+                  )}
+                  {m.body && (
+                    <div className="mt-0.5 text-[13px] text-[color:var(--ink-soft)] leading-relaxed">{m.body}</div>
+                  )}
+                  <div className="mt-1 text-[11.5px] text-[color:var(--ink-mute)]">{relativeTime(m.date_sent, now)}</div>
+                </div>
+              </div>
+            );
+          })}
         </ScrollArea>
       )}
-    </div>
+    </section>
   );
 }
-
