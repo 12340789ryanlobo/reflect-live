@@ -2,19 +2,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { StatReadout } from '@/components/stat-readout';
-import { SectionTag } from '@/components/section-tag';
-import { Stamp } from '@/components/stamp';
+import { StatCell } from '@/components/v3/stat-cell';
+import { Pill } from '@/components/v3/pill';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player } from '@reflect-live/shared';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Star, Trash2, Search } from 'lucide-react';
 import { prettyPhone, relativeTime } from '@/lib/format';
 
@@ -27,7 +20,6 @@ interface PlayerRow extends Player {
 function initials(name: string): string {
   return name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 }
-
 function hoursSince(iso: string | null): number | null {
   if (!iso) return null;
   return (Date.now() - new Date(iso).getTime()) / 3600000;
@@ -46,25 +38,10 @@ export default function PlayersPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: players } = await sb
-      .from('players')
-      .select('*')
-      .eq('team_id', prefs.team_id)
-      .order('name');
+    const { data: players } = await sb.from('players').select('*').eq('team_id', prefs.team_id).order('name');
     const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-    const { data: msgs } = await sb
-      .from('twilio_messages')
-      .select('player_id,direction,category,date_sent')
-      .eq('team_id', prefs.team_id)
-      .gte('date_sent', since30);
-    const msgList =
-      (msgs ?? []) as Array<{
-        player_id: number | null;
-        direction: string;
-        category: string;
-        date_sent: string;
-      }>;
-
+    const { data: msgs } = await sb.from('twilio_messages').select('player_id,direction,category,date_sent').eq('team_id', prefs.team_id).gte('date_sent', since30);
+    const msgList = (msgs ?? []) as Array<{ player_id: number | null; direction: string; category: string; date_sent: string }>;
     const lastInboundByPlayer = new Map<number, string>();
     const workoutByPlayer = new Map<number, number>();
     const rehabByPlayer = new Map<number, number>();
@@ -74,12 +51,9 @@ export default function PlayersPage() {
         const prev = lastInboundByPlayer.get(m.player_id);
         if (!prev || m.date_sent > prev) lastInboundByPlayer.set(m.player_id, m.date_sent);
       }
-      if (m.category === 'workout')
-        workoutByPlayer.set(m.player_id, (workoutByPlayer.get(m.player_id) ?? 0) + 1);
-      if (m.category === 'rehab')
-        rehabByPlayer.set(m.player_id, (rehabByPlayer.get(m.player_id) ?? 0) + 1);
+      if (m.category === 'workout') workoutByPlayer.set(m.player_id, (workoutByPlayer.get(m.player_id) ?? 0) + 1);
+      if (m.category === 'rehab') rehabByPlayer.set(m.player_id, (rehabByPlayer.get(m.player_id) ?? 0) + 1);
     }
-
     const enriched: PlayerRow[] = (players ?? []).map((p: Player) => ({
       ...p,
       last_inbound: lastInboundByPlayer.get(p.id) ?? null,
@@ -90,9 +64,7 @@ export default function PlayersPage() {
     setLoading(false);
   }, [sb, prefs.team_id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   async function deletePlayer(p: PlayerRow, ev: React.MouseEvent) {
     ev.stopPropagation();
@@ -124,10 +96,7 @@ export default function PlayersPage() {
       if (q) {
         const rawPhone = (r.phone_e164 ?? '').toLowerCase();
         const prettified = prettyPhone(r.phone_e164).toLowerCase();
-        const matches =
-          r.name.toLowerCase().includes(q) ||
-          rawPhone.includes(q) ||
-          prettified.includes(q);
+        const matches = r.name.toLowerCase().includes(q) || rawPhone.includes(q) || prettified.includes(q);
         if (!matches) return false;
       }
       return true;
@@ -141,91 +110,54 @@ export default function PlayersPage() {
       <PageHeader
         eyebrow="Roster"
         title="Athletes"
-        subtitle={`${rows.length} · ${groups.length} GROUPS`}
+        subtitle={`${rows.length} · ${groups.length} groups`}
       />
-
-      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
-        {/* Top telemetry */}
-        <section className="reveal reveal-1 panel">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag name="Roster summary" />
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
-            <StatReadout label="Roster" value={rows.length} sub={`${groups.length} GROUPS`} tone="heritage" />
-            <StatReadout
-              label="Active this month"
-              value={activeCount}
-              sub="REPLIED · 30D"
-              tone="chlorine"
-            />
-            <StatReadout
-              label="Quiet"
-              value={rows.length - activeCount}
-              sub="NO REPLIES · 30D"
-              tone={rows.length - activeCount > 0 ? 'amber' : 'default'}
-            />
-            <StatReadout
-              label="Starred"
-              value={prefs.watchlist.length}
-              sub="ON YOUR WATCHLIST"
-              tone="signal"
-            />
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+            <div className="p-6"><StatCell label="Roster" value={rows.length} sub={`${groups.length} groups`} /></div>
+            <div className="p-6"><StatCell label="Active" value={activeCount} sub="replied · 30d" tone="green" /></div>
+            <div className="p-6"><StatCell label="Quiet" value={rows.length - activeCount} sub="no replies · 30d" tone={rows.length - activeCount > 0 ? 'amber' : 'default'} /></div>
+            <div className="p-6"><StatCell label="Starred" value={prefs.watchlist.length} sub="watchlist" tone="blue" /></div>
           </div>
         </section>
 
-        {/* Heat sheet */}
-        <section className="reveal reveal-2 panel overflow-hidden">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag
-              name={`Heat sheet · ${filtered.length} shown`}
-              right={
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--bone-dim)]" />
-                    <Input
-                      type="search"
-                      placeholder="name / phone"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="w-[200px] h-9 pl-8 mono text-xs"
-                    />
-                  </div>
-                  <Select value={group} onValueChange={setGroup}>
-                    <SelectTrigger className="w-[140px] h-9 mono text-xs uppercase tracking-wider">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All groups</SelectItem>
-                      {groups.map((g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              }
-            />
-          </div>
+        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Roster · {filtered.length}</h2>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--ink-mute)]" />
+                <Input
+                  type="search"
+                  placeholder="name / phone"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-[200px] h-9 pl-8 text-[13px]"
+                />
+              </div>
+              <Select value={group} onValueChange={setGroup}>
+                <SelectTrigger className="w-[140px] h-9 text-[13px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All groups</SelectItem>
+                  {groups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </header>
 
           {loading ? (
-            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-              — loading roster —
-            </p>
+            <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">Loading…</p>
           ) : filtered.length === 0 ? (
-            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-              — no athletes match this filter —
-            </p>
+            <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">— no matches —</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+              <table className="w-full border-collapse text-[14px]">
                 <thead>
-                  <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/40">
-                    <Th className="w-12">Ln</Th>
-                    <Th>Athlete</Th>
+                  <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
+                    <Th>Name</Th>
                     <Th>Group</Th>
                     <Th>Phone</Th>
-                    <Th right>Status</Th>
                     <Th right>Last reply</Th>
                     <Th right>Workouts</Th>
                     <Th right>Rehabs</Th>
@@ -234,83 +166,55 @@ export default function PlayersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p, i) => {
+                  {filtered.map((p) => {
                     const starred = prefs.watchlist.includes(p.id);
                     const hrs = hoursSince(p.last_inbound);
-                    const stampTone =
-                      hrs == null ? 'quiet' : hrs < 1 ? 'live' : hrs < 24 ? 'on' : hrs < 72 ? 'watch' : 'quiet';
-                    const stampText =
-                      hrs == null ? 'quiet' : hrs < 1 ? 'live' : hrs < 24 ? 'on wire' : hrs < 72 ? 'watch' : 'quiet';
+                    const tone = hrs == null ? 'mute' : hrs < 1 ? 'green' : hrs < 24 ? 'green' : hrs < 72 ? 'amber' : 'mute';
                     return (
                       <tr
                         key={p.id}
-                        className="group cursor-pointer border-b border-[color:var(--hairline)]/50 transition hover:bg-[color:var(--panel-raised)]/50"
+                        className="border-b cursor-pointer transition hover:bg-[color:var(--card-hover)]"
+                        style={{ borderColor: 'var(--border)' }}
                         onClick={() => router.push(`/dashboard/player/${p.id}`)}
                       >
                         <Td>
-                          <span className="mono text-[0.66rem] text-[color:var(--bone-dim)] tabular">
-                            {String(i + 1).padStart(2, '0')}
-                          </span>
-                        </Td>
-                        <Td>
                           <div className="flex items-center gap-2.5">
-                            <span className="grid size-7 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)] text-[0.62rem] font-semibold">
+                            <span className="grid size-7 place-items-center rounded-md border bg-[color:var(--paper)] text-[10px] font-bold" style={{ borderColor: 'var(--border)' }}>
                               {initials(p.name)}
                             </span>
-                            <span className="font-semibold text-[color:var(--bone)] group-hover:text-[color:var(--signal)] transition">
-                              {p.name}
-                            </span>
+                            <span className="font-semibold text-[color:var(--ink)]">{p.name}</span>
                           </div>
                         </Td>
                         <Td>
-                          {p.group ? (
-                            <span className="mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--bone-soft)]">
-                              {p.group}
-                            </span>
-                          ) : (
-                            <span className="mono text-[0.66rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
-                              —
-                            </span>
-                          )}
+                          {p.group ? <Pill tone="mute">{p.group}</Pill> : <span className="text-[color:var(--ink-mute)]">—</span>}
                         </Td>
-                        <Td>
-                          <span className="mono text-[0.7rem] text-[color:var(--bone-mute)] tabular">
-                            {prettyPhone(p.phone_e164)}
-                          </span>
-                        </Td>
+                        <Td><span className="mono text-[12px] text-[color:var(--ink-mute)]">{prettyPhone(p.phone_e164)}</span></Td>
                         <Td right>
-                          <Stamp tone={stampTone} rotate={i % 2 === 0 ? -1.5 : 1.5}>
-                            {stampText}
-                          </Stamp>
-                        </Td>
-                        <Td right>
-                          <span className="mono text-[0.72rem] text-[color:var(--bone-soft)] tabular">
+                          <span className="text-[12px]" style={{ color: tone === 'amber' ? 'var(--amber)' : tone === 'mute' ? 'var(--ink-mute)' : 'var(--ink-soft)' }}>
                             {p.last_inbound ? relativeTime(p.last_inbound) : '—'}
                           </span>
                         </Td>
                         <Td right>
-                          <span className="num-display text-lg tabular" style={{ color: p.workouts_30d ? 'hsl(162 62% 54%)' : 'hsl(220 16% 34%)' }}>
+                          <span className="font-semibold tabular" style={{ color: p.workouts_30d ? 'var(--green)' : 'var(--ink-dim)' }}>
                             {p.workouts_30d}
                           </span>
                         </Td>
                         <Td right>
-                          <span className="num-display text-lg tabular" style={{ color: p.rehabs_30d ? 'hsl(38 90% 62%)' : 'hsl(220 16% 34%)' }}>
+                          <span className="font-semibold tabular" style={{ color: p.rehabs_30d ? 'var(--amber)' : 'var(--ink-dim)' }}>
                             {p.rehabs_30d}
                           </span>
                         </Td>
                         <Td right>
-                          {starred ? (
-                            <Star className="size-4 fill-[color:var(--signal)] text-[color:var(--signal)] inline" />
-                          ) : (
-                            <Star className="size-4 text-[color:var(--bone-dim)] inline" />
-                          )}
+                          {starred
+                            ? <Star className="size-4 inline" style={{ fill: 'var(--blue)', color: 'var(--blue)' }} />
+                            : <Star className="size-4 inline text-[color:var(--ink-dim)]" />}
                         </Td>
                         {isAdmin && (
                           <Td right>
                             <button
                               onClick={(e) => deletePlayer(p, e)}
                               disabled={deletingId === p.id}
-                              className="rounded-sm p-1.5 text-[color:var(--bone-dim)] hover:bg-[color:var(--siren-ghost)] hover:text-[color:var(--siren)] transition disabled:opacity-50"
+                              className="rounded-md p-1.5 text-[color:var(--ink-dim)] hover:bg-[color:var(--red-soft)] hover:text-[color:var(--red)] transition disabled:opacity-50"
                               aria-label={`Delete ${p.name}`}
                             >
                               <Trash2 className="size-3.5" />
@@ -330,13 +234,9 @@ export default function PlayersPage() {
   );
 }
 
-function Th({ children, right, className }: { children?: React.ReactNode; right?: boolean; className?: string }) {
+function Th({ children, right }: { children?: React.ReactNode; right?: boolean }) {
   return (
-    <th
-      className={`px-4 py-3 mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)] ${
-        right ? 'text-right' : 'text-left'
-      } ${className ?? ''}`}
-    >
+    <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)] ${right ? 'text-right' : 'text-left'}`}>
       {children}
     </th>
   );

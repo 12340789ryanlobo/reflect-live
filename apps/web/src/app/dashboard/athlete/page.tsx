@@ -1,10 +1,9 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { StatReadout } from '@/components/stat-readout';
-import { ReadinessDial } from '@/components/readiness-dial';
-import { SectionTag } from '@/components/section-tag';
-import { Stamp } from '@/components/stamp';
+import { StatCell } from '@/components/v3/stat-cell';
+import { Pill } from '@/components/v3/pill';
+import { ReadinessBar } from '@/components/v3/readiness-bar';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog, Category } from '@reflect-live/shared';
 import {
@@ -24,11 +23,11 @@ import {
   relativeTime,
 } from '@/lib/format';
 
-const CAT_TONE: Record<Category, { color: string; bg: string; border: string }> = {
-  workout: { color: 'hsl(162 62% 54%)', bg: 'hsl(162 40% 18% / 0.4)', border: 'hsl(162 40% 40%)' },
-  rehab:   { color: 'hsl(38 90% 62%)',  bg: 'hsl(38 60% 20% / 0.4)',  border: 'hsl(38 60% 40%)' },
-  survey:  { color: 'hsl(188 82% 58%)', bg: 'hsl(188 60% 20% / 0.4)', border: 'hsl(188 60% 40%)' },
-  chat:    { color: 'hsl(36 10% 62%)',  bg: 'hsl(220 14% 14%)',       border: 'hsl(220 14% 24%)' },
+const CAT_PILL_TONE: Record<Category, 'green' | 'amber' | 'blue' | 'mute'> = {
+  workout: 'green',
+  rehab: 'amber',
+  survey: 'blue',
+  chat: 'mute',
 };
 
 function initials(name: string): string {
@@ -125,7 +124,7 @@ export default function AthletePage() {
     return { inboundCount, workoutCount, rehabCount, surveyReadings, avgReadiness };
   }, [msgs]);
 
-  const daysShort = days === 7 ? '7D' : days === 30 ? '30D' : days === 90 ? '90D' : `${days}D`;
+  const daysShort = days === 7 ? '7d' : days === 30 ? '30d' : days === 90 ? '90d' : `${days}d`;
 
   // Picker mode
   if (!me) {
@@ -134,46 +133,43 @@ export default function AthletePage() {
         <PageHeader
           eyebrow="Athlete simulator"
           title="My view"
-          subtitle="PICK AN ATHLETE TO SIMULATE"
+          subtitle="Pick an athlete to simulate"
         />
-        <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
-          <section className="reveal reveal-1 panel p-5">
-            <SectionTag name="About athlete view" />
-            <p className="mt-3 text-sm text-[color:var(--bone-soft)] leading-relaxed">
-              Pick any athlete to see the dashboard as <em className="italic">they</em> see it —
+        <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+          <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-[14px] font-bold text-[color:var(--ink)] mb-2">About athlete view</h2>
+            <p className="text-[14px] text-[color:var(--ink-soft)] leading-relaxed">
+              Pick any athlete to see the dashboard as <em>they</em> see it —
               only their messages, only their workouts, only their readiness. Useful for previewing
               what an athlete sees before they sign in.
             </p>
           </section>
 
-          <section className="reveal reveal-2 panel">
-            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag name={`Roster · ${allPlayers.length} athletes`} />
-            </div>
-            <div className="grid grid-cols-1 gap-0 md:grid-cols-2 xl:grid-cols-3">
-              {allPlayers.map((p, i) => (
+          <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Roster · {allPlayers.length} athletes</h2>
+            </header>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+              {allPlayers.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => setAthlete(p.id)}
                   disabled={saving}
-                  className={`group flex items-center gap-3 border-b border-[color:var(--hairline)]/50 px-5 py-3 text-left transition hover:bg-[color:var(--panel-raised)]/50 disabled:opacity-50 ${
-                    i % 3 !== 2 ? 'xl:border-r xl:border-[color:var(--hairline)]/50' : ''
-                  } ${i % 2 !== 1 ? 'md:border-r md:border-[color:var(--hairline)]/50 xl:border-r' : ''}`}
+                  className="group flex items-center gap-3 border-b px-6 py-3 text-left transition hover:bg-[color:var(--card-hover)] disabled:opacity-50"
+                  style={{ borderColor: 'var(--border)' }}
                 >
-                  <span className="grid size-8 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)] text-[0.66rem] font-semibold">
+                  <span className="grid size-8 place-items-center rounded-md border bg-[color:var(--paper)] text-[11px] font-bold shrink-0" style={{ borderColor: 'var(--border)' }}>
                     {initials(p.name)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-[color:var(--bone)] group-hover:text-[color:var(--signal)] transition">
+                    <div className="truncate text-[14px] font-semibold text-[color:var(--ink)]">
                       {p.name}
                     </div>
-                    <div className="mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                    <div className="text-[12px] text-[color:var(--ink-mute)]">
                       {p.group ?? 'no group'}
                     </div>
                   </div>
-                  <span className="mono text-[0.62rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)] group-hover:text-[color:var(--signal)] transition">
-                    →
-                  </span>
+                  <span className="text-[12px] text-[color:var(--ink-dim)]">→</span>
                 </button>
               ))}
             </div>
@@ -183,16 +179,17 @@ export default function AthletePage() {
     );
   }
 
+  // Selected mode
   return (
     <>
       <PageHeader
         eyebrow="My view"
         title={me.name}
-        subtitle={`${me.group ? me.group.toUpperCase() : 'NO GROUP'} · ${daysShort}`}
-        right={
+        subtitle={`${me.group ?? 'No group'} · ${daysShort}`}
+        actions={
           <div className="flex items-center gap-2">
             <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-              <SelectTrigger className="w-[140px] h-9 mono text-xs uppercase tracking-wider">
+              <SelectTrigger className="w-[140px] h-9 text-[13px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -204,7 +201,8 @@ export default function AthletePage() {
             <button
               onClick={() => setAthlete(null)}
               disabled={saving}
-              className="inline-flex items-center gap-2 border border-[color:var(--hairline-strong)] px-3 py-2 mono text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--bone-soft)] hover:border-[color:var(--siren)] hover:text-[color:var(--siren)] transition disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-[13px] font-semibold text-[color:var(--ink-soft)] hover:border-[color:var(--red)] hover:text-[color:var(--red)] transition disabled:opacity-60"
+              style={{ borderColor: 'var(--border)' }}
             >
               <LogOut className="size-3.5" />
               Exit
@@ -213,117 +211,101 @@ export default function AthletePage() {
         }
       />
 
-      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
-        {/* Personal dial + readouts */}
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {/* Hero row */}
         <section className="reveal reveal-1 grid gap-6 lg:grid-cols-12">
-          <div className="panel flex flex-col items-center justify-center gap-4 p-6 lg:col-span-4">
-            <SectionTag name="Your readiness" className="w-full" />
-            <ReadinessDial
-              value={derived.avgReadiness}
-              responses={derived.surveyReadings.length}
-              size={260}
-              label="Personal avg"
-              sublabel={
-                derived.surveyReadings.length ? `${derived.surveyReadings.length} RESPONSES` : 'NO SURVEYS YET'
-              }
-            />
-          </div>
-          <div className="panel lg:col-span-8">
-            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag name="Your telemetry" />
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
-              <StatReadout label="Your messages" value={derived.inboundCount} sub={daysShort} tone="signal" />
-              <StatReadout
-                label="Your workouts"
-                value={derived.workoutCount}
-                sub={daysShort}
-                tone={derived.workoutCount ? 'chlorine' : 'default'}
-              />
-              <StatReadout
-                label="Your rehabs"
-                value={derived.rehabCount}
-                sub={daysShort}
-                tone={derived.rehabCount ? 'amber' : 'default'}
-              />
-              <StatReadout
-                label="Avg readiness"
-                value={derived.avgReadiness ?? '—'}
-                sub={derived.surveyReadings.length ? `${derived.surveyReadings.length} RESPONSES` : 'NO SURVEYS'}
-              />
-            </div>
-            <div className="px-5 pb-5">
-              <div className="mt-3 flex items-center gap-2">
-                <Stamp tone="on">athlete view</Stamp>
-                <span className="mono text-[0.62rem] uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-                  Simulating {me.name}
-                </span>
+          {/* Stats card */}
+          <div className="rounded-2xl bg-[color:var(--card)] border lg:col-span-8" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Your telemetry</h2>
+            </header>
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+              <div className="p-6">
+                <StatCell label="My messages" value={derived.inboundCount} sub={daysShort} tone="blue" />
+              </div>
+              <div className="p-6">
+                <StatCell
+                  label="My workouts"
+                  value={derived.workoutCount}
+                  sub={daysShort}
+                  tone={derived.workoutCount ? 'green' : 'default'}
+                />
+              </div>
+              <div className="p-6">
+                <StatCell
+                  label="My rehabs"
+                  value={derived.rehabCount}
+                  sub={daysShort}
+                  tone={derived.rehabCount ? 'amber' : 'default'}
+                />
+              </div>
+              <div className="p-6">
+                <StatCell
+                  label="Avg readiness"
+                  value={derived.avgReadiness ?? '—'}
+                  sub={derived.surveyReadings.length ? `${derived.surveyReadings.length} responses` : 'no surveys'}
+                />
               </div>
             </div>
+            <div className="px-6 pb-5 pt-3 flex items-center gap-2">
+              <Pill tone="green">athlete view</Pill>
+              <span className="text-[12px] text-[color:var(--ink-mute)]">Simulating {me.name}</span>
+            </div>
+          </div>
+
+          {/* Readiness card */}
+          <div className="rounded-2xl bg-[color:var(--card)] border p-6 lg:col-span-4 flex flex-col justify-center" style={{ borderColor: 'var(--border)' }}>
+            <ReadinessBar
+              value={derived.avgReadiness}
+              responses={derived.surveyReadings.length}
+              size="md"
+            />
           </div>
         </section>
 
         {/* Messages + Activity split */}
-        <section id="messages" className="reveal reveal-2 grid gap-6 lg:grid-cols-2">
-          <div className="panel overflow-hidden">
-            <div className="px-5 pt-4 pb-3">
-              <SectionTag
-                name="Your messages"
-                right={
-                  <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-                    {msgs.length} TOTAL
-                  </span>
-                }
-              />
-            </div>
+        <section className="reveal reveal-2 grid gap-6 lg:grid-cols-2">
+          {/* Messages */}
+          <div className="rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">My recent messages</h2>
+              <span className="text-[12px] text-[color:var(--ink-mute)]">{msgs.length} total</span>
+            </header>
             {msgs.length === 0 ? (
-              <div className="border-t border-[color:var(--hairline)] px-6 py-10 text-center">
-                <p className="mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-                  — no messages in this period —
-                </p>
-              </div>
+              <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">
+                — no messages in this period —
+              </p>
             ) : (
-              <ScrollArea className="h-[420px] border-t border-[color:var(--hairline)]">
+              <ScrollArea className="h-[420px]">
                 <ul>
                   {msgs.slice(0, 25).map((m) => {
-                    const tone = CAT_TONE[m.category] ?? CAT_TONE.chat;
+                    const tone = CAT_PILL_TONE[m.category] ?? 'mute';
                     return (
-                      <li key={m.sid} className="border-b border-[color:var(--hairline)]/60 px-5 py-3">
-                        <div className="flex items-start gap-3">
-                          <div className="shrink-0 w-[76px] text-right">
-                            <div className="mono text-[0.68rem] text-[color:var(--signal)] tabular">
-                              {clockHM(m.date_sent)}
-                            </div>
-                            <div
-                              className="mono text-[0.6rem] text-[color:var(--bone-dim)] tabular mt-0.5"
-                              title={prettyDateTime(m.date_sent)}
-                            >
-                              {relativeTime(m.date_sent)}
-                            </div>
+                      <li key={m.sid} className="flex items-start gap-3 border-b px-5 py-3" style={{ borderColor: 'var(--border)' }}>
+                        <div className="shrink-0 w-[76px] text-right">
+                          <div className="mono text-[12px] text-[color:var(--blue)] tabular">
+                            {clockHM(m.date_sent)}
                           </div>
-                          <div className="shrink-0 w-px self-stretch bg-[color:var(--hairline)]" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className="mono px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] rounded-sm"
-                                style={{
-                                  color: tone.color,
-                                  background: tone.bg,
-                                  border: `1px solid ${tone.border}`,
-                                }}
-                              >
-                                {prettyCategory(m.category)}
-                              </span>
-                              <span className="mono text-[0.6rem] text-[color:var(--bone-dim)] uppercase tracking-[0.16em]">
-                                {prettyDirection(m.direction)}
-                              </span>
-                            </div>
-                            {m.body && (
-                              <div className="mt-1.5 text-sm leading-relaxed text-[color:var(--bone-soft)]">
-                                {m.body}
-                              </div>
-                            )}
+                          <div
+                            className="mono text-[11px] text-[color:var(--ink-dim)] tabular mt-0.5"
+                            title={prettyDateTime(m.date_sent)}
+                          >
+                            {relativeTime(m.date_sent)}
                           </div>
+                        </div>
+                        <div className="shrink-0 w-px self-stretch bg-[color:var(--border)]" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Pill tone={tone}>{prettyCategory(m.category)}</Pill>
+                            <span className="text-[11px] text-[color:var(--ink-dim)]">
+                              {prettyDirection(m.direction)}
+                            </span>
+                          </div>
+                          {m.body && (
+                            <div className="mt-1.5 text-[13px] leading-relaxed text-[color:var(--ink-soft)]">
+                              {m.body}
+                            </div>
+                          )}
                         </div>
                       </li>
                     );
@@ -333,54 +315,36 @@ export default function AthletePage() {
             )}
           </div>
 
-          <div className="panel overflow-hidden">
-            <div className="px-5 pt-4 pb-3">
-              <SectionTag
-                name="Your activity log"
-                right={
-                  <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-                    {logs.length} TOTAL
-                  </span>
-                }
-              />
-            </div>
+          {/* Activity log */}
+          <div className="rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">My activity log</h2>
+              <span className="text-[12px] text-[color:var(--ink-mute)]">{logs.length} total</span>
+            </header>
             {logs.length === 0 ? (
-              <div className="border-t border-[color:var(--hairline)] px-6 py-10 text-center">
-                <p className="mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-                  — no historical logs —
-                </p>
-              </div>
+              <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">
+                — no historical logs —
+              </p>
             ) : (
-              <ScrollArea className="h-[420px] border-t border-[color:var(--hairline)]">
+              <ScrollArea className="h-[420px]">
                 <ul>
                   {logs.slice(0, 25).map((l) => {
-                    const tone = l.kind === 'workout' ? CAT_TONE.workout : CAT_TONE.rehab;
+                    const tone: 'green' | 'amber' = l.kind === 'workout' ? 'green' : 'amber';
                     return (
-                      <li key={l.id} className="border-b border-[color:var(--hairline)]/60 px-5 py-3">
-                        <div className="flex items-start gap-3">
-                          <div className="shrink-0 w-[76px] text-right">
-                            <div className="mono text-[0.7rem] text-[color:var(--bone-soft)] tabular">
-                              {prettyDate(l.logged_at)}
+                      <li key={l.id} className="flex items-start gap-3 border-b px-5 py-3" style={{ borderColor: 'var(--border)' }}>
+                        <div className="shrink-0 w-[76px] text-right">
+                          <div className="mono text-[12px] text-[color:var(--ink-soft)] tabular">
+                            {prettyDate(l.logged_at)}
+                          </div>
+                        </div>
+                        <div className="shrink-0 w-px self-stretch bg-[color:var(--border)]" />
+                        <div className="min-w-0 flex-1">
+                          <Pill tone={tone}>{prettyCategory(l.kind)}</Pill>
+                          {l.description && (
+                            <div className="mt-1 text-[13px] leading-relaxed text-[color:var(--ink-soft)]">
+                              {l.description}
                             </div>
-                          </div>
-                          <div className="shrink-0 w-px self-stretch bg-[color:var(--hairline)]" />
-                          <div className="min-w-0 flex-1">
-                            <span
-                              className="mono inline-block px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] rounded-sm mb-1"
-                              style={{
-                                color: tone.color,
-                                background: tone.bg,
-                                border: `1px solid ${tone.border}`,
-                              }}
-                            >
-                              {prettyCategory(l.kind)}
-                            </span>
-                            {l.description && (
-                              <div className="mt-0.5 text-sm leading-relaxed text-[color:var(--bone-soft)]">
-                                {l.description}
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </li>
                     );

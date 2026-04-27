@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/dashboard-shell';
-import { StatReadout } from '@/components/stat-readout';
-import { SectionTag } from '@/components/section-tag';
+import { StatCell } from '@/components/v3/stat-cell';
 import { useSupabase } from '@/lib/supabase-browser';
 import {
   Database,
@@ -67,91 +66,84 @@ export default function AdminDatabasePage() {
   const highlights = ['players', 'twilio_messages', 'activity_logs', 'weather_snapshots'];
   const highlightRows = rows.filter((r) => highlights.includes(r.name));
 
+  const highlightTone = (name: string): 'blue' | 'default' | 'green' | 'amber' => {
+    if (name === 'players') return 'blue';
+    if (name === 'twilio_messages') return 'default';
+    if (name === 'activity_logs') return 'green';
+    return 'amber';
+  };
+
   return (
     <>
       <PageHeader
         eyebrow="Tables"
         title="Database"
-        subtitle={loading ? 'COUNTING…' : `${totals.toLocaleString()} ROWS · ${rows.length} TABLES`}
+        subtitle={loading ? 'Counting…' : `${totals.toLocaleString()} rows · ${rows.length} tables`}
       />
 
-      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
-        {/* Highlights */}
-        <section className="reveal reveal-1 panel">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag name="Highlighted tables" />
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {/* Highlight stats */}
+        <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
             {highlightRows.map((r) => (
-              <StatReadout
-                key={r.name}
-                label={r.name}
-                value={r.count.toLocaleString()}
-                sub={r.note.toUpperCase()}
-                tone={
-                  r.name === 'players'
-                    ? 'heritage'
-                    : r.name === 'twilio_messages'
-                    ? 'signal'
-                    : r.name === 'activity_logs'
-                    ? 'chlorine'
-                    : 'amber'
-                }
-              />
+              <div key={r.name} className="p-6">
+                <StatCell
+                  label={r.name}
+                  value={r.count.toLocaleString()}
+                  sub={r.note}
+                  tone={highlightTone(r.name)}
+                />
+              </div>
             ))}
           </div>
         </section>
 
-        {/* Full table counts */}
-        <section className="reveal reveal-2 panel overflow-hidden">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag
-              name="All tables"
-              right={
-                <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-                  {rows.length} · {totals.toLocaleString()} ROWS
-                </span>
-              }
-            />
-          </div>
+        {/* All tables */}
+        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">All tables</h2>
+            <span className="text-[12px] text-[color:var(--ink-mute)]">
+              {rows.length} · {totals.toLocaleString()} rows
+            </span>
+          </header>
           {loading ? (
-            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-              — loading counts —
-            </p>
+            <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">Loading counts…</p>
           ) : (
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/40">
-                  <th className="px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-                    Table
-                  </th>
-                  <th className="px-4 py-3 text-right mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-                    Rows
-                  </th>
-                  <th className="px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-                    Notes
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.name} className="border-b border-[color:var(--hairline)]/50">
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-2 mono text-sm text-[color:var(--bone)]">
-                        <span className="text-[color:var(--bone-dim)]">{r.icon}</span>
-                        {r.name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right num-display text-lg tabular">
-                      {r.count.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-[color:var(--bone-mute)]">
-                      {r.note}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-[14px]">
+                <thead>
+                  <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+                      Table
+                    </th>
+                    <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+                      Rows
+                    </th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+                      Notes
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.name} className="border-b" style={{ borderColor: 'var(--border)' }}>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-2 mono text-[13px] text-[color:var(--ink)]">
+                          <span className="text-[color:var(--ink-mute)]">{r.icon}</span>
+                          {r.name}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular font-semibold text-[15px]">
+                        {r.count.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[color:var(--ink-mute)]">
+                        {r.note}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </main>

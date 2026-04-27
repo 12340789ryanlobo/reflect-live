@@ -2,10 +2,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { StatReadout } from '@/components/stat-readout';
-import { ReadinessDial } from '@/components/readiness-dial';
-import { SectionTag } from '@/components/section-tag';
-import { Stamp } from '@/components/stamp';
+import { StatCell } from '@/components/v3/stat-cell';
+import { Pill } from '@/components/v3/pill';
+import { ReadinessBar } from '@/components/v3/readiness-bar';
 import { WeatherGrid } from '@/components/weather-grid';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, Location } from '@reflect-live/shared';
@@ -115,77 +114,80 @@ export default function CaptainHome() {
       <PageHeader
         eyebrow="Today"
         title="Dashboard"
-        subtitle={`${team.name.toUpperCase()} · CAPTAIN`}
+        subtitle={`${team.name} · Captain`}
         live
       />
 
-      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
-        {/* Top strip with dial */}
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {/* Hero row */}
         <section className="reveal reveal-1 grid gap-6 lg:grid-cols-12">
-          <div className="panel flex flex-col items-center justify-center gap-4 p-6 lg:col-span-4">
-            <SectionTag name="Team readiness · 7d" className="w-full" />
-            <ReadinessDial
+          {/* Stats card */}
+          <div className="rounded-2xl bg-[color:var(--card)] border lg:col-span-8" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Check-in telemetry</h2>
+            </header>
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+              <div className="p-6">
+                <StatCell
+                  label="Checked in today"
+                  value={`${agg.checkedIn}/${agg.activeCount}`}
+                  sub="active roster"
+                  tone="green"
+                />
+              </div>
+              <div className="p-6">
+                <StatCell
+                  label="Still pending"
+                  value={agg.pending}
+                  sub="no reply today"
+                  tone={agg.pending > 0 ? 'amber' : 'default'}
+                />
+              </div>
+              <div className="p-6">
+                <StatCell
+                  label="Response rate"
+                  value={`${agg.responseRate}%`}
+                  sub="last 7d"
+                  tone={agg.responseRate >= 70 ? 'green' : 'amber'}
+                />
+              </div>
+              <div className="p-6">
+                <StatCell
+                  label="Flags"
+                  value={agg.flags}
+                  sub="readiness ≤ 4"
+                  tone={agg.flags > 0 ? 'red' : 'default'}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Readiness card */}
+          <div className="rounded-2xl bg-[color:var(--card)] border p-6 lg:col-span-4 flex flex-col justify-center" style={{ borderColor: 'var(--border)' }}>
+            <ReadinessBar
               value={agg.avgReadiness}
               responses={agg.surveyCount}
               flagged={agg.flags}
-              size={260}
-              label="Readiness"
-              sublabel={agg.surveyCount > 0 ? `${agg.surveyCount} RESPONSES · 7D` : 'NO SURVEYS YET'}
+              size="md"
             />
-          </div>
-          <div className="panel lg:col-span-8">
-            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag name="Check-in telemetry" />
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
-              <StatReadout
-                label="Checked in today"
-                value={`${agg.checkedIn}/${agg.activeCount}`}
-                sub="ACTIVE ROSTER"
-                spark={spark}
-                tone="chlorine"
-              />
-              <StatReadout
-                label="Still pending"
-                value={agg.pending}
-                sub="NO REPLY TODAY"
-                tone={agg.pending > 0 ? 'amber' : 'default'}
-              />
-              <StatReadout
-                label="Response rate"
-                value={`${agg.responseRate}%`}
-                sub="LAST 7D"
-                tone={agg.responseRate >= 70 ? 'chlorine' : 'amber'}
-              />
-              <StatReadout
-                label="Flags"
-                value={agg.flags}
-                sub="READINESS ≤ 4"
-                tone={agg.flags > 0 ? 'siren' : 'default'}
-              />
-            </div>
           </div>
         </section>
 
-        {/* Follow-ups */}
-        <section className="reveal reveal-2 panel">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag
-              name="Who to follow up with"
-              right={
-                overdue.length > 0 && (
-                  <Link
-                    href="/dashboard/captain/follow-ups"
-                    className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--signal)] hover:text-[color:var(--bone)] transition"
-                  >
-                    FULL LIST →
-                  </Link>
-                )
-              }
-            />
-          </div>
+        {/* Who to follow up with */}
+        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Who to follow up with</h2>
+            {overdue.length > 0 && (
+              <Link
+                href="/dashboard/captain/follow-ups"
+                className="text-[13px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition"
+              >
+                Full list →
+              </Link>
+            )}
+          </header>
           {overdue.length === 0 ? (
-            <p className="px-6 py-10 text-center mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+            <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">
               — everyone checked in. Nice. —
             </p>
           ) : (
@@ -193,64 +195,56 @@ export default function CaptainHome() {
               {overdue.slice(0, 10).map(({ p, ts }, i) => (
                 <li
                   key={p.id}
-                  className={`flex items-center gap-3 border-b border-[color:var(--hairline)]/60 px-5 py-3 ${
-                    i % 2 === 0 ? 'md:border-r md:border-[color:var(--hairline)]/60' : ''
-                  }`}
+                  className="flex items-center gap-3 border-b px-5 py-3"
+                  style={{ borderColor: 'var(--border)', ...(i % 2 === 0 ? {} : {}) }}
                 >
-                  <span className="grid size-8 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)] text-[0.66rem] font-semibold shrink-0">
+                  <span className="grid size-8 place-items-center rounded-md border bg-[color:var(--paper)] text-[11px] font-bold shrink-0" style={{ borderColor: 'var(--border)' }}>
                     {initials(p.name)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-[color:var(--bone)]">
+                    <div className="truncate text-[14px] font-semibold text-[color:var(--ink)]">
                       {p.name}
                     </div>
-                    <div className="mono truncate text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                    <div className="text-[12px] text-[color:var(--ink-dim)] truncate">
                       {p.group ?? 'no group'} · {ts ? `last reply ${relativeTime(ts)}` : 'never'}
                     </div>
                   </div>
-                  <Stamp tone={ts ? 'watch' : 'quiet'}>{ts ? 'watch' : 'silent'}</Stamp>
+                  <Pill tone={ts ? 'amber' : 'mute'}>{ts ? 'watch' : 'silent'}</Pill>
                 </li>
               ))}
             </ul>
           )}
         </section>
 
-        {/* Weather */}
-        <section className="reveal reveal-3 panel p-5">
-          <SectionTag
-            name="Venue stations"
-            live
-            right={
-              <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-                POLL EVERY 10M
-              </span>
-            }
-          />
-          <div className="mb-5" />
-          <WeatherGrid teamId={prefs.team_id} />
+        {/* Venue stations */}
+        <section className="reveal reveal-3 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Venue stations</h2>
+            <span className="text-[12px] text-[color:var(--ink-mute)]">Poll every 10m</span>
+          </header>
+          <div className="p-5">
+            <WeatherGrid teamId={prefs.team_id} />
+          </div>
         </section>
 
         {/* Next meets */}
         {meets.length > 0 && (
-          <section className="reveal reveal-4 panel">
-            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag name="Next meets" />
-            </div>
-            <div className="grid gap-0 md:grid-cols-3">
-              {meets.map((m, i) => (
-                <div
-                  key={m.id}
-                  className={`p-5 ${i < meets.length - 1 ? 'border-r border-[color:var(--hairline)]' : ''}`}
-                >
-                  <div className="text-sm font-semibold text-[color:var(--bone)]">{m.name}</div>
+          <section className="reveal reveal-4 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Next meets</h2>
+            </header>
+            <div className="grid gap-0 md:grid-cols-3 divide-x" style={{ borderColor: 'var(--border)' }}>
+              {meets.map((m) => (
+                <div key={m.id} className="p-5">
+                  <div className="text-[14px] font-semibold text-[color:var(--ink)]">{m.name}</div>
                   <div className="mt-3 flex items-baseline gap-1.5">
-                    <span className="num-display text-[2.2rem] leading-none tabular">
+                    <span className="text-[2.2rem] font-bold leading-none tabular text-[color:var(--ink)]">
                       {m.daysUntil}
                     </span>
-                    <span className="mono text-xs text-[color:var(--bone-mute)]">d</span>
+                    <span className="text-[13px] text-[color:var(--ink-mute)]">d</span>
                   </div>
-                  <div className="mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
-                    UNTIL {prettyDate(m.event_date!).toUpperCase()}
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-dim)] mt-0.5">
+                    until {prettyDate(m.event_date!)}
                   </div>
                 </div>
               ))}

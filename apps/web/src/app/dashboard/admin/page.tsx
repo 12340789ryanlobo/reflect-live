@@ -2,17 +2,48 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { StatReadout } from '@/components/stat-readout';
-import { SectionTag } from '@/components/section-tag';
+import { StatCell } from '@/components/v3/stat-cell';
 import { WorkerHealthCard } from '@/components/worker-health-card';
 import { useSupabase } from '@/lib/supabase-browser';
-import { Users, MessageSquareText, Activity, Shield, Database, Cpu, Building2 } from 'lucide-react';
+import { Users, Building2, Cpu, Database } from 'lucide-react';
 
 interface AdminCounts {
   users: number;
   messages: number;
   activity: number;
 }
+
+const quickLinks: Array<{
+  href: string;
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  {
+    href: '/dashboard/admin/users',
+    title: 'Users & roles',
+    description: 'Invite, promote, or demote. Assign roster links.',
+    icon: Users,
+  },
+  {
+    href: '/dashboard/admin/teams',
+    title: 'Teams',
+    description: 'Create teams, edit Twilio credentials.',
+    icon: Building2,
+  },
+  {
+    href: '/dashboard/admin/system',
+    title: 'System',
+    description: 'Worker health, polls, error state.',
+    icon: Cpu,
+  },
+  {
+    href: '/dashboard/admin/database',
+    title: 'Database',
+    description: 'Table counts, row totals, snapshot.',
+    icon: Database,
+  },
+];
 
 export default function AdminOverview() {
   const { prefs } = useDashboard();
@@ -30,122 +61,52 @@ export default function AdminOverview() {
     })();
   }, [sb, prefs.team_id]);
 
-  const quickLinks: Array<{ href: string; code: string; title: string; description: string; icon: React.ComponentType<{ className?: string }>; accent: string }> = [
-    {
-      href: '/dashboard/admin/users',
-      code: 'A1',
-      title: 'Users & roles',
-      description: 'Invite, promote, or demote. Assign roster links.',
-      icon: Users,
-      accent: 'hsl(188 82% 58%)',
-    },
-    {
-      href: '/dashboard/admin/teams',
-      code: 'A2',
-      title: 'Teams',
-      description: 'Create teams, edit Twilio credentials.',
-      icon: Building2,
-      accent: 'hsl(358 78% 58%)',
-    },
-    {
-      href: '/dashboard/admin/system',
-      code: 'A3',
-      title: 'System',
-      description: 'Worker health, polls, error state.',
-      icon: Cpu,
-      accent: 'hsl(162 62% 54%)',
-    },
-    {
-      href: '/dashboard/admin/database',
-      code: 'A4',
-      title: 'Database',
-      description: 'Table counts, row totals, snapshot.',
-      icon: Database,
-      accent: 'hsl(38 90% 62%)',
-    },
-  ];
-
   return (
     <>
       <PageHeader
         eyebrow="Overview"
         title="Admin"
-        subtitle="FULL-ACCESS PANEL"
+        subtitle="Full-access panel"
       />
 
-      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
-        {/* Top readouts */}
-        <section className="reveal reveal-1 panel">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag name="System summary" />
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
-            <StatReadout
-              label="Total users"
-              value={counts.users}
-              sub="REGISTERED"
-              tone="heritage"
-            />
-            <StatReadout
-              label="Total messages"
-              value={counts.messages}
-              sub="TWILIO-INDEXED"
-              tone="signal"
-            />
-            <StatReadout
-              label="Total activity"
-              value={counts.activity}
-              sub="REFLECT IMPORT"
-              tone="chlorine"
-            />
-            <WorkerHealthCard />
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {/* Top stats */}
+        <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+            <div className="p-6"><StatCell label="Total users" value={counts.users} sub="registered" tone="blue" /></div>
+            <div className="p-6"><StatCell label="Total messages" value={counts.messages} sub="twilio-indexed" /></div>
+            <div className="p-6"><StatCell label="Total activity" value={counts.activity} sub="reflect import" tone="green" /></div>
+            <div className="p-6"><WorkerHealthCard /></div>
           </div>
         </section>
 
-        {/* Quick links grid */}
-        <section className="reveal reveal-2 panel">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag name="Control panels" />
-          </div>
-          <div className="grid grid-cols-1 gap-0 md:grid-cols-2 xl:grid-cols-4">
-            {quickLinks.map(({ href, code, title, description, icon: Icon, accent }, i) => (
+        {/* Quick links */}
+        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Control panels</h2>
+          </header>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-x sm:divide-y-0" style={{ borderColor: 'var(--border)' }}>
+            {quickLinks.map(({ href, title, description, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
-                className={`group relative flex flex-col gap-3 p-5 transition hover:bg-[color:var(--panel-raised)]/50 ${
-                  i < quickLinks.length - 1 ? 'border-b border-[color:var(--hairline)] md:border-r xl:border-b-0' : ''
-                } ${i === 0 ? 'xl:border-r xl:border-[color:var(--hairline)]' : ''} ${
-                  i === 1 ? 'md:border-r-0 md:border-b xl:border-r xl:border-b-0' : ''
-                } ${i === 2 ? 'md:border-b-0 xl:border-r xl:border-[color:var(--hairline)]' : ''}`}
+                className="group flex flex-col gap-3 p-6 transition hover:bg-[color:var(--card-hover)]"
               >
                 <div
-                  aria-hidden
-                  className="absolute left-0 top-0 h-[2px] w-full origin-left scale-x-0 transition-transform duration-300 group-hover:scale-x-100"
-                  style={{ background: accent }}
-                />
-                <div className="flex items-center gap-3">
-                  <div
-                    className="grid size-10 place-items-center rounded-sm border"
-                    style={{
-                      color: accent,
-                      borderColor: accent + '55',
-                      background: accent + '14',
-                    }}
-                  >
-                    <Icon className="size-5" />
-                  </div>
-                  <span className="mono text-[0.68rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-                    {code}
-                  </span>
+                  className="grid size-10 place-items-center rounded-md"
+                  style={{ background: 'color-mix(in srgb, var(--blue) 12%, transparent)', color: 'var(--blue)' }}
+                >
+                  <Icon className="size-5" />
                 </div>
-                <div className="h-serif text-xl font-semibold text-[color:var(--bone)]">
-                  {title}
+                <div>
+                  <div className="text-[15px] font-semibold text-[color:var(--ink)]">{title}</div>
+                  <p className="text-[13px] text-[color:var(--ink-mute)] leading-snug mt-0.5">{description}</p>
                 </div>
-                <p className="text-sm text-[color:var(--bone-mute)] leading-snug">
-                  {description}
-                </p>
-                <span className="mt-auto mono text-[0.66rem] uppercase tracking-[0.22em] text-[color:var(--bone-dim)] group-hover:text-[color:var(--signal)] transition">
-                  OPEN →
+                <span
+                  className="text-[12px] font-semibold transition group-hover:underline underline-offset-4"
+                  style={{ color: 'var(--blue)' }}
+                >
+                  Open →
                 </span>
               </Link>
             ))}

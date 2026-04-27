@@ -3,8 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { SectionTag } from '@/components/section-tag';
-import { Stamp } from '@/components/stamp';
+import { Pill } from '@/components/v3/pill';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Team, UserPreferences, WorkerState, Player, UserRole } from '@reflect-live/shared';
 import { Button } from '@/components/ui/button';
@@ -19,17 +18,28 @@ import {
 import { Phone, CheckCircle2, AlertCircle } from 'lucide-react';
 import { relativeTime, prettyPhone } from '@/lib/format';
 
-const ROLE_OPTIONS: Array<{ value: UserRole; label: string; hint: string; tone: 'flag' | 'live' | 'watch' | 'on' }> = [
-  { value: 'coach',   label: 'Coach',   hint: 'See the entire team — all groups, all players.', tone: 'live' },
-  { value: 'captain', label: 'Captain', hint: 'See your group only (set default group below).',  tone: 'watch' },
-  { value: 'athlete', label: 'Athlete', hint: 'See only your own data (pick a player to impersonate).', tone: 'on' },
+const ROLE_OPTIONS: Array<{ value: UserRole; label: string; hint: string; tone: 'red' | 'blue' | 'amber' | 'green' }> = [
+  { value: 'coach',   label: 'Coach',   hint: 'See the entire team — all groups, all players.', tone: 'blue' },
+  { value: 'captain', label: 'Captain', hint: 'See your group only (set default group below).',  tone: 'amber' },
+  { value: 'athlete', label: 'Athlete', hint: 'See only your own data (pick a player to impersonate).', tone: 'green' },
 ];
 
 function Label({ children }: { children: React.ReactNode }) {
+  return <label className="text-[11.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">{children}</label>;
+}
+function Dt({ children }: { children: React.ReactNode }) {
+  return <dt className="text-[11.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)] py-1">{children}</dt>;
+}
+function Dd({ children, mono }: { children: React.ReactNode; mono?: boolean }) {
+  return <dd className={`py-1 text-[color:var(--ink)] ${mono ? 'mono text-[12px]' : 'text-[14px]'}`}>{children}</dd>;
+}
+function KV({ label, value, mono, tone }: { label: string; value: React.ReactNode; mono?: boolean; tone?: 'blue' | 'green' | 'red' | 'amber' }) {
+  const color = tone === 'blue' ? 'var(--blue)' : tone === 'green' ? 'var(--green)' : tone === 'red' ? 'var(--red)' : tone === 'amber' ? 'var(--amber)' : 'var(--ink)';
   return (
-    <label className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-      {children}
-    </label>
+    <li className="flex items-baseline justify-between gap-3 border-b border-dashed pb-2 last:border-0 last:pb-0" style={{ borderColor: 'var(--border)' }}>
+      <span className="text-[12px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">{label}</span>
+      <span className={`${mono ? 'mono' : 'tabular'} text-[14px] font-semibold`} style={{ color }}>{value}</span>
+    </li>
   );
 }
 
@@ -210,29 +220,24 @@ export default function SettingsPage() {
     ? allPlayers.find((p) => p.id === prefs.impersonate_player_id)
     : null;
 
+  const roleTone = ROLE_OPTIONS.find((r) => r.value === currentRole)?.tone ?? 'green';
+
   return (
     <>
-      <PageHeader
-        eyebrow="Settings"
-        title="Settings"
-        subtitle="PROFILE · PREFERENCES · TELEMETRY"
-      />
+      <PageHeader eyebrow="Settings" title="Settings" />
 
-      <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
-        {/* Role */}
-        <section className="reveal reveal-1 panel p-5">
-          <SectionTag
-            name="Role / view"
-            right={<Stamp tone={ROLE_OPTIONS.find((r) => r.value === currentRole)?.tone ?? 'on'}>{currentRole}</Stamp>}
-          />
-          <p className="mt-2 text-sm text-[color:var(--bone-soft)] leading-relaxed">
-            {canEditRole
-              ? 'As an admin, you can try each view to see what other users will see.'
-              : `Your view is set to ${currentRole}. Contact the team admin to change how the page shows up.`}
-          </p>
-
-          {canEditRole ? (
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {/* Role / view */}
+        {canEditRole && (
+          <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Role / view</h2>
+              <Pill tone={roleTone}>{currentRole}</Pill>
+            </div>
+            <p className="text-[13px] text-[color:var(--ink-mute)] leading-relaxed mb-5">
+              As an admin, you can try each view to see what other users will see.
+            </p>
+            <div className="grid gap-3 md:grid-cols-3">
               {ROLE_OPTIONS.map((opt) => {
                 const active = role === opt.value;
                 return (
@@ -240,90 +245,94 @@ export default function SettingsPage() {
                     key={opt.value}
                     type="button"
                     onClick={() => setRole(opt.value)}
-                    className={`flex flex-col gap-2 rounded-sm border px-4 py-3 text-left transition ${
-                      active
-                        ? 'border-[color:var(--signal)] bg-[color:var(--signal-ghost)]'
-                        : 'border-[color:var(--hairline)] hover:border-[color:var(--signal)]/50'
-                    }`}
+                    className="flex flex-col gap-2 rounded-xl border px-4 py-3 text-left transition"
+                    style={{
+                      borderColor: active ? 'var(--blue)' : 'var(--border)',
+                      background: active ? 'color-mix(in srgb, var(--blue) 8%, transparent)' : undefined,
+                    }}
                   >
                     <div className="flex items-center gap-2">
                       <span
-                        className={`size-3 rounded-full border ${active ? 'border-[color:var(--signal)] bg-[color:var(--signal)]' : 'border-[color:var(--bone-dim)]'}`}
+                        className="size-3 rounded-full border"
+                        style={{
+                          borderColor: active ? 'var(--blue)' : 'var(--ink-dim)',
+                          background: active ? 'var(--blue)' : undefined,
+                        }}
                       />
-                      <span className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-[color:var(--bone)]">
-                        {opt.label}
-                      </span>
+                      <span className="text-[13px] font-semibold text-[color:var(--ink)]">{opt.label}</span>
                     </div>
-                    <span className="text-xs text-[color:var(--bone-mute)]">{opt.hint}</span>
+                    <span className="text-[12px] text-[color:var(--ink-mute)]">{opt.hint}</span>
                   </button>
                 );
               })}
             </div>
-          ) : null}
 
-          {canEditRole && role === 'athlete' && (
-            <div className="mt-5 space-y-2">
-              <Label>Impersonate athlete</Label>
-              <Select
-                value={prefs?.impersonate_player_id ? String(prefs.impersonate_player_id) : ''}
-                onValueChange={(v) => setAthlete(v ? Number(v) : null)}
-              >
-                <SelectTrigger className="w-[280px] h-9">
-                  <SelectValue placeholder="— select an athlete —" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allPlayers.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name} ({p.group ?? 'no group'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {impersonatedPlayer && (
-                <div className="mono text-[0.72rem] text-[color:var(--bone-mute)]">
-                  simulating <strong className="text-[color:var(--bone)]">{impersonatedPlayer.name}</strong>.{' '}
-                  <Link
-                    href="/dashboard/athlete"
-                    className="text-[color:var(--signal)] hover:underline underline-offset-4"
-                  >
-                    open your view →
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+            {role === 'athlete' && (
+              <div className="mt-5 space-y-2">
+                <Label>Impersonate athlete</Label>
+                <Select
+                  value={prefs?.impersonate_player_id ? String(prefs.impersonate_player_id) : ''}
+                  onValueChange={(v) => setAthlete(v ? Number(v) : null)}
+                >
+                  <SelectTrigger className="w-[280px] h-9">
+                    <SelectValue placeholder="— select an athlete —" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allPlayers.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.name} ({p.group ?? 'no group'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {impersonatedPlayer && (
+                  <div className="text-[12px] text-[color:var(--ink-mute)]">
+                    currently simulating <strong className="text-[color:var(--ink)]">{impersonatedPlayer.name}</strong>.{' '}
+                    <Link
+                      href="/dashboard/athlete"
+                      className="underline underline-offset-4"
+                      style={{ color: 'var(--blue)' }}
+                    >
+                      open my view →
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
-        {/* Phone link */}
-        <section className="reveal reveal-2 panel p-5">
-          <SectionTag
-            name="Link your phone to the roster"
-            right={<Phone className="size-4 text-[color:var(--signal)]" />}
-          />
-          <p className="mt-2 text-sm text-[color:var(--bone-soft)] leading-relaxed">
+        {/* Phone OTP */}
+        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Link your phone to the roster</h2>
+            <Phone className="size-4 text-[color:var(--ink-mute)]" />
+          </div>
+          <p className="text-[13px] text-[color:var(--ink-mute)] leading-relaxed mb-5">
             If you&rsquo;re also on the roster, verify your number and we&rsquo;ll link it to
             your athlete entry. You keep your current role and gain a personal athlete view.
           </p>
 
-          <div className="mt-5 space-y-4">
+          <div className="space-y-4">
             {impersonatedPlayer && (
               <div
-                className="flex items-start gap-3 rounded-sm border px-4 py-3 text-sm"
+                className="flex items-start gap-3 rounded-xl border px-4 py-3 text-[13px]"
                 style={{
-                  borderColor: 'hsl(162 40% 40%)',
-                  background: 'hsl(162 40% 18% / 0.3)',
+                  borderColor: 'color-mix(in srgb, var(--green) 40%, transparent)',
+                  background: 'color-mix(in srgb, var(--green) 8%, transparent)',
                 }}
               >
-                <CheckCircle2 className="size-4 text-[color:var(--chlorine)] mt-0.5 shrink-0" />
+                <CheckCircle2 className="size-4 mt-0.5 shrink-0" style={{ color: 'var(--green)' }} />
                 <div>
                   Currently linked to <strong>{impersonatedPlayer.name}</strong>
                   {impersonatedPlayer.group && (
-                    <span className="text-[color:var(--bone-mute)]"> · {impersonatedPlayer.group}</span>
+                    <span className="text-[color:var(--ink-mute)]"> · {impersonatedPlayer.group}</span>
                   )}
                   .{' '}
                   <Link
                     href="/dashboard/athlete"
-                    className="text-[color:var(--signal)] hover:underline underline-offset-4"
+                    className="underline underline-offset-4"
+                    style={{ color: 'var(--blue)' }}
                   >
                     open your view →
                   </Link>
@@ -344,12 +353,11 @@ export default function SettingsPage() {
                   <Button
                     onClick={requestOtp}
                     disabled={otpSending || !phoneInput.trim()}
-                    className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em]"
                   >
                     {otpSending ? 'Sending…' : 'Send code'}
                   </Button>
                 </div>
-                <p className="mono text-[0.68rem] text-[color:var(--bone-mute)] leading-relaxed">
+                <p className="text-[12px] text-[color:var(--ink-mute)] leading-relaxed">
                   Include your country code (+1, +61, etc.). We SMS a 6-digit code via the team&rsquo;s
                   Twilio number.
                 </p>
@@ -357,8 +365,8 @@ export default function SettingsPage() {
             ) : (
               <div className="space-y-2">
                 <Label>
-                  CODE SENT TO{' '}
-                  <span className="text-[color:var(--bone)]">
+                  Code sent to{' '}
+                  <span className="text-[color:var(--ink)]">
                     {otpSentTo ? prettyPhone(otpSentTo) : '—'}
                   </span>
                 </Label>
@@ -373,7 +381,6 @@ export default function SettingsPage() {
                   <Button
                     onClick={verifyOtp}
                     disabled={otpVerifying || codeInput.length !== 6}
-                    className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em]"
                   >
                     {otpVerifying ? 'Verifying…' : 'Verify & link'}
                   </Button>
@@ -385,7 +392,6 @@ export default function SettingsPage() {
                       setOtpSentTo(null);
                       setOtpMessage(null);
                     }}
-                    className="mono text-[0.7rem] uppercase tracking-[0.18em]"
                   >
                     Change phone
                   </Button>
@@ -395,16 +401,20 @@ export default function SettingsPage() {
 
             {otpMessage && (
               <div
-                className="flex items-start gap-2 rounded-sm border px-3 py-2 text-sm"
+                className="flex items-start gap-2 rounded-xl border px-3 py-2 text-[13px]"
                 style={{
-                  borderColor: otpMessage.tone === 'ok' ? 'hsl(162 40% 40%)' : 'hsl(356 60% 42%)',
-                  background: otpMessage.tone === 'ok' ? 'hsl(162 40% 18% / 0.3)' : 'hsl(356 60% 22% / 0.3)',
+                  borderColor: otpMessage.tone === 'ok'
+                    ? 'color-mix(in srgb, var(--green) 40%, transparent)'
+                    : 'color-mix(in srgb, var(--red) 40%, transparent)',
+                  background: otpMessage.tone === 'ok'
+                    ? 'color-mix(in srgb, var(--green) 8%, transparent)'
+                    : 'color-mix(in srgb, var(--red) 8%, transparent)',
                 }}
               >
                 {otpMessage.tone === 'ok' ? (
-                  <CheckCircle2 className="size-4 text-[color:var(--chlorine)] mt-0.5 shrink-0" />
+                  <CheckCircle2 className="size-4 mt-0.5 shrink-0" style={{ color: 'var(--green)' }} />
                 ) : (
-                  <AlertCircle className="size-4 text-[color:var(--siren)] mt-0.5 shrink-0" />
+                  <AlertCircle className="size-4 mt-0.5 shrink-0" style={{ color: 'var(--red)' }} />
                 )}
                 {otpMessage.text}
               </div>
@@ -412,11 +422,12 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Prefs + account */}
-        <section className="reveal reveal-3 grid gap-6 lg:grid-cols-2">
-          <div className="panel p-5">
-            <SectionTag name="Preferences" />
-            <div className="mt-5 space-y-4">
+        {/* Preferences + Account */}
+        <div className="reveal reveal-3 grid gap-6 lg:grid-cols-2">
+          {/* Preferences */}
+          <section className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)] mb-5">Preferences</h2>
+            <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label>Default group filter</Label>
                 <Select
@@ -429,43 +440,32 @@ export default function SettingsPage() {
                   <SelectContent>
                     <SelectItem value="all">All groups</SelectItem>
                     {groups.map((g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="mono text-[0.66rem] text-[color:var(--bone-mute)]">
+                <p className="text-[12px] text-[color:var(--ink-mute)]">
                   Applies when your role is captain, or always if you pick one as coach.
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  onClick={save}
-                  disabled={saving}
-                  className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em]"
-                >
+                <Button onClick={save} disabled={saving}>
                   {saving ? 'Saving…' : 'Save preferences'}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={resetWatchlist}
-                  className="mono text-[0.72rem] font-semibold uppercase tracking-[0.2em]"
-                >
+                <Button variant="outline" onClick={resetWatchlist}>
                   Reset watchlist ({prefs?.watchlist.length ?? 0})
                 </Button>
                 {status && (
-                  <span className="mono text-[0.68rem] uppercase tracking-[0.2em] text-[color:var(--bone-mute)]">
-                    {status}
-                  </span>
+                  <span className="text-[12px] text-[color:var(--ink-mute)]">{status}</span>
                 )}
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="panel p-5">
-            <SectionTag name="Account" />
-            <dl className="mt-5 grid grid-cols-[100px_1fr] gap-y-2 gap-x-4 text-sm">
+          {/* Account */}
+          <section className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)] mb-5">Account</h2>
+            <dl className="grid grid-cols-[100px_1fr] gap-y-0 gap-x-4">
               <Dt>Email</Dt>
               <Dd mono>{user?.primaryEmailAddress?.emailAddress ?? '—'}</Dd>
               <Dt>Name</Dt>
@@ -473,110 +473,67 @@ export default function SettingsPage() {
               <Dt>Team</Dt>
               <Dd>
                 {team?.name ?? '—'}{' '}
-                <span className="text-[color:var(--bone-mute)] mono">({team?.code ?? '—'})</span>
+                <span className="text-[color:var(--ink-mute)] mono text-[12px]">({team?.code ?? '—'})</span>
               </Dd>
               <Dt>Role</Dt>
               <Dd>
-                <Stamp tone={ROLE_OPTIONS.find((r) => r.value === currentRole)?.tone ?? 'on'}>
-                  {currentRole}
-                </Stamp>
+                <Pill tone={roleTone}>{currentRole}</Pill>
               </Dd>
             </dl>
             {canEditRole && (
-              <details className="mt-5 text-xs">
-                <summary className="cursor-pointer mono uppercase tracking-[0.2em] text-[0.66rem] text-[color:var(--bone-mute)] hover:text-[color:var(--bone)]">
+              <details className="mt-5">
+                <summary className="cursor-pointer text-[12px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] transition">
                   Developer details
                 </summary>
-                <dl className="mt-2 grid grid-cols-[100px_1fr] gap-y-2 gap-x-4">
+                <dl className="mt-3 grid grid-cols-[100px_1fr] gap-y-0 gap-x-4">
                   <Dt>Clerk ID</Dt>
                   <Dd mono>
-                    <span className="text-[color:var(--bone-mute)] break-all">
+                    <span className="text-[color:var(--ink-mute)] break-all">
                       {prefs?.clerk_user_id ?? '—'}
                     </span>
                   </Dd>
                 </dl>
               </details>
             )}
-          </div>
-        </section>
+          </section>
+        </div>
 
-        {/* Database + worker */}
-        <section className="reveal reveal-4 grid gap-6 lg:grid-cols-2">
-          <div className="panel p-5">
-            <SectionTag name="Database" />
-            <ul className="mt-4 space-y-2">
-              <KV label="Athletes" value={stats?.players ?? 0} tone="heritage" />
-              <KV label="Messages indexed" value={stats?.messages ?? 0} tone="signal" />
-              <KV label="Activity log entries" value={stats?.activity ?? 0} tone="chlorine" />
+        {/* Database + Worker health */}
+        <div className="reveal reveal-4 grid gap-6 lg:grid-cols-2">
+          {/* Database */}
+          <section className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)] mb-1">Database</h2>
+            <p className="text-[12px] text-[color:var(--ink-mute)] mb-4">Records scoped to your team</p>
+            <ul className="space-y-2">
+              <KV label="Athletes" value={stats?.players ?? 0} tone="blue" />
+              <KV label="Messages indexed" value={stats?.messages ?? 0} />
+              <KV label="Activity log entries" value={stats?.activity ?? 0} tone="green" />
             </ul>
-          </div>
-          <div className="panel p-5">
-            <SectionTag name="Worker health" />
-            <ul className="mt-4 space-y-2">
+          </section>
+
+          {/* Worker health */}
+          <section className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)] mb-1">Worker health</h2>
+            <p className="text-[12px] text-[color:var(--ink-mute)] mb-4">Last polls + error state</p>
+            <ul className="space-y-2">
               <KV label="Twilio poll" value={relativeTime(lastTwilio)} mono />
               <KV label="Weather poll" value={relativeTime(lastWeather)} mono />
               <KV
                 label="Consecutive errors"
                 value={state?.consecutive_errors ?? 0}
-                tone={(state?.consecutive_errors ?? 0) > 0 ? 'siren' : 'chlorine'}
+                tone={(state?.consecutive_errors ?? 0) > 0 ? 'red' : 'green'}
               />
               <KV label="Backfill" value={state?.backfill_complete ? 'complete' : 'in progress'} mono />
               {state?.last_error && (
-                <li className="mono text-[0.68rem] text-[color:var(--siren)] leading-snug mt-2">
-                  <span className="text-[color:var(--bone-dim)] uppercase tracking-[0.16em]">Last error: </span>
+                <li className="mono text-[11px] leading-snug mt-2" style={{ color: 'var(--red)' }}>
+                  <span className="text-[color:var(--ink-dim)] uppercase tracking-wide">Last error: </span>
                   {state.last_error}
                 </li>
               )}
             </ul>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
     </>
-  );
-}
-
-function Dt({ children }: { children: React.ReactNode }) {
-  return (
-    <dt className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)] py-1">
-      {children}
-    </dt>
-  );
-}
-function Dd({ children, mono }: { children: React.ReactNode; mono?: boolean }) {
-  return (
-    <dd className={`py-1 text-[color:var(--bone)] ${mono ? 'mono text-xs' : ''}`}>{children}</dd>
-  );
-}
-function KV({
-  label,
-  value,
-  mono,
-  tone,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-  tone?: 'heritage' | 'signal' | 'chlorine' | 'siren';
-}) {
-  const color = tone
-    ? {
-        heritage: 'hsl(358 78% 58%)',
-        signal: 'hsl(188 82% 58%)',
-        chlorine: 'hsl(162 62% 54%)',
-        siren: 'hsl(356 82% 62%)',
-      }[tone]
-    : 'var(--bone)';
-  return (
-    <li className="flex items-baseline justify-between gap-3 border-b border-dashed border-[color:var(--hairline)] pb-2 last:border-0 last:pb-0">
-      <span className="mono text-[0.66rem] uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
-        {label}
-      </span>
-      <span
-        className={`${mono ? 'mono' : 'num-display'} text-sm font-semibold tabular`}
-        style={{ color }}
-      >
-        {value}
-      </span>
-    </li>
   );
 }

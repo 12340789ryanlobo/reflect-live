@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/dashboard-shell';
-import { SectionTag } from '@/components/section-tag';
-import { Stamp } from '@/components/stamp';
+import { Pill } from '@/components/v3/pill';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player } from '@reflect-live/shared';
 import {
@@ -24,11 +23,11 @@ interface UserRow {
   created_at: string;
 }
 
-const ROLE_TONE: Record<string, 'flag' | 'on' | 'watch' | 'live' | 'quiet'> = {
-  admin: 'flag',
-  coach: 'live',
-  captain: 'watch',
-  athlete: 'on',
+const ROLE_TONE: Record<string, 'red' | 'blue' | 'amber' | 'green' | 'mute'> = {
+  admin: 'red',
+  coach: 'blue',
+  captain: 'amber',
+  athlete: 'green',
 };
 
 export default function AdminUsersPage() {
@@ -96,33 +95,29 @@ export default function AdminUsersPage() {
       <PageHeader
         eyebrow="Roles & links"
         title="Users"
-        subtitle={`${rows.length} USERS · ${playersByTeam.size} TEAMS`}
+        subtitle={`${rows.length} users · ${playersByTeam.size} teams`}
       />
 
-      <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
-        <p className="mono text-[0.72rem] leading-relaxed text-[color:var(--bone-mute)]">
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        <p className="text-[13px] text-[color:var(--ink-mute)] leading-relaxed">
           Roles take effect immediately. Users can&rsquo;t change their own role. Linking a user
           to a roster player gives them a personal athlete view — useful when a coach or admin
           is also on the roster.
         </p>
 
-        <section className="reveal reveal-1 panel overflow-hidden">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag name="Users" />
-          </div>
+        <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Users</h2>
+          </header>
           {loading ? (
-            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-              — loading —
-            </p>
+            <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">Loading…</p>
           ) : rows.length === 0 ? (
-            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-              — no users yet —
-            </p>
+            <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">— no users yet —</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+              <table className="w-full border-collapse text-[14px]">
                 <thead>
-                  <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/40">
+                  <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
                     <Th>Email</Th>
                     <Th>Name</Th>
                     <Th>Role</Th>
@@ -139,31 +134,28 @@ export default function AdminUsersPage() {
                     return (
                       <tr
                         key={u.clerk_user_id}
-                        className="border-b border-[color:var(--hairline)]/50"
+                        className="border-b"
+                        style={{ borderColor: 'var(--border)' }}
                       >
                         <Td>
                           {u.email ? (
-                            <span className="mono text-[0.72rem] text-[color:var(--bone-soft)]">
-                              {u.email}
-                            </span>
+                            <span className="mono text-[12px] text-[color:var(--ink-mute)]">{u.email}</span>
                           ) : (
-                            <span className="mono text-[0.68rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
-                              — not loaded —
-                            </span>
+                            <span className="text-[12px] text-[color:var(--ink-dim)]">— not loaded —</span>
                           )}
                         </Td>
                         <Td>
-                          <span className="text-[color:var(--bone)]">{u.name ?? '—'}</span>
+                          <span className="text-[color:var(--ink)]">{u.name ?? '—'}</span>
                         </Td>
                         <Td>
                           <div className="flex items-center gap-2">
-                            <Stamp tone={ROLE_TONE[u.role] ?? 'quiet'}>{u.role}</Stamp>
+                            <Pill tone={ROLE_TONE[u.role] ?? 'mute'}>{u.role}</Pill>
                             <Select
                               value={u.role}
                               onValueChange={(v) => setRole(u.clerk_user_id, v)}
                               disabled={busyId === u.clerk_user_id}
                             >
-                              <SelectTrigger className="w-28 h-8 mono text-[0.7rem] uppercase tracking-wider">
+                              <SelectTrigger className="w-28 h-8 text-[12px]">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -185,7 +177,7 @@ export default function AdminUsersPage() {
                             }
                             disabled={busyId === u.clerk_user_id || teamPlayers.length === 0}
                           >
-                            <SelectTrigger className="w-56 h-8 mono text-[0.72rem]">
+                            <SelectTrigger className="w-56 h-8 text-[12px]">
                               <SelectValue placeholder="— none —" />
                             </SelectTrigger>
                             <SelectContent>
@@ -198,13 +190,13 @@ export default function AdminUsersPage() {
                             </SelectContent>
                           </Select>
                           {linked && (
-                            <div className="mono text-[0.6rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)] mt-1">
+                            <div className="text-[11px] text-[color:var(--ink-mute)] mt-1">
                               linked → {linked.name}
                             </div>
                           )}
                         </Td>
                         <Td>
-                          <span className="mono text-[0.7rem] text-[color:var(--bone-mute)] tabular whitespace-nowrap">
+                          <span className="mono text-[12px] text-[color:var(--ink-mute)] tabular whitespace-nowrap">
                             {prettyDate(u.created_at)}
                           </span>
                         </Td>
@@ -223,7 +215,7 @@ export default function AdminUsersPage() {
 
 function Th({ children }: { children?: React.ReactNode }) {
   return (
-    <th className="px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
       {children}
     </th>
   );

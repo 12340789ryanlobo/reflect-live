@@ -2,8 +2,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { StatReadout } from '@/components/stat-readout';
-import { SectionTag } from '@/components/section-tag';
+import { StatCell } from '@/components/v3/stat-cell';
+import { Pill } from '@/components/v3/pill';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { ActivityLog, Player, Location } from '@reflect-live/shared';
 import {
@@ -88,10 +88,10 @@ export default function FitnessPage() {
       <PageHeader
         eyebrow="Workouts & rehabs"
         title="Activity"
-        subtitle={`${logs.length} ENTRIES · ${daysShort.toUpperCase()}`}
-        right={
+        subtitle={`${logs.length} entries · ${daysShort}`}
+        actions={
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="w-[140px] h-9 mono text-xs uppercase tracking-wider">
+            <SelectTrigger className="w-[140px] h-9 text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -105,66 +105,46 @@ export default function FitnessPage() {
         }
       />
 
-      <main className="flex flex-1 flex-col gap-8 px-4 py-6 md:px-6 md:py-8">
-        {/* Top readouts */}
-        <section className="reveal reveal-1 panel">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag name="Workload telemetry" />
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6 p-5 md:grid-cols-4">
-            <StatReadout label="Workouts" value={workoutCount} sub={daysShort.toUpperCase()} tone="chlorine" />
-            <StatReadout label="Rehabs" value={rehabCount} sub={daysShort.toUpperCase()} tone="amber" />
-            <StatReadout
-              label="Active loggers"
-              value={activeLoggers}
-              sub={`OF ${players.length} ATHLETES`}
-              tone="signal"
-            />
-            <StatReadout
-              label="Avg per athlete"
-              value={avgPerPlayer}
-              sub={daysShort.toUpperCase()}
-              tone="heritage"
-            />
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {/* Top stats row */}
+        <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+            <div className="p-6"><StatCell label="Workouts" value={workoutCount} sub={daysShort} tone="green" /></div>
+            <div className="p-6"><StatCell label="Rehabs" value={rehabCount} sub={daysShort} tone="amber" /></div>
+            <div className="p-6"><StatCell label="Active loggers" value={activeLoggers} sub={`of ${players.length} athletes`} tone="blue" /></div>
+            <div className="p-6"><StatCell label="Avg per athlete" value={avgPerPlayer} sub={daysShort} /></div>
           </div>
         </section>
 
-        {/* Upcoming competitions row */}
+        {/* Upcoming competitions */}
         {locations.length > 0 && (
-          <section className="reveal reveal-2 panel">
-            <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-              <SectionTag
-                name="Upcoming competitions"
-                right={
-                  <Link
-                    href="/dashboard/events"
-                    className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--signal)] hover:text-[color:var(--bone)] transition"
-                  >
-                    ALL EVENTS →
-                  </Link>
-                }
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-0 md:grid-cols-4">
-              {locations.slice(0, 4).map((l, i) => (
-                <div
-                  key={l.id}
-                  className={`p-5 ${i < locations.length - 1 ? 'border-r border-[color:var(--hairline)]' : ''}`}
-                >
-                  <div className="mono text-[0.62rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
+          <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Upcoming competitions</h2>
+              <Link
+                href="/dashboard/events"
+                className="text-[13px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition"
+              >
+                All events →
+              </Link>
+            </header>
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+              {locations.slice(0, 4).map((l) => (
+                <div key={l.id} className="p-5">
+                  <div className="mono text-[11px] font-semibold uppercase tracking-widest text-[color:var(--ink-mute)]">
                     EVT · {String(l.id).padStart(3, '0')}
                   </div>
-                  <div className="mt-2 text-sm font-semibold leading-tight line-clamp-2">
+                  <div className="mt-2 text-[14px] font-semibold leading-tight line-clamp-2 text-[color:var(--ink)]">
                     {l.name}
                   </div>
-                  <div className="mt-4 flex items-baseline gap-1.5">
-                    <span className="num-display text-[2.2rem] leading-none tabular">
+                  <div className="mt-4 flex items-baseline gap-1">
+                    <span className="text-[2.2rem] font-bold leading-none tabular text-[color:var(--ink)]">
                       {l.daysUntil}
                     </span>
-                    <span className="mono text-xs text-[color:var(--bone-mute)]">d</span>
+                    <span className="text-[13px] text-[color:var(--ink-mute)]">d</span>
                   </div>
-                  <div className="mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
-                    UNTIL {prettyDate(l.event_date!).toUpperCase()}
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-dim)] mt-0.5">
+                    until {prettyDate(l.event_date!)}
                   </div>
                 </div>
               ))}
@@ -172,69 +152,63 @@ export default function FitnessPage() {
           </section>
         )}
 
-        {/* How-to card */}
-        <section className="reveal reveal-3 panel border-dashed p-5">
-          <SectionTag name="How athletes log" />
-          <p className="mt-2 text-sm text-[color:var(--bone-soft)] leading-relaxed">
+        {/* How-to memo */}
+        <section className="reveal reveal-3 rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+          <h2 className="text-[14px] font-bold text-[color:var(--ink)] mb-2">How athletes log</h2>
+          <p className="text-[14px] text-[color:var(--ink-soft)] leading-relaxed">
             Text the team line. Start the message with{' '}
-            <code className="mono bg-[color:var(--panel-raised)] px-1.5 py-0.5 text-[color:var(--signal)]">Workout:</code>{' '}
+            <code className="mono bg-[color:var(--paper)] px-1.5 py-0.5 rounded text-[color:var(--green)]">Workout:</code>{' '}
             or{' '}
-            <code className="mono bg-[color:var(--panel-raised)] px-1.5 py-0.5 text-[color:var(--amber)]">Rehab:</code>{' '}
+            <code className="mono bg-[color:var(--paper)] px-1.5 py-0.5 rounded text-[color:var(--amber)]">Rehab:</code>{' '}
             followed by a description.
           </p>
-          <div className="mt-4 border-l-2 border-[color:var(--signal)] bg-[color:var(--panel-raised)]/50 p-4 mono text-xs text-[color:var(--bone-soft)] leading-relaxed">
-            <div className="text-[color:var(--bone-dim)] mb-1.5 text-[0.62rem] uppercase tracking-[0.22em]">Examples</div>
+          <div className="mt-4 rounded-lg border-l-2 bg-[color:var(--paper)] p-4 mono text-[12px] text-[color:var(--ink-soft)] leading-relaxed" style={{ borderLeftColor: 'var(--blue)' }}>
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5">Examples</div>
             Workout: erg 5x500 @ 2k pace, 1k warmdown
             <br />
             Rehab: foam roll quads + hip flexors, 20 min
           </div>
         </section>
 
-        {/* Log table */}
-        <section className="reveal reveal-4 panel overflow-hidden">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag
-              name={`Past activity · ${filtered.length} entries`}
-              right={
-                <Select
-                  value={kindFilter}
-                  onValueChange={(v) => setKindFilter(v as typeof kindFilter)}
-                >
-                  <SelectTrigger className="w-[140px] h-9 mono text-xs uppercase tracking-wider">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All kinds</SelectItem>
-                    <SelectItem value="workout">Workouts</SelectItem>
-                    <SelectItem value="rehab">Rehabs</SelectItem>
-                  </SelectContent>
-                </Select>
-              }
-            />
-          </div>
+        {/* Past activity table */}
+        <section className="reveal reveal-4 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">
+              Past activity · {filtered.length} entries
+            </h2>
+            <Select
+              value={kindFilter}
+              onValueChange={(v) => setKindFilter(v as typeof kindFilter)}
+            >
+              <SelectTrigger className="w-[140px] h-9 text-[13px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All kinds</SelectItem>
+                <SelectItem value="workout">Workouts</SelectItem>
+                <SelectItem value="rehab">Rehabs</SelectItem>
+              </SelectContent>
+            </Select>
+          </header>
           {loading ? (
-            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-              — loading —
-            </p>
+            <p className="px-6 py-8 text-[13px] text-[color:var(--ink-mute)]">— loading —</p>
           ) : filtered.length === 0 ? (
-            <p className="px-6 py-8 mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
-              — no activity logged in this period —
-            </p>
+            <p className="px-6 py-8 text-[13px] text-[color:var(--ink-mute)]">— no activity logged in this period —</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+              <table className="w-full border-collapse text-[14px]">
                 <thead>
-                  <tr className="border-b border-[color:var(--hairline)] bg-[color:var(--panel-raised)]/40">
-                    <th className="w-[240px] px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                  <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
+                    <th className="w-[240px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
                       Athlete
                     </th>
-                    <th className="w-[110px] px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                    <th className="w-[110px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
                       When
                     </th>
-                    <th className="w-[110px] px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                    <th className="w-[110px] px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
                       Kind
                     </th>
-                    <th className="px-4 py-3 text-left mono text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--bone-dim)]">
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
                       Description
                     </th>
                   </tr>
@@ -242,45 +216,44 @@ export default function FitnessPage() {
                 <tbody>
                   {filtered.map((l) => {
                     const name = l.player?.name ?? 'Unknown';
-                    const tone =
-                      l.kind === 'workout'
-                        ? { color: 'hsl(162 62% 54%)', bg: 'hsl(162 40% 18% / 0.4)', border: 'hsl(162 40% 40%)' }
-                        : { color: 'hsl(38 90% 62%)', bg: 'hsl(38 60% 20% / 0.4)', border: 'hsl(38 60% 40%)' };
                     return (
-                      <tr key={l.id} className="border-b border-[color:var(--hairline)]/50">
+                      <tr
+                        key={l.id}
+                        className="border-b transition hover:bg-[color:var(--card-hover)]"
+                        style={{ borderColor: 'var(--border)' }}
+                      >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
-                            <span className="grid size-6 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)] text-[0.58rem] font-semibold">
+                            <span
+                              className="grid size-6 place-items-center rounded-md border bg-[color:var(--paper)] text-[10px] font-bold"
+                              style={{ borderColor: 'var(--border)' }}
+                            >
                               {l.player ? initials(name) : '?'}
                             </span>
                             <div className="min-w-0">
-                              <div className="text-sm font-semibold text-[color:var(--bone)] truncate">
+                              <div className="text-[14px] font-semibold text-[color:var(--ink)] truncate">
                                 {name}
                               </div>
                               {l.player?.group && (
-                                <div className="mono text-[0.6rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)] truncate">
+                                <div className="text-[11px] uppercase tracking-wide text-[color:var(--ink-dim)] truncate">
                                   {l.player.group}
                                 </div>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 mono text-[0.7rem] text-[color:var(--bone-mute)] tabular" title={prettyDate(l.logged_at)}>
+                        <td
+                          className="px-4 py-3 mono text-[12px] text-[color:var(--ink-mute)] tabular"
+                          title={prettyDate(l.logged_at)}
+                        >
                           {relativeTime(l.logged_at)}
                         </td>
                         <td className="px-4 py-3">
-                          <span
-                            className="mono inline-block px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.18em] rounded-sm"
-                            style={{
-                              color: tone.color,
-                              background: tone.bg,
-                              border: `1px solid ${tone.border}`,
-                            }}
-                          >
+                          <Pill tone={l.kind === 'workout' ? 'green' : 'amber'}>
                             {prettyCategory(l.kind)}
-                          </span>
+                          </Pill>
                         </td>
-                        <td className="px-4 py-3 text-sm leading-snug text-[color:var(--bone-soft)]">
+                        <td className="px-4 py-3 text-[14px] leading-snug text-[color:var(--ink-soft)]">
                           {l.description}
                         </td>
                       </tr>

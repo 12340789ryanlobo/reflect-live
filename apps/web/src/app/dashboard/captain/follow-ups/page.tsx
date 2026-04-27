@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { SectionTag } from '@/components/section-tag';
-import { Stamp } from '@/components/stamp';
+import { Pill } from '@/components/v3/pill';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player } from '@reflect-live/shared';
 import {
@@ -58,17 +57,17 @@ export default function FollowUpsPage() {
       return ta - tb;
     });
 
-  const sinceLabel = since === 24 ? '24 HOURS' : since === 72 ? '3 DAYS' : '1 WEEK';
+  const sinceLabel = since === 24 ? '24 hours' : since === 72 ? '3 days' : '1 week';
 
   return (
     <>
       <PageHeader
         eyebrow="Who to chase"
         title="Follow-ups"
-        subtitle={`${overdue.length} · QUIET ≥ ${sinceLabel}`}
-        right={
+        subtitle={`${overdue.length} · quiet ≥ ${sinceLabel}`}
+        actions={
           <Select value={String(since)} onValueChange={(v) => setSince(Number(v))}>
-            <SelectTrigger className="w-[180px] h-9 mono text-xs uppercase tracking-wider">
+            <SelectTrigger className="w-[180px] h-9 text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -80,20 +79,14 @@ export default function FollowUpsPage() {
         }
       />
 
-      <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
-        <section className="reveal reveal-1 panel">
-          <div className="border-b border-[color:var(--hairline)] px-5 py-3">
-            <SectionTag
-              name="Quiet athletes"
-              right={
-                <span className="mono text-[0.66rem] uppercase tracking-[0.2em] text-[color:var(--bone-dim)]">
-                  ORDERED BY LAST REPLY
-                </span>
-              }
-            />
-          </div>
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Quiet athletes</h2>
+            <span className="text-[12px] text-[color:var(--ink-mute)]">ordered by last reply</span>
+          </header>
           {overdue.length === 0 ? (
-            <p className="px-6 py-10 text-center mono text-xs text-[color:var(--bone-mute)] uppercase tracking-widest">
+            <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">
               — nobody needs chasing —
             </p>
           ) : (
@@ -101,26 +94,27 @@ export default function FollowUpsPage() {
               {overdue.map(({ p, ts }, i) => (
                 <li
                   key={p.id}
-                  className="flex items-center gap-4 border-b border-[color:var(--hairline)]/60 px-5 py-3 last:border-0"
+                  className="flex items-center gap-4 border-b px-5 py-3 last:border-0"
+                  style={{ borderColor: 'var(--border)' }}
                 >
-                  <span className="mono text-[0.66rem] text-[color:var(--bone-dim)] tabular w-8 shrink-0">
+                  <span className="mono text-[12px] text-[color:var(--ink-dim)] tabular w-8 shrink-0">
                     {String(i + 1).padStart(2, '0')}
                   </span>
-                  <span className="grid size-9 place-items-center rounded-sm border border-[color:var(--hairline)] bg-[color:var(--panel-raised)] text-[0.7rem] font-semibold shrink-0">
+                  <span className="grid size-9 place-items-center rounded-md border bg-[color:var(--paper)] text-[12px] font-bold shrink-0" style={{ borderColor: 'var(--border)' }}>
                     {initials(p.name)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-[color:var(--bone)]">
+                    <div className="text-[14px] font-semibold text-[color:var(--ink)]">
                       {p.name}
                     </div>
-                    <div className="mono text-[0.62rem] uppercase tracking-[0.16em] text-[color:var(--bone-dim)]">
+                    <div className="text-[12px] text-[color:var(--ink-dim)]">
                       {p.group ?? 'no group'}
                     </div>
                   </div>
-                  <div className="mono text-sm text-[color:var(--bone-mute)] tabular hidden md:block">
+                  <div className="mono text-[12px] text-[color:var(--ink-mute)] tabular hidden md:block">
                     {ts ? `last reply ${relativeTime(ts)}` : 'no messages yet'}
                   </div>
-                  <Stamp tone={ts ? 'watch' : 'quiet'}>{ts ? 'watch' : 'silent'}</Stamp>
+                  <Pill tone={ts ? 'amber' : 'mute'}>{ts ? 'watch' : 'silent'}</Pill>
                 </li>
               ))}
             </ul>
