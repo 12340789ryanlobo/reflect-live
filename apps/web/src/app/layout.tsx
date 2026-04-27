@@ -1,20 +1,14 @@
 import { ClerkProvider } from '@clerk/nextjs';
-import { Fraunces, Instrument_Sans, JetBrains_Mono } from 'next/font/google';
+import { Montserrat, JetBrains_Mono } from 'next/font/google';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import './globals.css';
 import type { ReactNode } from 'react';
 
-const fraunces = Fraunces({
+const montserrat = Montserrat({
   subsets: ['latin'],
-  variable: '--font-fraunces',
+  variable: '--font-montserrat',
   display: 'swap',
-  axes: ['SOFT', 'WONK', 'opsz'],
-});
-
-const instrument = Instrument_Sans({
-  subsets: ['latin'],
-  variable: '--font-instrument',
-  display: 'swap',
+  weight: ['400', '500', '600', '700'],
 });
 
 const jetbrains = JetBrains_Mono({
@@ -24,20 +18,16 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata = {
-  title: 'reflect·live · the team pulse, live',
+  title: 'reflect — team check-ins, dashboard, the works',
   description:
-    'Broadcast-grade coach instrument panel. Every message, every workout, every signal — the second it fires.',
+    'Coach dashboard for team check-ins, fitness, schedule, AI assistant, and more.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider>
-      <html
-        lang="en"
-        className={`dark ${fraunces.variable} ${instrument.variable} ${jetbrains.variable}`}
-        suppressHydrationWarning
-      >
-        <body className="grain">
+      <html lang="en" className={`${montserrat.variable} ${jetbrains.variable}`}>
+        <body>
           <TooltipProvider delayDuration={120}>{children}</TooltipProvider>
         </body>
       </html>
