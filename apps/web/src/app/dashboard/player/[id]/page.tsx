@@ -1,7 +1,6 @@
 'use client';
 import { use, useEffect, useMemo, useState } from 'react';
-import { useDashboard, PageHeader } from '@/components/dashboard-shell';
-import { StarButton } from '@/components/star-button';
+import { PageHeader } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { Pill } from '@/components/v3/pill';
 import { ReadinessBar } from '@/components/v3/readiness-bar';
@@ -39,7 +38,6 @@ const CAT_PILL_TONE: Record<Category, 'green' | 'amber' | 'blue' | 'mute'> = {
 export default function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const playerId = Number(id);
-  const { prefs } = useDashboard();
   const sb = useSupabase();
   const [player, setPlayer] = useState<Player | null>(null);
   const [msgs, setMsgs] = useState<TwilioMessage[]>([]);
@@ -98,7 +96,6 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     );
   }
 
-  const starred = prefs.watchlist.includes(playerId);
   const hrs = hoursSince(derived.lastInbound);
   const statusTone: 'green' | 'amber' | 'mute' =
     hrs == null ? 'mute' : hrs < 24 ? 'green' : hrs < 72 ? 'amber' : 'mute';
@@ -111,7 +108,6 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         eyebrow="Profile"
         title={player.name}
         subtitle={`${player.group ?? 'No group'} · ${prettyPhone(player.phone_e164)}`}
-        actions={<StarButton playerId={playerId} initial={starred} />}
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">

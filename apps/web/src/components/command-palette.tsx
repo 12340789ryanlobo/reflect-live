@@ -24,7 +24,7 @@ import {
   Database,
   Activity,
   User as UserIcon,
-  Star,
+  Radio,
 } from 'lucide-react';
 
 export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: boolean }) {
@@ -72,6 +72,10 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
             <LayoutDashboard />
             <span>Dashboard</span>
             <CommandShortcut>⌘D</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={() => go('/dashboard/live')}>
+            <Radio />
+            <span>Live</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/players')}>
             <Users />
@@ -130,7 +134,7 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
                   value={`${p.name} ${p.group ?? ''} ${p.phone_e164}`}
                   onSelect={() => go(`/dashboard/player/${p.id}`)}
                 >
-                  <Star className="opacity-70" />
+                  <UserIcon className="opacity-70" />
                   <span>{p.name}</span>
                   {p.group && (
                     <span className="ml-auto mono text-[0.7rem] uppercase tracking-wider text-[color:var(--ink-mute)]">

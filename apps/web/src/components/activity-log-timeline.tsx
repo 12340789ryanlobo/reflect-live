@@ -4,6 +4,7 @@ import type { ActivityLog, Player } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Pill } from './v3/pill';
 import { prettyDate } from '@/lib/format';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function ActivityLogTimeline({ teamId }: { teamId: number }) {
   const sb = useSupabase();
@@ -32,26 +33,28 @@ export function ActivityLogTimeline({ teamId }: { teamId: number }) {
       {!logs.length ? (
         <p className="text-[13px] text-[color:var(--ink-mute)]">— no recent activity —</p>
       ) : (
-        <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-          {logs.map((l) => {
-            const player = l.player_id ? byId.get(l.player_id) : null;
-            const tone = l.kind === 'workout' ? 'green' : 'amber';
-            return (
-              <li key={l.id} className="flex items-start gap-4 py-3 border-[color:var(--border)]">
-                <div className="text-[12px] font-semibold text-[color:var(--ink-mute)] tabular min-w-[64px] pt-0.5">
-                  {prettyDate(l.logged_at)}
-                </div>
-                <div className="pt-0.5">
-                  <Pill tone={tone}>{l.kind}</Pill>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-semibold text-[color:var(--ink)]">{player?.name ?? 'Unknown'}</div>
-                  <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed">{l.description}</div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <ScrollArea className="h-[420px]">
+          <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            {logs.map((l) => {
+              const player = l.player_id ? byId.get(l.player_id) : null;
+              const tone = l.kind === 'workout' ? 'green' : 'amber';
+              return (
+                <li key={l.id} className="flex items-start gap-4 py-3 border-[color:var(--border)]">
+                  <div className="text-[12px] font-semibold text-[color:var(--ink-mute)] tabular min-w-[64px] pt-0.5">
+                    {prettyDate(l.logged_at)}
+                  </div>
+                  <div className="pt-0.5">
+                    <Pill tone={tone}>{l.kind}</Pill>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14px] font-semibold text-[color:var(--ink)]">{player?.name ?? 'Unknown'}</div>
+                    <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed">{l.description}</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </ScrollArea>
       )}
     </section>
   );

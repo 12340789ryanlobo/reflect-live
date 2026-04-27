@@ -125,22 +125,6 @@ export default function SettingsPage() {
     await refresh();
   }
 
-  async function resetWatchlist() {
-    if (!prefs) return;
-    if (!confirm('Clear your entire watchlist?')) return;
-    await fetch('/api/preferences', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        team_id: prefs.team_id,
-        watchlist: [],
-        group_filter: prefs.group_filter ?? null,
-      }),
-    });
-    await refresh();
-    setStatus('Watchlist cleared.');
-  }
-
   async function setAthlete(playerId: number | null) {
     if (!prefs) return;
     setSaving(true);
@@ -451,9 +435,6 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={save} disabled={saving}>
                   {saving ? 'Saving…' : 'Save preferences'}
-                </Button>
-                <Button variant="outline" onClick={resetWatchlist}>
-                  Reset watchlist ({prefs?.watchlist.length ?? 0})
                 </Button>
                 {status && (
                   <span className="text-[12px] text-[color:var(--ink-mute)]">{status}</span>

@@ -8,7 +8,7 @@ import { useSupabase } from '@/lib/supabase-browser';
 import type { Player } from '@reflect-live/shared';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Star, Trash2, Search } from 'lucide-react';
+import { Trash2, Search } from 'lucide-react';
 import { prettyPhone, relativeTime } from '@/lib/format';
 
 interface PlayerRow extends Player {
@@ -114,11 +114,10 @@ export default function PlayersPage() {
       />
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
         <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
-          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 divide-x" style={{ borderColor: 'var(--border)' }}>
             <div className="p-6"><StatCell label="Roster" value={rows.length} sub={`${groups.length} groups`} /></div>
             <div className="p-6"><StatCell label="Active" value={activeCount} sub="replied · 30d" tone="green" /></div>
             <div className="p-6"><StatCell label="Quiet" value={rows.length - activeCount} sub="no replies · 30d" tone={rows.length - activeCount > 0 ? 'amber' : 'default'} /></div>
-            <div className="p-6"><StatCell label="Starred" value={prefs.watchlist.length} sub="watchlist" tone="blue" /></div>
           </div>
         </section>
 
@@ -161,13 +160,11 @@ export default function PlayersPage() {
                     <Th right>Last reply</Th>
                     <Th right>Workouts</Th>
                     <Th right>Rehabs</Th>
-                    <Th right>Star</Th>
                     {isAdmin && <Th></Th>}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((p) => {
-                    const starred = prefs.watchlist.includes(p.id);
                     const hrs = hoursSince(p.last_inbound);
                     const tone = hrs == null ? 'mute' : hrs < 1 ? 'green' : hrs < 24 ? 'green' : hrs < 72 ? 'amber' : 'mute';
                     return (
@@ -203,11 +200,6 @@ export default function PlayersPage() {
                           <span className="font-semibold tabular" style={{ color: p.rehabs_30d ? 'var(--amber)' : 'var(--ink-dim)' }}>
                             {p.rehabs_30d}
                           </span>
-                        </Td>
-                        <Td right>
-                          {starred
-                            ? <Star className="size-4 inline" style={{ fill: 'var(--blue)', color: 'var(--blue)' }} />
-                            : <Star className="size-4 inline text-[color:var(--ink-dim)]" />}
                         </Td>
                         {isAdmin && (
                           <Td right>
