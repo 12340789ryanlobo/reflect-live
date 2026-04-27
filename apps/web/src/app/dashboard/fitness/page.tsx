@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { Pill } from '@/components/v3/pill';
+import { Leaderboard } from '@/components/v3/leaderboard';
 import { useSupabase } from '@/lib/supabase-browser';
+import { computeLeaderboard, weekStartCT, type LeaderboardRow } from '@/lib/scoring';
 import type { ActivityLog, Player, Location } from '@reflect-live/shared';
 import {
   Select,
@@ -31,7 +33,7 @@ interface ActivityWithPlayer extends ActivityLog {
 }
 
 export default function FitnessPage() {
-  const { prefs } = useDashboard();
+  const { prefs, team } = useDashboard();
   const sb = useSupabase();
   const [logs, setLogs] = useState<ActivityWithPlayer[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -39,6 +41,8 @@ export default function FitnessPage() {
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
   const [kindFilter, setKindFilter] = useState<'all' | 'workout' | 'rehab'>('all');
+  const [weekRows, setWeekRows] = useState<LeaderboardRow[]>([]);
+  const [allTimeRows, setAllTimeRows] = useState<LeaderboardRow[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -74,6 +78,19 @@ export default function FitnessPage() {
       setLoading(false);
     })();
   }, [sb, prefs.team_id, days]);
+
+  useEffect(() => {
+    (async () => {
+      const scoring = team.scoring_json;
+      const sinceISO = weekStartCT().toISOString();
+      const [week, allTime] = await Promise.all([
+        computeLeaderboard(sb, prefs.team_id, scoring, sinceISO),
+        computeLeaderboard(sb, prefs.team_id, scoring),
+      ]);
+      setWeekRows(week);
+      setAllTimeRows(allTime);
+    })();
+  }, [sb, prefs.team_id, team.scoring_json]);
 
   const workoutCount = logs.filter((l) => l.kind === 'workout').length;
   const rehabCount = logs.filter((l) => l.kind === 'rehab').length;
@@ -170,8 +187,14 @@ export default function FitnessPage() {
           </div>
         </section>
 
+        {/* Leaderboards */}
+        <section className="reveal reveal-4 grid gap-6 md:grid-cols-2">
+          <Leaderboard title="This week" rows={weekRows} />
+          <Leaderboard title="All time" rows={allTimeRows} />
+        </section>
+
         {/* Past activity table */}
-        <section className="reveal reveal-4 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+        <section className="reveal reveal-5 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
           <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2 className="text-base font-bold text-[color:var(--ink)]">
               Past activity · {filtered.length} entries
