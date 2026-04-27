@@ -1,6 +1,11 @@
 export type Category = 'workout' | 'rehab' | 'survey' | 'chat';
 export type ActivityKind = 'workout' | 'rehab';
 
+export interface TeamScoring {
+  workout_score: number;
+  rehab_score: number;
+}
+
 export interface Team {
   id: number;
   name: string;
@@ -10,6 +15,7 @@ export interface Team {
   twilio_account_sid?: string | null;
   twilio_auth_token?: string | null;
   twilio_phone_number?: string | null;
+  scoring_json: TeamScoring;
 }
 
 export interface Player {
