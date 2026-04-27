@@ -67,6 +67,11 @@ export default function SettingsPage() {
   const [status, setStatus] = useState<string | null>(null);
 
   const canEditRole = currentRole === 'admin';
+  const canConfigureScoring = currentRole === 'coach' || currentRole === 'admin';
+  const [workoutScore, setWorkoutScore] = useState<string>('1.0');
+  const [rehabScore, setRehabScore] = useState<string>('0.5');
+  const [scoringSaving, setScoringSaving] = useState(false);
+  const [scoringStatus, setScoringStatus] = useState<string | null>(null);
 
   async function refresh() {
     const { data: pref } = await sb.from('user_preferences').select('*').maybeSingle();
@@ -91,6 +96,11 @@ export default function SettingsPage() {
       sb.from('players').select('*').eq('team_id', p.team_id).order('name'),
     ]);
     setTeam(teamData as Team);
+    const sc = (teamData as Team)?.scoring_json;
+    if (sc) {
+      setWorkoutScore(String(sc.workout_score ?? 1.0));
+      setRehabScore(String(sc.rehab_score ?? 0.5));
+    }
     setState(ws as WorkerState | null);
     setStats({ players: pCount ?? 0, messages: mCount ?? 0, activity: aCount ?? 0 });
     const players = (ps ?? []) as Player[];
@@ -142,6 +152,53 @@ export default function SettingsPage() {
     setSaving(false);
     await refresh();
     setStatus(playerId ? 'Athlete selected.' : 'Athlete cleared.');
+  }
+
+  async function saveScoring() {
+    setScoringSaving(true);
+    setScoringStatus(null);
+    const ws = Number(workoutScore);
+    const rs = Number(rehabScore);
+    if (!Number.isFinite(ws) || ws < 0 || !Number.isFinite(rs) || rs < 0) {
+      setScoringStatus('Values must be non-negative numbers.');
+      setScoringSaving(false);
+      return;
+    }
+    const res = await fetch('/api/team/scoring', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workout_score: ws, rehab_score: rs }),
+    });
+    if (res.ok) {
+      setScoringStatus('Saved.');
+      await refresh();
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setScoringStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    }
+    setScoringSaving(false);
+  }
+
+  async function setRoleAndSave(newRole: UserRole) {
+    if (!prefs) return;
+    if (newRole === role) return;
+    setRole(newRole);
+    setStatus(`Switching to ${newRole.charAt(0).toUpperCase() + newRole.slice(1)} view…`);
+    await fetch('/api/preferences', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        team_id: prefs.team_id,
+        watchlist: prefs.watchlist,
+        group_filter: prefs.group_filter,
+        role: newRole,
+        impersonate_player_id: newRole === 'athlete' ? prefs.impersonate_player_id : null,
+      }),
+    });
+    await refresh();
+    await refreshShell();
+    setStatus(`Switched to ${newRole.charAt(0).toUpperCase() + newRole.slice(1)} view.`);
+    setTimeout(() => setStatus(null), 2200);
   }
 
   async function requestOtp() {
@@ -228,7 +285,8 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setRole(opt.value)}
+                    onClick={() => setRoleAndSave(opt.value)}
+                    disabled={status?.startsWith('Switching')}
                     className="flex flex-col gap-2 rounded-xl border px-4 py-3 text-left transition"
                     style={{
                       borderColor: active ? 'var(--blue)' : 'var(--border)',
@@ -283,6 +341,66 @@ export default function SettingsPage() {
                 )}
               </div>
             )}
+          </section>
+        )}
+
+        {/* Scoring */}
+        {canConfigureScoring && (
+          <section
+            className="rounded-2xl bg-[color:var(--card)] border p-6"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <header className="mb-2">
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Scoring</h2>
+              <p className="mt-1 text-[13px] text-[color:var(--ink-mute)]">
+                Points awarded per logged activity. Affects this team&rsquo;s leaderboards.
+              </p>
+            </header>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Workout</Label>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="100"
+                    value={workoutScore}
+                    onChange={(e) => setWorkoutScore(e.target.value)}
+                    className="w-24"
+                  />
+                  <span className="text-[13px] text-[color:var(--ink-mute)]">points</span>
+                </div>
+              </div>
+              <div>
+                <Label>Rehab</Label>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="100"
+                    value={rehabScore}
+                    onChange={(e) => setRehabScore(e.target.value)}
+                    className="w-24"
+                  />
+                  <span className="text-[13px] text-[color:var(--ink-mute)]">points</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex items-center gap-3">
+              <Button
+                onClick={saveScoring}
+                disabled={scoringSaving}
+                className="rounded-xl font-semibold"
+                style={{ background: 'var(--blue)' }}
+              >
+                {scoringSaving ? 'Saving…' : 'Save scoring'}
+              </Button>
+              {scoringStatus && (
+                <span className="text-[12.5px] text-[color:var(--ink-mute)]">{scoringStatus}</span>
+              )}
+            </div>
           </section>
         )}
 
