@@ -214,12 +214,12 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
               {activeInjuries.length} active · {injuries.length - activeInjuries.length} resolved
             </span>
           </header>
-          <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+          <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
             <div>
               <BodyHeatmap
                 counts={injuryCounts}
                 gender={(player.gender ?? team.default_gender ?? 'male')}
-                scale={0.4}
+                scale={0.6}
                 className="w-full"
               />
             </div>

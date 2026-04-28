@@ -206,7 +206,7 @@ export default function HeatmapPage() {
       />
 
       <main className="px-6 pb-12 pt-4 space-y-6">
-        <section className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6">
+        <section className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-6">
           {/* Heatmap */}
           <div className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between mb-3">
@@ -223,7 +223,7 @@ export default function HeatmapPage() {
               gender={team.default_gender ?? 'male'}
               selectedRegions={selectedRegions}
               onMuscleClick={setSelectedRegions}
-              scale={0.55}
+              scale={0.9}
               className="w-full"
             />
             <p className="mt-3 text-[11px] italic text-[color:var(--ink-mute)] text-center">
