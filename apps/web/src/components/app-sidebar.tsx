@@ -159,13 +159,26 @@ export function AppSidebar({
       <SidebarHeader>
         <Link
           href="/dashboard"
-          // Keep padding constant across states so the icon doesn't shift
-          // horizontally during the collapse animation. The text fade/slide
-          // is the only thing that moves; the icon sits at a steady left
-          // anchor that's near-centred in the 48px collapsed column.
-          className="flex items-center px-2 py-1.5 transition hover:opacity-90"
+          // When collapsed, shrink left padding so the icon centres in the
+          // 48px column (where shadcn menu icons sit). The icon itself also
+          // scales down to 24px via the wrapper below so its bounding box
+          // doesn't overflow the SidebarHeader's 32px inner area. Both
+          // transition over the same 200ms so the brand and the column
+          // collapse in lockstep with no snap.
+          className={cn(
+            'flex items-center py-1.5 hover:opacity-90 transition-[padding] duration-200 ease-out',
+            collapsed ? 'pl-1 pr-0' : 'px-2',
+          )}
         >
-          <Brand size="md" showText={!collapsed} />
+          <span
+            className={cn(
+              'inline-flex items-center transition-transform duration-200 ease-out',
+              collapsed ? 'scale-[0.8]' : 'scale-100',
+            )}
+            style={{ transformOrigin: 'left center' }}
+          >
+            <Brand size="md" showText={!collapsed} />
+          </span>
         </Link>
         {/* Role-switcher / team-name row. Always rendered; opacity +
             max-height + padding animate together so the collapse feels
