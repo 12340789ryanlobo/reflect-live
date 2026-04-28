@@ -20,6 +20,7 @@ import {
   ChevronsUpDown,
   Building2,
   Radio,
+  HeartPulse,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -64,6 +65,7 @@ const COACH_NAV: NavItem[] = [
   { href: '/dashboard/live', label: 'Live', icon: Radio },
   { href: '/dashboard/players', label: 'Athletes', icon: Users },
   { href: '/dashboard/fitness', label: 'Activity', icon: Dumbbell },
+  { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
   { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
 ];
 
@@ -76,6 +78,7 @@ const CAPTAIN_NAV: NavItem[] = [
   { href: '/dashboard/captain', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/live', label: 'Live', icon: Radio },
   { href: '/dashboard/captain/follow-ups', label: 'Follow-ups', icon: Users },
+  { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
   { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
 ];
 
