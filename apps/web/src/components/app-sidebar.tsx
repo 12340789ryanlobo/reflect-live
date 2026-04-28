@@ -160,22 +160,29 @@ export function AppSidebar({
         <Link
           href="/dashboard"
           className={cn(
-            'flex items-center gap-2.5 transition hover:opacity-90',
-            collapsed ? 'justify-center px-0 py-1.5' : 'px-2 py-1.5',
+            'flex items-center transition-all duration-200 ease-out hover:opacity-90 py-1.5',
+            collapsed ? 'justify-center px-0' : 'px-2',
           )}
         >
-          <Brand size={collapsed ? 'sm' : 'md'} showText={!collapsed} />
+          <Brand size="md" showText={!collapsed} />
         </Link>
-        {!collapsed && (
-          <div className="flex items-center justify-between gap-2 px-2 pb-2">
-            <RoleSwitcher current={role} />
-            {teamName && (
-              <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
-                {teamName}
-              </span>
-            )}
-          </div>
-        )}
+        {/* Role-switcher / team-name row. Always rendered; opacity +
+            max-height + padding animate together so the collapse feels
+            continuous with the sidebar width transition. */}
+        <div
+          className={cn(
+            'flex items-center justify-between gap-2 px-2 overflow-hidden transition-all duration-200 ease-out',
+            collapsed ? 'opacity-0 max-h-0 pb-0' : 'opacity-100 max-h-12 pb-2',
+          )}
+          aria-hidden={collapsed}
+        >
+          <RoleSwitcher current={role} />
+          {teamName && (
+            <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
+              {teamName}
+            </span>
+          )}
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
