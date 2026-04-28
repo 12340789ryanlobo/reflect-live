@@ -44,9 +44,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { Brand } from './v3/brand';
 import { Pill } from './v3/pill';
+import { cn } from '@/lib/utils';
 import type { UserRole } from '@reflect-live/shared';
 
 type NavItem = {
@@ -135,6 +137,8 @@ export function AppSidebar({
   teamName?: string;
   hasLinkedAthlete?: boolean;
 }) {
+  const { state } = useSidebar();
+  const collapsed = state === 'collapsed';
   const groups: NavGroup[] = [];
 
   if (role === 'coach' || role === 'admin') groups.push({ label: 'Team', items: COACH_NAV });
@@ -153,17 +157,25 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
-        <Link href="/dashboard" className="flex items-center gap-2.5 px-2 py-1.5 transition hover:opacity-90">
-          <Brand size="md" />
-        </Link>
-        <div className="flex items-center justify-between gap-2 px-2 pb-2">
-          <RoleSwitcher current={role} />
-          {teamName && (
-            <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
-              {teamName}
-            </span>
+        <Link
+          href="/dashboard"
+          className={cn(
+            'flex items-center gap-2.5 transition hover:opacity-90',
+            collapsed ? 'justify-center px-0 py-1.5' : 'px-2 py-1.5',
           )}
-        </div>
+        >
+          <Brand size={collapsed ? 'sm' : 'md'} showText={!collapsed} />
+        </Link>
+        {!collapsed && (
+          <div className="flex items-center justify-between gap-2 px-2 pb-2">
+            <RoleSwitcher current={role} />
+            {teamName && (
+              <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
+                {teamName}
+              </span>
+            )}
+          </div>
+        )}
       </SidebarHeader>
 
       <SidebarContent>
