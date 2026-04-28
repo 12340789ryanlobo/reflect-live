@@ -1,21 +1,28 @@
 // apps/web/src/components/v3/leaderboard.tsx
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import type { LeaderboardRow } from '@/lib/scoring';
+import type { LeaderboardRow, TeamScoring } from '@/lib/scoring';
 
 /**
  * Leaderboard card. Renders a card with title, then a numbered list of athletes
  * with workouts/rehabs counts and total points. Top 3 ranks are emphasized.
+ *
+ * The optional `scoring` prop renders the active per-team scoring config
+ * (e.g., "W=1.0pt / R=0.6pt") in the header — useful both as a UI affordance
+ * and as a debugging surface so coaches can verify what values are actually
+ * being applied without diving into Settings.
  */
 export function Leaderboard({
   title,
   rows,
+  scoring,
   highlightPlayerId,
   emptyText = '— no points yet — text the team line to start logging.',
   className,
 }: {
   title: string;
   rows: LeaderboardRow[];
+  scoring?: TeamScoring;
   highlightPlayerId?: number;
   emptyText?: string;
   className?: string;
@@ -29,7 +36,14 @@ export function Leaderboard({
         className="flex items-center justify-between gap-3 px-6 py-4 border-b"
         style={{ borderColor: 'var(--border)' }}
       >
-        <h2 className="text-base font-bold text-[color:var(--ink)]">{title}</h2>
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-base font-bold text-[color:var(--ink)]">{title}</h2>
+          {scoring && (
+            <span className="text-[11.5px] text-[color:var(--ink-mute)]">
+              W={scoring.workout_score}pt / R={scoring.rehab_score}pt
+            </span>
+          )}
+        </div>
         <span className="text-[11.5px] text-[color:var(--ink-mute)]">{rows.length}</span>
       </header>
       {rows.length === 0 ? (

@@ -189,8 +189,8 @@ export default function FitnessPage() {
 
         {/* Leaderboards */}
         <section className="reveal reveal-4 grid gap-6 md:grid-cols-2">
-          <Leaderboard title="This week" rows={weekRows} />
-          <Leaderboard title="All time" rows={allTimeRows} />
+          <Leaderboard title="This week" rows={weekRows} scoring={team.scoring_json} />
+          <Leaderboard title="All time" rows={allTimeRows} scoring={team.scoring_json} />
         </section>
 
         {/* Past activity table */}
