@@ -160,28 +160,23 @@ export function AppSidebar({
       <SidebarHeader>
         <Link
           href="/dashboard"
-          // Mirror SidebarMenuButton's collapsed-state geometry (size-8
-          // outer + p-2 + size-4 icon inside) so the brand icon stacks
-          // perfectly on the menu-icon column. Expanded state opens up
-          // to match the menu height (h-8) and reveals the wordmark.
-          // All dimensions transition over 200ms for a smooth collapse.
-          className={cn(
-            'flex items-center overflow-hidden hover:opacity-90 transition-all duration-200 ease-out',
-            collapsed ? 'size-8 p-2 gap-0' : 'h-8 px-2 gap-2',
-          )}
+          // Brand icon stays size-6 (24px) at all times so the mark keeps
+          // its presence. Geometry: link sits at SidebarHeader inner-left
+          // (after p-2). With pl-1 (4px) the icon lands at sidebar-inner-x
+          // = 12, putting its centre at x=24 — the exact column shadcn's
+          // menu icons sit on (button-x=8 + button-p-2=8 + icon-half=8).
+          // Result: icon centre is identical to menu icons in both states,
+          // no horizontal shift during the collapse — only the wordmark
+          // fades / slides shut.
+          className="flex items-center min-w-8 h-8 pl-1 pr-1 hover:opacity-90"
         >
-          <span
-            className={cn(
-              'relative block shrink-0 transition-all duration-200 ease-out',
-              collapsed ? 'size-4' : 'size-6',
-            )}
-          >
+          <span className="relative block size-6 shrink-0">
             <Image src="/logo.png" alt="" fill sizes="32px" priority className="object-contain" />
           </span>
           <span
             className={cn(
-              'font-bold tracking-tight text-base whitespace-nowrap transition-[opacity,max-width] duration-200 ease-out',
-              collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[180px]',
+              'font-bold tracking-tight text-base whitespace-nowrap overflow-hidden transition-[opacity,max-width,margin] duration-200 ease-out',
+              collapsed ? 'opacity-0 max-w-0 ml-0' : 'opacity-100 max-w-[180px] ml-2',
             )}
             style={{ color: 'var(--blue)' }}
             aria-hidden={collapsed}
