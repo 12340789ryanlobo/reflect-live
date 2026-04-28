@@ -172,6 +172,7 @@ export default function SettingsPage() {
     if (res.ok) {
       setScoringStatus('Saved.');
       await refresh();
+      await refreshShell();
     } else {
       const j = await res.json().catch(() => ({}));
       setScoringStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
