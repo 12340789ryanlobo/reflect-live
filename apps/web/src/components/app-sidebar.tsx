@@ -49,6 +49,7 @@ import {
 import { Brand } from './v3/brand';
 import { Pill } from './v3/pill';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 import type { UserRole } from '@reflect-live/shared';
 
 type NavItem = {
@@ -159,25 +160,33 @@ export function AppSidebar({
       <SidebarHeader>
         <Link
           href="/dashboard"
-          // When collapsed, shrink left padding so the icon centres in the
-          // 48px column (where shadcn menu icons sit). The icon itself also
-          // scales down to 24px via the wrapper below so its bounding box
-          // doesn't overflow the SidebarHeader's 32px inner area. Both
-          // transition over the same 200ms so the brand and the column
-          // collapse in lockstep with no snap.
+          // Mirror SidebarMenuButton's collapsed-state geometry (size-8
+          // outer + p-2 + size-4 icon inside) so the brand icon stacks
+          // perfectly on the menu-icon column. Expanded state opens up
+          // to match the menu height (h-8) and reveals the wordmark.
+          // All dimensions transition over 200ms for a smooth collapse.
           className={cn(
-            'flex items-center py-1.5 hover:opacity-90 transition-[padding] duration-200 ease-out',
-            collapsed ? 'pl-1 pr-0' : 'px-2',
+            'flex items-center overflow-hidden hover:opacity-90 transition-all duration-200 ease-out',
+            collapsed ? 'size-8 p-2 gap-0' : 'h-8 px-2 gap-2',
           )}
         >
           <span
             className={cn(
-              'inline-flex items-center transition-transform duration-200 ease-out',
-              collapsed ? 'scale-[0.8]' : 'scale-100',
+              'relative block shrink-0 transition-all duration-200 ease-out',
+              collapsed ? 'size-4' : 'size-6',
             )}
-            style={{ transformOrigin: 'left center' }}
           >
-            <Brand size="md" showText={!collapsed} />
+            <Image src="/logo.png" alt="" fill sizes="32px" priority className="object-contain" />
+          </span>
+          <span
+            className={cn(
+              'font-bold tracking-tight text-base whitespace-nowrap transition-[opacity,max-width] duration-200 ease-out',
+              collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[180px]',
+            )}
+            style={{ color: 'var(--blue)' }}
+            aria-hidden={collapsed}
+          >
+            Reflect
           </span>
         </Link>
         {/* Role-switcher / team-name row. Always rendered; opacity +
