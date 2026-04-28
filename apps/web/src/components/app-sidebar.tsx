@@ -196,29 +196,53 @@ export function AppSidebar({
 function RoleSwitcher({ current }: { current: UserRole }) {
   const router = useRouter();
   const [pending, setPending] = React.useState<UserRole | null>(null);
+  const [canSwitch, setCanSwitch] = React.useState<boolean | null>(null);
+  const [prefsCache, setPrefsCache] = React.useState<{
+    team_id: number;
+    watchlist: unknown;
+    group_filter: unknown;
+    impersonate_player_id: number | null;
+  } | null>(null);
   const tone = ROLE_PILL[current].tone;
 
+  // One-time fetch: do we have permission to switch, and what are the prefs
+  // we need to preserve on POST?
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cur = await fetch('/api/preferences')
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (cancelled) return;
+      setCanSwitch(!!cur?.can_switch_role);
+      const p = cur?.preferences;
+      if (p && typeof p.team_id === 'number') {
+        setPrefsCache({
+          team_id: p.team_id,
+          watchlist: p.watchlist ?? [],
+          group_filter: p.group_filter ?? null,
+          impersonate_player_id: p.impersonate_player_id ?? null,
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function switchTo(next: UserRole) {
-    if (next === current || pending) return;
+    if (next === current || pending || !prefsCache) return;
     setPending(next);
-    // Read existing prefs first so we preserve team_id / watchlist / group filter.
-    const cur = await fetch('/api/preferences').then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    const team_id = cur?.preferences?.team_id;
-    if (typeof team_id !== 'number') {
-      // Fallback: nothing to send. POST with no team_id is rejected.
-      setPending(null);
-      return;
-    }
     await fetch('/api/preferences', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        team_id,
-        watchlist: cur?.preferences?.watchlist ?? [],
-        group_filter: cur?.preferences?.group_filter ?? null,
+        team_id: prefsCache.team_id,
+        watchlist: prefsCache.watchlist,
+        group_filter: prefsCache.group_filter,
         role: next,
         impersonate_player_id:
-          next === 'athlete' ? cur?.preferences?.impersonate_player_id ?? null : null,
+          next === 'athlete' ? prefsCache.impersonate_player_id : null,
       }),
     });
     setPending(null);
@@ -230,6 +254,13 @@ function RoleSwitcher({ current }: { current: UserRole }) {
         : '/dashboard';
     router.push(home);
     router.refresh();
+  }
+
+  // Until we know whether the user can switch, render the static pill
+  // (avoids a flash of "switchable then locked"). Non-switchers get the
+  // pill permanently with no chevron and no menu.
+  if (canSwitch !== true) {
+    return <Pill tone={tone}>{ROLE_PILL[current].label}</Pill>;
   }
 
   return (

@@ -28,7 +28,17 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const sb = serviceClient();
   const { data } = await sb.from('user_preferences').select('*').eq('clerk_user_id', userId).maybeSingle();
-  return NextResponse.json({ preferences: data });
+
+  const user = await currentUser();
+  const email = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
+  const adminEmails = (process.env.BOOTSTRAP_ADMIN_EMAIL ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const isBootstrapAdmin = !!email && adminEmails.includes(email);
+  const canSwitchRole = (data?.role === 'admin') || isBootstrapAdmin;
+
+  return NextResponse.json({ preferences: data, can_switch_role: canSwitchRole });
 }
 
 export async function POST(req: Request) {
