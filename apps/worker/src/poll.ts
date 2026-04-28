@@ -46,6 +46,33 @@ export async function pollOnce(deps: PollDeps): Promise<number> {
     const { error } = await sb.from('twilio_messages').upsert(rows, { onConflict: 'sid' });
     if (error) throw error;
 
+    // Dual-write fitness activity into activity_logs so scoring stays in sync
+    // without depending on a one-time bulk import from reflect's API. Idempotent
+    // via source_sid unique index — the same SMS can't be inserted twice.
+    const activityRows = rows
+      .filter(
+        (r) =>
+          r.direction === 'inbound' &&
+          (r.category === 'workout' || r.category === 'rehab') &&
+          r.player_id !== null &&
+          r.team_id !== null,
+      )
+      .map((r) => ({
+        player_id: r.player_id as number,
+        team_id: r.team_id as number,
+        kind: r.category,
+        description: r.body ?? '',
+        image_path: null as string | null,
+        logged_at: r.date_sent,
+        source_sid: r.sid,
+      }));
+    if (activityRows.length) {
+      const { error: actErr } = await sb
+        .from('activity_logs')
+        .upsert(activityRows, { onConflict: 'source_sid', ignoreDuplicates: true });
+      if (actErr) throw actErr;
+    }
+
     const newest = msgs.reduce((acc, m) => {
       const t = m.dateSent?.getTime() ?? 0;
       return t > acc ? t : acc;

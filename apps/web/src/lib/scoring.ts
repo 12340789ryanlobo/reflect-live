@@ -4,13 +4,10 @@
 // Pure aggregation lives in `aggregateLeaderboard`; the supabase-aware fetch
 // is `computeLeaderboard`. Tests target the pure function directly.
 //
-// Source-of-truth (split): workouts come from `activity_logs` (bulk-imported
-// from reflect's API, kind='workout'); rehabs come from `twilio_messages`
-// (category='rehab'). reflect's API doesn't expose rehabs in bulk, so they
-// only land in twilio_messages — counting both sources gives the same totals
-// reflect's leaderboard produces. Once the worker dual-writes SMS-tagged
-// activity into activity_logs (deferred data-sync task), this can collapse
-// back to a single source.
+// Source-of-truth: `activity_logs` is the canonical fitness record. The
+// worker dual-writes SMS-tagged workouts/rehabs into it on every poll, and
+// scripts/backfill-activity-logs.ts seeded historical SMS activity. Hidden
+// rows (coach-deleted mistake uploads) are filtered out.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -93,15 +90,9 @@ export function aggregateLeaderboard(
 }
 
 /**
- * Fetch + aggregate. Used by Activity page render.
- *
- * Workouts: activity_logs.kind='workout' (filterable by logged_at >= sinceISO).
- * Rehabs:   twilio_messages.category='rehab' (filterable by date_sent >= sinceISO).
- *
- * @param sb        supabase client
- * @param teamId    team to score
- * @param scoring   point values
- * @param sinceISO  optional lower bound (omit for all-time)
+ * Fetch + aggregate. Reads visible rows from activity_logs (workouts +
+ * rehabs, hidden=false). Optionally filters by `logged_at >= sinceISO` for
+ * the weekly window.
  */
 export async function computeLeaderboard(
   sb: SupabaseClient,
@@ -117,37 +108,30 @@ export async function computeLeaderboard(
 
   const players: LeaderboardInputPlayer[] = (playersData ?? []) as LeaderboardInputPlayer[];
 
-  let workoutsQ = sb
+  let q = sb
     .from('activity_logs')
     .select('player_id,kind')
     .eq('team_id', teamId)
-    .eq('kind', 'workout')
+    .in('kind', ['workout', 'rehab'])
+    .eq('hidden', false)
     .not('player_id', 'is', null);
-  if (sinceISO) workoutsQ = workoutsQ.gte('logged_at', sinceISO);
+  if (sinceISO) q = q.gte('logged_at', sinceISO);
 
-  // Only count inbound rehab submissions — outbound bot confirmations
-  // ("Rehab logged! ...") are categorized as 'rehab' too and would double-count.
-  let rehabsQ = sb
-    .from('twilio_messages')
-    .select('player_id,category')
-    .eq('team_id', teamId)
-    .eq('category', 'rehab')
-    .eq('direction', 'inbound')
-    .not('player_id', 'is', null);
-  if (sinceISO) rehabsQ = rehabsQ.gte('date_sent', sinceISO);
-
-  const [{ data: workoutRows }, { data: rehabRows }] = await Promise.all([workoutsQ, rehabsQ]);
-
-  const entries: LeaderboardInputEntry[] = [
-    ...((workoutRows ?? []) as Array<{ player_id: number }>).map((r) => ({
-      player_id: r.player_id,
-      kind: 'workout' as const,
-    })),
-    ...((rehabRows ?? []) as Array<{ player_id: number }>).map((r) => ({
-      player_id: r.player_id,
-      kind: 'rehab' as const,
-    })),
-  ];
+  // Page through results — supabase default LIMIT is 1000, and the team can
+  // exceed that on all-time queries.
+  const entries: LeaderboardInputEntry[] = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await q.range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    for (const r of data as Array<{ player_id: number; kind: string }>) {
+      entries.push({ player_id: r.player_id, kind: r.kind });
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
 
   return aggregateLeaderboard(players, entries, scoring);
 }

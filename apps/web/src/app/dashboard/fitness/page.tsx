@@ -30,11 +30,10 @@ function initials(name: string): string {
 
 interface ActivityWithPlayer extends ActivityLog {
   player: { name: string; group: string | null } | null;
-  _key?: string;
 }
 
 export default function FitnessPage() {
-  const { prefs, team } = useDashboard();
+  const { prefs, team, role } = useDashboard();
   const sb = useSupabase();
   const [logs, setLogs] = useState<ActivityWithPlayer[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -44,6 +43,30 @@ export default function FitnessPage() {
   const [kindFilter, setKindFilter] = useState<'all' | 'workout' | 'rehab'>('all');
   const [weekRows, setWeekRows] = useState<LeaderboardRow[]>([]);
   const [allTimeRows, setAllTimeRows] = useState<LeaderboardRow[]>([]);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const canDelete = role === 'coach' || role === 'admin';
+
+  async function deleteLog(id: number) {
+    if (deleting !== null) return;
+    if (!confirm('Hide this entry from the leaderboard? You can\'t undo this from the UI.')) return;
+    setDeleting(id);
+    const res = await fetch(`/api/activity-logs/${id}`, { method: 'DELETE' });
+    setDeleting(null);
+    if (res.ok) {
+      setLogs((cur) => cur.filter((l) => l.id !== id));
+      // Re-fetch leaderboards so points reflect the deletion immediately.
+      const scoring = team.scoring_json;
+      const sinceISO = weekStartCT().toISOString();
+      const [week, allTime] = await Promise.all([
+        computeLeaderboard(sb, prefs.team_id, scoring, sinceISO),
+        computeLeaderboard(sb, prefs.team_id, scoring),
+      ]);
+      setWeekRows(week);
+      setAllTimeRows(allTime);
+    } else {
+      alert('Delete failed.');
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -68,48 +91,16 @@ export default function FitnessPage() {
     (async () => {
       setLoading(true);
       const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
-      const [{ data: actData }, { data: rehabMsgs }] = await Promise.all([
-        sb
-          .from('activity_logs')
-          .select('*, player:players(name, group)')
-          .eq('team_id', prefs.team_id)
-          .eq('kind', 'workout')
-          .gte('logged_at', since)
-          .order('logged_at', { ascending: false })
-          .limit(300),
-        sb
-          .from('twilio_messages')
-          .select('sid,player_id,body,date_sent,player:players(name, group)')
-          .eq('team_id', prefs.team_id)
-          .eq('category', 'rehab')
-          .eq('direction', 'inbound')
-          .not('player_id', 'is', null)
-          .gte('date_sent', since)
-          .order('date_sent', { ascending: false })
-          .limit(300),
-      ]);
-      const workouts = (actData ?? []) as ActivityWithPlayer[];
-      const rehabs: ActivityWithPlayer[] = ((rehabMsgs ?? []) as unknown as Array<{
-        sid: string;
-        player_id: number;
-        body: string | null;
-        date_sent: string;
-        player: { name: string; group: string | null } | null;
-      }>).map((m) => ({
-        id: -1,
-        player_id: m.player_id,
-        team_id: prefs.team_id,
-        kind: 'rehab',
-        description: m.body ?? '',
-        image_path: null,
-        logged_at: m.date_sent,
-        player: m.player,
-        _key: m.sid,
-      }));
-      const merged = [...workouts, ...rehabs].sort((a, b) =>
-        a.logged_at < b.logged_at ? 1 : a.logged_at > b.logged_at ? -1 : 0,
-      );
-      setLogs(merged);
+      const { data } = await sb
+        .from('activity_logs')
+        .select('*, player:players(name, group)')
+        .eq('team_id', prefs.team_id)
+        .in('kind', ['workout', 'rehab'])
+        .eq('hidden', false)
+        .gte('logged_at', since)
+        .order('logged_at', { ascending: false })
+        .limit(300);
+      setLogs((data ?? []) as ActivityWithPlayer[]);
       setLoading(false);
     })();
   }, [sb, prefs.team_id, days]);
@@ -276,6 +267,7 @@ export default function FitnessPage() {
                     <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
                       Description
                     </th>
+                    {canDelete && <th className="w-[44px] px-2 py-3"></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -283,7 +275,7 @@ export default function FitnessPage() {
                     const name = l.player?.name ?? 'Unknown';
                     return (
                       <tr
-                        key={l._key ?? l.id}
+                        key={l.id}
                         className="border-b transition hover:bg-[color:var(--card-hover)]"
                         style={{ borderColor: 'var(--border)' }}
                       >
@@ -321,6 +313,25 @@ export default function FitnessPage() {
                         <td className="px-4 py-3 text-[14px] leading-snug text-[color:var(--ink-soft)]">
                           {l.description}
                         </td>
+                        {canDelete && (
+                          <td className="px-2 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => deleteLog(l.id)}
+                              disabled={deleting === l.id}
+                              title="Hide this entry"
+                              aria-label="Hide this entry"
+                              className="grid size-7 place-items-center rounded-md border bg-[color:var(--card)] text-[color:var(--ink-mute)] transition hover:bg-[color:var(--red-soft)] hover:text-[color:var(--red)] disabled:opacity-50"
+                              style={{ borderColor: 'var(--border)' }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              </svg>
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
