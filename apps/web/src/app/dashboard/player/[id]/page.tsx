@@ -1,9 +1,11 @@
 'use client';
 import { use, useEffect, useMemo, useState } from 'react';
-import { PageHeader } from '@/components/dashboard-shell';
+import { PageHeader, useDashboard } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { Pill } from '@/components/v3/pill';
 import { ReadinessBar } from '@/components/v3/readiness-bar';
+import { BodyHeatmap } from '@/components/v3/body-heatmap';
+import { regionLabel } from '@/lib/injury-aliases';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog, Category } from '@reflect-live/shared';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,17 +37,29 @@ const CAT_PILL_TONE: Record<Category, 'green' | 'amber' | 'blue' | 'mute'> = {
   chat: 'mute',
 };
 
+interface InjuryRow {
+  id: number;
+  regions: string[];
+  severity: number | null;
+  description: string;
+  reported_at: string;
+  resolved_at: string | null;
+}
+
 export default function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const playerId = Number(id);
   const sb = useSupabase();
+  const { team } = useDashboard();
   const [player, setPlayer] = useState<Player | null>(null);
   const [msgs, setMsgs] = useState<TwilioMessage[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [injuries, setInjuries] = useState<InjuryRow[]>([]);
+  const [view, setView] = useState<'front' | 'back'>('front');
 
   useEffect(() => {
     (async () => {
-      const [{ data: p }, { data: m }, { data: l }] = await Promise.all([
+      const [{ data: p }, { data: m }, { data: l }, { data: inj }] = await Promise.all([
         sb.from('players').select('*').eq('id', playerId).single(),
         sb
           .from('twilio_messages')
@@ -59,12 +73,30 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           .eq('player_id', playerId)
           .order('logged_at', { ascending: false })
           .limit(30),
+        sb
+          .from('injury_reports')
+          .select('id,regions,severity,description,reported_at,resolved_at')
+          .eq('player_id', playerId)
+          .order('reported_at', { ascending: false })
+          .limit(50),
       ]);
       setPlayer(p as Player);
       setMsgs((m ?? []) as TwilioMessage[]);
       setLogs((l ?? []) as ActivityLog[]);
+      setInjuries((inj ?? []) as InjuryRow[]);
     })();
   }, [sb, playerId]);
+
+  const injuryCounts: Record<string, number> = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const r of injuries) {
+      if (r.resolved_at) continue;
+      for (const region of r.regions) c[region] = (c[region] ?? 0) + 1;
+    }
+    return c;
+  }, [injuries]);
+
+  const activeInjuries = injuries.filter((r) => !r.resolved_at);
 
   const derived = useMemo(() => {
     const inboundCount = msgs.filter((m) => m.direction === 'inbound').length;
@@ -172,6 +204,75 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
               flagged={derived.flags}
               size="md"
             />
+          </div>
+        </section>
+
+        {/* Injury heatmap */}
+        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Injury map</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] text-[color:var(--ink-mute)]">
+                {activeInjuries.length} active · {injuries.length - activeInjuries.length} resolved
+              </span>
+              <div className="inline-flex gap-0.5 p-0.5 rounded-md text-[11.5px] font-semibold" style={{ background: 'var(--paper-2)' }}>
+                {(['front', 'back'] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={
+                      'px-2.5 py-1 rounded-[5px] transition ' +
+                      (view === v
+                        ? 'bg-white text-[color:var(--ink)] shadow-sm'
+                        : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]')
+                    }
+                  >
+                    {v === 'front' ? 'Front' : 'Back'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </header>
+          <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
+            <div>
+              <BodyHeatmap
+                counts={injuryCounts}
+                view={view}
+                gender={(player.gender ?? team.default_gender ?? 'male')}
+                className="mx-auto max-w-[240px]"
+              />
+            </div>
+            <div className="min-w-0">
+              {activeInjuries.length === 0 ? (
+                <p className="text-[13px] text-[color:var(--ink-mute)] py-8 text-center">
+                  No active injuries — clean bill of health.
+                </p>
+              ) : (
+                <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                  {activeInjuries.slice(0, 10).map((r) => (
+                    <li key={r.id} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        {r.regions.map((reg) => (
+                          <Pill key={reg} tone="mute">{regionLabel(reg)}</Pill>
+                        ))}
+                        {r.severity && (
+                          <Pill tone={r.severity >= 4 ? 'red' : r.severity >= 3 ? 'amber' : 'green'}>
+                            sev {r.severity}
+                          </Pill>
+                        )}
+                      </div>
+                      <p className="text-[13px] text-[color:var(--ink-soft)]">{r.description}</p>
+                      <p
+                        className="mt-1 mono text-[11px] text-[color:var(--ink-mute)] tabular"
+                        title={prettyDateTime(r.reported_at)}
+                      >
+                        {relativeTime(r.reported_at)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </section>
 

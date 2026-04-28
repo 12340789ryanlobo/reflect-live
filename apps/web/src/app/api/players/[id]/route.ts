@@ -38,9 +38,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!Number.isFinite(playerId)) return NextResponse.json({ error: 'bad id' }, { status: 400 });
 
   const body = await req.json().catch(() => ({}));
-  const allowed = ['name', 'group', 'phone_e164', 'active'];
+  const allowed = ['name', 'group', 'phone_e164', 'active', 'gender'];
   const patch: Record<string, unknown> = {};
   for (const k of allowed) if (k in body) patch[k] = body[k];
+  // Gender domain check
+  if ('gender' in patch && patch.gender !== null && patch.gender !== 'male' && patch.gender !== 'female') {
+    return NextResponse.json({ error: 'bad_gender' }, { status: 400 });
+  }
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
 
   const sb = serviceClient();

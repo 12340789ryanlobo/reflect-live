@@ -157,6 +157,7 @@ export default function PlayersPage() {
                     <Th>Name</Th>
                     <Th>Group</Th>
                     <Th>Phone</Th>
+                    {isAdmin && <Th>Gender</Th>}
                     <Th right>Last reply</Th>
                     <Th right>Workouts</Th>
                     <Th right>Rehabs</Th>
@@ -186,6 +187,11 @@ export default function PlayersPage() {
                           {p.group ? <Pill tone="mute">{p.group}</Pill> : <span className="text-[color:var(--ink-mute)]">—</span>}
                         </Td>
                         <Td><span className="mono text-[12px] text-[color:var(--ink-mute)]">{prettyPhone(p.phone_e164)}</span></Td>
+                        {isAdmin && (
+                          <Td>
+                            <GenderCell player={p} onChanged={load} />
+                          </Td>
+                        )}
                         <Td right>
                           <span className="text-[12px]" style={{ color: tone === 'amber' ? 'var(--amber)' : tone === 'mute' ? 'var(--ink-mute)' : 'var(--ink-soft)' }}>
                             {p.last_inbound ? relativeTime(p.last_inbound) : '—'}
@@ -235,4 +241,38 @@ function Th({ children, right }: { children?: React.ReactNode; right?: boolean }
 }
 function Td({ children, right }: { children?: React.ReactNode; right?: boolean }) {
   return <td className={`px-4 py-3 ${right ? 'text-right' : ''}`}>{children}</td>;
+}
+
+function GenderCell({ player, onChanged }: { player: PlayerRow; onChanged: () => void | Promise<void> }) {
+  const [saving, setSaving] = useState(false);
+  async function update(next: 'male' | 'female' | null) {
+    if (next === player.gender) return;
+    setSaving(true);
+    await fetch(`/api/players/${player.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ gender: next }),
+    });
+    setSaving(false);
+    await onChanged();
+  }
+  return (
+    <Select
+      value={player.gender ?? 'unset'}
+      onValueChange={(v) => update(v === 'unset' ? null : (v as 'male' | 'female'))}
+      disabled={saving}
+    >
+      <SelectTrigger
+        className="h-8 w-[120px] text-[12px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent onClick={(e) => e.stopPropagation()}>
+        <SelectItem value="unset">— team default —</SelectItem>
+        <SelectItem value="male">Male</SelectItem>
+        <SelectItem value="female">Female</SelectItem>
+      </SelectContent>
+    </Select>
+  );
 }

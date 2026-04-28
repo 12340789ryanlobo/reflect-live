@@ -74,6 +74,8 @@ export default function SettingsPage() {
   const [scoringStatus, setScoringStatus] = useState<string | null>(null);
   const [genderSaving, setGenderSaving] = useState(false);
   const [genderStatus, setGenderStatus] = useState<string | null>(null);
+  const [meGenderSaving, setMeGenderSaving] = useState(false);
+  const [meGenderStatus, setMeGenderStatus] = useState<string | null>(null);
 
   async function refresh() {
     const { data: pref } = await sb.from('user_preferences').select('*').maybeSingle();
@@ -200,6 +202,25 @@ export default function SettingsPage() {
       setGenderStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
     }
     setGenderSaving(false);
+  }
+
+  async function saveMyGender(next: 'male' | 'female' | null) {
+    setMeGenderSaving(true);
+    setMeGenderStatus(null);
+    const res = await fetch('/api/me/gender', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ gender: next }),
+    });
+    setMeGenderSaving(false);
+    if (res.ok) {
+      setMeGenderStatus('Saved.');
+      await refresh();
+      setTimeout(() => setMeGenderStatus(null), 2000);
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setMeGenderStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    }
   }
 
   async function setRoleAndSave(newRole: UserRole) {
@@ -462,6 +483,47 @@ export default function SettingsPage() {
               })}
               {genderStatus && (
                 <span className="ml-2 text-[12.5px] text-[color:var(--ink-mute)]">{genderStatus}</span>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Personal heatmap figure (only for users linked to a roster athlete) */}
+        {impersonatedPlayer && (
+          <section
+            className="rounded-2xl bg-[color:var(--card)] border p-6"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <header className="mb-3">
+              <h2 className="text-base font-bold text-[color:var(--ink)]">My heatmap figure</h2>
+              <p className="mt-1 text-[13px] text-[color:var(--ink-mute)]">
+                Pick the body figure your own profile&rsquo;s injury heatmap shows. If unset, your team default is used.
+              </p>
+            </header>
+            <div className="flex items-center gap-2 flex-wrap">
+              {([null, 'male', 'female'] as const).map((g) => {
+                const label = g == null ? 'Use team default' : g.charAt(0).toUpperCase() + g.slice(1);
+                const active = (impersonatedPlayer.gender ?? null) === g;
+                return (
+                  <button
+                    key={String(g)}
+                    type="button"
+                    onClick={() => !active && saveMyGender(g)}
+                    disabled={meGenderSaving || active}
+                    className={
+                      'rounded-xl border px-4 py-2 text-[13px] font-semibold transition ' +
+                      (active
+                        ? 'bg-[color:var(--blue-soft)] text-[color:var(--blue)]'
+                        : 'bg-[color:var(--card)] text-[color:var(--ink-soft)] hover:bg-[color:var(--card-hover)]')
+                    }
+                    style={{ borderColor: active ? 'var(--blue)' : 'var(--border)' }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              {meGenderStatus && (
+                <span className="ml-2 text-[12.5px] text-[color:var(--ink-mute)]">{meGenderStatus}</span>
               )}
             </div>
           </section>
