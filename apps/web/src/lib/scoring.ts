@@ -3,6 +3,14 @@
 // Phase 1 — fitness scoring helpers.
 // Pure aggregation lives in `aggregateLeaderboard`; the supabase-aware fetch
 // is `computeLeaderboard`. Tests target the pure function directly.
+//
+// Source-of-truth: scoring reads from `activity_logs` (kind = 'workout' | 'rehab').
+// This matches what the Activity page's Past activity table shows. Live SMS
+// messages tagged workout/rehab in `twilio_messages` are NOT yet counted —
+// the worker doesn't dual-write to activity_logs. That's the deferred
+// data-sync audit task; until it lands, scoring follows the canonical
+// activity_logs table to avoid double-counting and stay aligned with what
+// the user sees.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -26,30 +34,36 @@ export interface LeaderboardInputPlayer {
   group: string | null;
 }
 
-export interface LeaderboardInputMessage {
+/**
+ * One activity entry contributing to scoring. Currently sourced from
+ * `activity_logs.kind`; the type leaves room for additional kinds without
+ * affecting the aggregator (anything that isn't 'workout' or 'rehab' is
+ * silently ignored).
+ */
+export interface LeaderboardInputEntry {
   player_id: number;
-  category: 'workout' | 'rehab' | 'survey' | 'chat';
+  kind: 'workout' | 'rehab' | string;
 }
 
 /**
- * Pure aggregation. Given the active roster and a list of inbound messages
- * (already filtered to category workout/rehab), compute the leaderboard.
+ * Pure aggregation. Given the active roster and a list of activity entries
+ * (already filtered to `kind` workout/rehab), compute the leaderboard.
  *
  * Sort: points DESC → workouts DESC → rehabs DESC → name ASC.
- * Players with zero contributing messages are excluded.
+ * Players with zero contributing entries are excluded.
  */
 export function aggregateLeaderboard(
   players: LeaderboardInputPlayer[],
-  messages: LeaderboardInputMessage[],
+  entries: LeaderboardInputEntry[],
   scoring: TeamScoring,
 ): LeaderboardRow[] {
   const counts = new Map<number, { workouts: number; rehabs: number }>();
-  for (const m of messages) {
-    if (m.category !== 'workout' && m.category !== 'rehab') continue;
-    const existing = counts.get(m.player_id) ?? { workouts: 0, rehabs: 0 };
-    if (m.category === 'workout') existing.workouts += 1;
+  for (const e of entries) {
+    if (e.kind !== 'workout' && e.kind !== 'rehab') continue;
+    const existing = counts.get(e.player_id) ?? { workouts: 0, rehabs: 0 };
+    if (e.kind === 'workout') existing.workouts += 1;
     else existing.rehabs += 1;
-    counts.set(m.player_id, existing);
+    counts.set(e.player_id, existing);
   }
 
   const playerById = new Map(players.map((p) => [p.id, p]));
@@ -81,10 +95,13 @@ export function aggregateLeaderboard(
 /**
  * Fetch + aggregate. Used by Activity page render.
  *
+ * Reads from `activity_logs` (kind workout/rehab). Optionally filters by
+ * `logged_at >= sinceISO` for the weekly leaderboard window.
+ *
  * @param sb        supabase client
  * @param teamId    team to score
  * @param scoring   point values
- * @param sinceISO  optional lower bound on date_sent (omit for all-time)
+ * @param sinceISO  optional lower bound on logged_at (omit for all-time)
  */
 export async function computeLeaderboard(
   sb: SupabaseClient,
@@ -101,25 +118,24 @@ export async function computeLeaderboard(
   const players: LeaderboardInputPlayer[] = (playersData ?? []) as LeaderboardInputPlayer[];
 
   let q = sb
-    .from('twilio_messages')
-    .select('player_id,category')
+    .from('activity_logs')
+    .select('player_id,kind')
     .eq('team_id', teamId)
-    .eq('direction', 'inbound')
-    .in('category', ['workout', 'rehab'])
+    .in('kind', ['workout', 'rehab'])
     .not('player_id', 'is', null);
 
-  if (sinceISO) q = q.gte('date_sent', sinceISO);
+  if (sinceISO) q = q.gte('logged_at', sinceISO);
 
-  const { data: msgsData } = await q;
-  const messages: LeaderboardInputMessage[] = ((msgsData ?? []) as Array<{
+  const { data: rowsData } = await q;
+  const entries: LeaderboardInputEntry[] = ((rowsData ?? []) as Array<{
     player_id: number;
-    category: string;
-  }>).map((m) => ({
-    player_id: m.player_id,
-    category: m.category as LeaderboardInputMessage['category'],
+    kind: string;
+  }>).map((r) => ({
+    player_id: r.player_id,
+    kind: r.kind,
   }));
 
-  return aggregateLeaderboard(players, messages, scoring);
+  return aggregateLeaderboard(players, entries, scoring);
 }
 
 /**

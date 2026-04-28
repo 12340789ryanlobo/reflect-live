@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   aggregateLeaderboard,
   weekStartCT,
-  type LeaderboardInputMessage,
+  type LeaderboardInputEntry,
   type LeaderboardInputPlayer,
   type TeamScoring,
 } from '@/lib/scoring';
@@ -21,11 +21,11 @@ describe('aggregateLeaderboard', () => {
     expect(result).toEqual([]);
   });
 
-  test('only includes players with at least one contributing message', () => {
-    const messages: LeaderboardInputMessage[] = [
-      { player_id: 1, category: 'workout' },
+  test('only includes players with at least one contributing entry', () => {
+    const entries: LeaderboardInputEntry[] = [
+      { player_id: 1, kind: 'workout' },
     ];
-    const result = aggregateLeaderboard(PLAYERS, messages, SCORING);
+    const result = aggregateLeaderboard(PLAYERS, entries, SCORING);
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
       player_id: 1,
@@ -38,13 +38,13 @@ describe('aggregateLeaderboard', () => {
   });
 
   test('counts workouts and rehabs separately and computes points', () => {
-    const messages: LeaderboardInputMessage[] = [
-      { player_id: 1, category: 'workout' },
-      { player_id: 1, category: 'workout' },
-      { player_id: 1, category: 'rehab' },
-      { player_id: 2, category: 'workout' },
+    const entries: LeaderboardInputEntry[] = [
+      { player_id: 1, kind: 'workout' },
+      { player_id: 1, kind: 'workout' },
+      { player_id: 1, kind: 'rehab' },
+      { player_id: 2, kind: 'workout' },
     ];
-    const result = aggregateLeaderboard(PLAYERS, messages, SCORING);
+    const result = aggregateLeaderboard(PLAYERS, entries, SCORING);
     // Alice: 2 workouts × 1.0 + 1 rehab × 0.5 = 2.5
     // Bob: 1 workout × 1.0 = 1.0
     expect(result).toEqual([
@@ -53,69 +53,67 @@ describe('aggregateLeaderboard', () => {
     ]);
   });
 
-  test('ignores survey and chat categories', () => {
-    const messages: LeaderboardInputMessage[] = [
-      { player_id: 1, category: 'survey' },
-      { player_id: 1, category: 'chat' },
-      { player_id: 2, category: 'workout' },
+  test('ignores entries with kinds other than workout / rehab', () => {
+    const entries: LeaderboardInputEntry[] = [
+      { player_id: 1, kind: 'survey' },
+      { player_id: 1, kind: 'chat' },
+      { player_id: 2, kind: 'workout' },
     ];
-    const result = aggregateLeaderboard(PLAYERS, messages, SCORING);
+    const result = aggregateLeaderboard(PLAYERS, entries, SCORING);
     expect(result).toHaveLength(1);
     expect(result[0].player_id).toBe(2);
   });
 
   test('tiebreaker: equal points → more workouts wins', () => {
     // Alice: 1 workout = 1pt. Bob: 2 rehabs = 1pt. Alice has more workouts.
-    const messages: LeaderboardInputMessage[] = [
-      { player_id: 1, category: 'workout' },
-      { player_id: 2, category: 'rehab' },
-      { player_id: 2, category: 'rehab' },
+    const entries: LeaderboardInputEntry[] = [
+      { player_id: 1, kind: 'workout' },
+      { player_id: 2, kind: 'rehab' },
+      { player_id: 2, kind: 'rehab' },
     ];
-    const result = aggregateLeaderboard(PLAYERS, messages, SCORING);
+    const result = aggregateLeaderboard(PLAYERS, entries, SCORING);
     expect(result.map((r) => r.player_id)).toEqual([1, 2]);
   });
 
   test('tiebreaker: equal points and workouts → more rehabs wins', () => {
-    // Alice: 1 workout + 0 rehab = 1pt. Bob: 1 workout + 0 rehab = 1pt. Cam: 1 workout + 1 rehab = 1.5pt.
-    // Add a case where Alice and Bob both have 1 workout but Bob has 1 rehab too.
-    const scoring: TeamScoring = { workout_score: 1.0, rehab_score: 0.0 }; // make rehab worth 0 to force tie
-    const messages: LeaderboardInputMessage[] = [
-      { player_id: 1, category: 'workout' },
-      { player_id: 2, category: 'workout' },
-      { player_id: 2, category: 'rehab' },
+    const scoring: TeamScoring = { workout_score: 1.0, rehab_score: 0.0 }; // rehab worth 0 to force tie
+    const entries: LeaderboardInputEntry[] = [
+      { player_id: 1, kind: 'workout' },
+      { player_id: 2, kind: 'workout' },
+      { player_id: 2, kind: 'rehab' },
     ];
-    const result = aggregateLeaderboard(PLAYERS, messages, scoring);
+    const result = aggregateLeaderboard(PLAYERS, entries, scoring);
     // Alice: 1w 0r 1pt. Bob: 1w 1r 1pt. Same points, same workouts, Bob wins on rehabs.
     expect(result.map((r) => r.player_id)).toEqual([2, 1]);
   });
 
   test('tiebreaker: identical counts → alphabetical by name', () => {
-    const messages: LeaderboardInputMessage[] = [
-      { player_id: 1, category: 'workout' },
-      { player_id: 2, category: 'workout' },
+    const entries: LeaderboardInputEntry[] = [
+      { player_id: 1, kind: 'workout' },
+      { player_id: 2, kind: 'workout' },
     ];
-    const result = aggregateLeaderboard(PLAYERS, messages, SCORING);
+    const result = aggregateLeaderboard(PLAYERS, entries, SCORING);
     // Alice and Bob both have 1 workout, 0 rehab, 1pt. Alice < Bob alphabetically.
     expect(result.map((r) => r.player_id)).toEqual([1, 2]);
   });
 
-  test('messages with player_id not in players list are ignored', () => {
-    const messages: LeaderboardInputMessage[] = [
-      { player_id: 1, category: 'workout' },
-      { player_id: 999, category: 'workout' }, // unknown player
+  test('entries with player_id not in players list are ignored', () => {
+    const entries: LeaderboardInputEntry[] = [
+      { player_id: 1, kind: 'workout' },
+      { player_id: 999, kind: 'workout' }, // unknown player
     ];
-    const result = aggregateLeaderboard(PLAYERS, messages, SCORING);
+    const result = aggregateLeaderboard(PLAYERS, entries, SCORING);
     expect(result).toHaveLength(1);
     expect(result[0].player_id).toBe(1);
   });
 
   test('respects custom scoring values', () => {
     const scoring: TeamScoring = { workout_score: 5.0, rehab_score: 2.5 };
-    const messages: LeaderboardInputMessage[] = [
-      { player_id: 1, category: 'workout' },
-      { player_id: 1, category: 'rehab' },
+    const entries: LeaderboardInputEntry[] = [
+      { player_id: 1, kind: 'workout' },
+      { player_id: 1, kind: 'rehab' },
     ];
-    const result = aggregateLeaderboard(PLAYERS, messages, scoring);
+    const result = aggregateLeaderboard(PLAYERS, entries, scoring);
     expect(result[0].points).toBe(7.5);
   });
 });
