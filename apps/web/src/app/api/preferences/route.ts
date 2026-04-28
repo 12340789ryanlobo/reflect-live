@@ -23,6 +23,14 @@ async function computeInitialRole(userEmail: string | undefined): Promise<'admin
   return 'coach';
 }
 
+export async function GET() {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const sb = serviceClient();
+  const { data } = await sb.from('user_preferences').select('*').eq('clerk_user_id', userId).maybeSingle();
+  return NextResponse.json({ preferences: data });
+}
+
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -34,14 +42,27 @@ export async function POST(req: Request) {
   const sb = serviceClient();
   const { data: existing } = await sb.from('user_preferences').select('clerk_user_id,role').eq('clerk_user_id', userId).maybeSingle();
 
+  // BOOTSTRAP_ADMIN_EMAIL is allowed to re-elevate themselves to admin even
+  // after they've switched to a non-admin view (so they can flip back from
+  // coach/captain/athlete). Without this, an admin who picks "Coach" in the
+  // role switcher gets locked out of admin view.
+  const user = await currentUser();
+  const email = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
+  const adminEmails = (process.env.BOOTSTRAP_ADMIN_EMAIL ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const isBootstrapAdmin = !!email && adminEmails.includes(email);
+
   let effectiveRole: string | null = role;
-  // Only admin can change role; non-admin requests silently preserve existing role
-  if (existing && existing.role !== 'admin' && role !== null && existing.role !== role) {
+  // Admin role-changes are unrestricted. Bootstrap-admin emails are also
+  // unrestricted (covers the lock-out case above). Other users' role-change
+  // requests are silently dropped.
+  const canChangeRole = !existing || existing.role === 'admin' || isBootstrapAdmin;
+  if (existing && !canChangeRole && role !== null && existing.role !== role) {
     effectiveRole = existing.role ?? 'coach';
   }
   if (!existing) {
-    const user = await currentUser();
-    const email = user?.emailAddresses?.[0]?.emailAddress;
     effectiveRole = await computeInitialRole(email);
   }
 
@@ -53,10 +74,9 @@ export async function POST(req: Request) {
     updated_at: new Date().toISOString(),
   };
   if (effectiveRole !== null) payload.role = effectiveRole;
-  // Only admins can set impersonate_player_id via this route. Non-admins must
-  // prove phone ownership via POST /api/link-phone, which verifies the phone
-  // with Clerk's SMS OTP before writing this column.
-  if (existing && existing.role === 'admin') {
+  // Admins (and bootstrap-admin emails switching back) can set impersonate_player_id.
+  // Other users must prove phone ownership via POST /api/link-phone.
+  if ((existing && existing.role === 'admin') || isBootstrapAdmin) {
     payload.impersonate_player_id = impersonate_player_id;
   }
 

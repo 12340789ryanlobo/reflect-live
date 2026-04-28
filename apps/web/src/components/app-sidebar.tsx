@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useUser, useClerk } from '@clerk/nextjs';
 import {
   LayoutDashboard,
@@ -157,7 +157,7 @@ export function AppSidebar({
           <Brand size="md" />
         </Link>
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
-          <Pill tone={rolePill.tone}>{rolePill.label}</Pill>
+          <RoleSwitcher current={role} />
           {teamName && (
             <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
               {teamName}
@@ -190,6 +190,92 @@ export function AppSidebar({
         <UserMenuBlock />
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+function RoleSwitcher({ current }: { current: UserRole }) {
+  const router = useRouter();
+  const [pending, setPending] = React.useState<UserRole | null>(null);
+  const tone = ROLE_PILL[current].tone;
+
+  async function switchTo(next: UserRole) {
+    if (next === current || pending) return;
+    setPending(next);
+    // Read existing prefs first so we preserve team_id / watchlist / group filter.
+    const cur = await fetch('/api/preferences').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const team_id = cur?.preferences?.team_id;
+    if (typeof team_id !== 'number') {
+      // Fallback: nothing to send. POST with no team_id is rejected.
+      setPending(null);
+      return;
+    }
+    await fetch('/api/preferences', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        team_id,
+        watchlist: cur?.preferences?.watchlist ?? [],
+        group_filter: cur?.preferences?.group_filter ?? null,
+        role: next,
+        impersonate_player_id:
+          next === 'athlete' ? cur?.preferences?.impersonate_player_id ?? null : null,
+      }),
+    });
+    setPending(null);
+    // Hard nav to the role's natural landing so the user sees the new view immediately.
+    const home =
+      next === 'admin' ? '/dashboard/admin'
+        : next === 'captain' ? '/dashboard/captain'
+        : next === 'athlete' ? '/dashboard/athlete'
+        : '/dashboard';
+    router.push(home);
+    router.refresh();
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-full transition hover:opacity-80 disabled:opacity-50"
+          disabled={!!pending}
+          aria-label="Switch role view"
+        >
+          <Pill tone={tone}>{ROLE_PILL[current].label}</Pill>
+          <ChevronsUpDown className="size-3 text-[color:var(--ink-mute)]" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="bottom" align="start" className="w-44">
+        <DropdownMenuLabel className="text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)]">
+          View as
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {(['admin', 'coach', 'captain', 'athlete'] as UserRole[]).map((r) => {
+          const meta = ROLE_PILL[r];
+          return (
+            <DropdownMenuItem
+              key={r}
+              onSelect={(e) => {
+                e.preventDefault();
+                switchTo(r);
+              }}
+              className="flex items-center justify-between"
+            >
+              <span>{meta.label}</span>
+              {r === current && (
+                <span className="text-[10.5px] text-[color:var(--ink-mute)]">current</span>
+              )}
+            </DropdownMenuItem>
+          );
+        })}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard/settings" className="text-[12.5px] text-[color:var(--ink-mute)]">
+            Manage in Settings…
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
