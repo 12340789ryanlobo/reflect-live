@@ -55,7 +55,6 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [msgs, setMsgs] = useState<TwilioMessage[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [injuries, setInjuries] = useState<InjuryRow[]>([]);
-  const [view, setView] = useState<'front' | 'back'>('front');
 
   useEffect(() => {
     (async () => {
@@ -211,35 +210,17 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
           <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2 className="text-base font-bold text-[color:var(--ink)]">Injury map</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] text-[color:var(--ink-mute)]">
-                {activeInjuries.length} active · {injuries.length - activeInjuries.length} resolved
-              </span>
-              <div className="inline-flex gap-0.5 p-0.5 rounded-md text-[11.5px] font-semibold" style={{ background: 'var(--paper-2)' }}>
-                {(['front', 'back'] as const).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setView(v)}
-                    className={
-                      'px-2.5 py-1 rounded-[5px] transition ' +
-                      (view === v
-                        ? 'bg-white text-[color:var(--ink)] shadow-sm'
-                        : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]')
-                    }
-                  >
-                    {v === 'front' ? 'Front' : 'Back'}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <span className="text-[12px] text-[color:var(--ink-mute)]">
+              {activeInjuries.length} active · {injuries.length - activeInjuries.length} resolved
+            </span>
           </header>
-          <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
+          <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
             <div>
               <BodyHeatmap
                 counts={injuryCounts}
-                view={view}
                 gender={(player.gender ?? team.default_gender ?? 'male')}
-                className="mx-auto max-w-[240px]"
+                scale={0.4}
+                className="w-full"
               />
             </div>
             <div className="min-w-0">

@@ -39,7 +39,6 @@ export default function HeatmapPage() {
   const { prefs, team, role } = useDashboard();
   const sb = useSupabase();
   const [days, setDays] = useState(90);
-  const [view, setView] = useState<'front' | 'back'>('front');
   const [reports, setReports] = useState<InjuryRow[]>([]);
   const [players, setPlayers] = useState<PlayerLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,37 +211,20 @@ export default function HeatmapPage() {
           <div className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-[color:var(--ink)]">Active injuries</h2>
-              <div className="flex items-center gap-2">
-                <div className="inline-flex gap-0.5 p-0.5 rounded-md text-[11.5px] font-semibold" style={{ background: 'var(--paper-2)' }}>
-                  {(['front', 'back'] as const).map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setView(v)}
-                      className={
-                        'px-2.5 py-1 rounded-[5px] transition ' +
-                        (view === v
-                          ? 'bg-white text-[color:var(--ink)] shadow-sm'
-                          : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]')
-                      }
-                    >
-                      {v === 'front' ? 'Front' : 'Back'}
-                    </button>
-                  ))}
-                </div>
-                {selectedRegions.length > 0 && (
-                  <button
-                    className="text-[12px] text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]"
-                    onClick={() => setSelectedRegions([])}
-                  >clear</button>
-                )}
-              </div>
+              {selectedRegions.length > 0 && (
+                <button
+                  className="text-[12px] text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]"
+                  onClick={() => setSelectedRegions([])}
+                >clear</button>
+              )}
             </div>
             <BodyHeatmap
               counts={counts}
-              view={view}
               gender={team.default_gender ?? 'male'}
+              selectedRegions={selectedRegions}
               onMuscleClick={setSelectedRegions}
-              className="mx-auto max-w-[300px]"
+              scale={0.55}
+              className="w-full"
             />
             <p className="mt-3 text-[11px] italic text-[color:var(--ink-mute)] text-center">
               Body chart shows the nearest muscle group. The list at right has the exact reported region.
