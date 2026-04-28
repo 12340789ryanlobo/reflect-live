@@ -36,13 +36,14 @@ interface InjuryRow {
 interface PlayerLite { id: number; name: string }
 
 export default function HeatmapPage() {
-  const { prefs, role } = useDashboard();
+  const { prefs, team, role } = useDashboard();
   const sb = useSupabase();
   const [days, setDays] = useState(90);
+  const [view, setView] = useState<'front' | 'back'>('front');
   const [reports, setReports] = useState<InjuryRow[]>([]);
   const [players, setPlayers] = useState<PlayerLite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<string | undefined>();
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [savingNew, setSavingNew] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -84,9 +85,12 @@ export default function HeatmapPage() {
   }, [reports]);
 
   const activeReports = reports.filter((r) => !r.resolved_at);
-  const filtered = selected
-    ? activeReports.filter((r) => r.regions.includes(selected))
+  const filtered = selectedRegions.length
+    ? activeReports.filter((r) => r.regions.some((x) => selectedRegions.includes(x)))
     : activeReports;
+  const otherReports = activeReports.filter(
+    (r) => r.regions.length === 0 || (r.regions.length === 1 && r.regions[0] === 'other'),
+  );
 
   async function submitReport() {
     setSavingNew(true);
@@ -208,20 +212,47 @@ export default function HeatmapPage() {
           <div className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-[color:var(--ink)]">Active injuries</h2>
-              {selected && (
-                <button
-                  className="text-[12px] text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]"
-                  onClick={() => setSelected(undefined)}
-                >clear filter</button>
-              )}
+              <div className="flex items-center gap-2">
+                <div className="inline-flex gap-0.5 p-0.5 rounded-md text-[11.5px] font-semibold" style={{ background: 'var(--paper-2)' }}>
+                  {(['front', 'back'] as const).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setView(v)}
+                      className={
+                        'px-2.5 py-1 rounded-[5px] transition ' +
+                        (view === v
+                          ? 'bg-white text-[color:var(--ink)] shadow-sm'
+                          : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]')
+                      }
+                    >
+                      {v === 'front' ? 'Front' : 'Back'}
+                    </button>
+                  ))}
+                </div>
+                {selectedRegions.length > 0 && (
+                  <button
+                    className="text-[12px] text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]"
+                    onClick={() => setSelectedRegions([])}
+                  >clear</button>
+                )}
+              </div>
             </div>
-            <BodyHeatmap counts={counts} selected={selected} onRegionClick={setSelected} />
-            <div className="mt-4 flex items-center gap-3 text-[11.5px] text-[color:var(--ink-mute)]">
-              <span className="flex items-center gap-1.5"><span className="inline-block size-3 rounded-sm" style={{ background: 'var(--paper-2)', border: '1px solid var(--border)' }} />none</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block size-3 rounded-sm" style={{ background: 'var(--green-soft)' }} />low</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block size-3 rounded-sm" style={{ background: '#FFF1D6' }} />med-low</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block size-3 rounded-sm" style={{ background: 'var(--amber-soft)' }} />med</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block size-3 rounded-sm" style={{ background: 'var(--red-soft)' }} />high</span>
+            <BodyHeatmap
+              counts={counts}
+              view={view}
+              gender={team.default_gender ?? 'male'}
+              onMuscleClick={setSelectedRegions}
+              className="mx-auto max-w-[300px]"
+            />
+            <p className="mt-3 text-[11px] italic text-[color:var(--ink-mute)] text-center">
+              Body chart shows the nearest muscle group. The list at right has the exact reported region.
+            </p>
+            <div className="mt-3 flex items-center justify-center gap-2 text-[11.5px] text-[color:var(--ink-mute)]">
+              <span>cool</span>
+              {['#DCEAF5', '#C2E8DD', '#F4D8A6', '#E89B6F', '#D85447'].map((c) => (
+                <span key={c} className="inline-block size-3.5 rounded-sm" style={{ background: c }} />
+              ))}
+              <span>hot</span>
             </div>
           </div>
 
@@ -229,7 +260,11 @@ export default function HeatmapPage() {
           <div className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
             <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold text-[color:var(--ink)]">
-                {selected ? `${regionLabel(selected)} reports` : 'Recent reports'}
+                {selectedRegions.length > 0
+                  ? selectedRegions.length === 1
+                    ? `${regionLabel(selectedRegions[0])} reports`
+                    : `${selectedRegions.map(regionLabel).join(' / ')} reports`
+                  : 'Recent reports'}
               </h2>
               <span className="text-[11.5px] text-[color:var(--ink-mute)]">{filtered.length}</span>
             </header>
@@ -237,7 +272,7 @@ export default function HeatmapPage() {
               <p className="px-6 py-8 text-[13px] text-[color:var(--ink-mute)]">— loading —</p>
             ) : filtered.length === 0 ? (
               <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">
-                {selected ? 'No active reports for this region.' : 'No active injuries — nice.'}
+                {selectedRegions.length > 0 ? 'No active reports for this region.' : 'No active injuries — nice.'}
               </p>
             ) : (
               <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
@@ -253,7 +288,7 @@ export default function HeatmapPage() {
                             {r.player?.name ?? '—'}
                           </Link>
                           {r.regions.map((region) => (
-                            <Pill key={region} tone={selected === region ? 'blue' : 'mute'}>
+                            <Pill key={region} tone={selectedRegions.includes(region) ? 'blue' : 'mute'}>
                               {regionLabel(region)}
                             </Pill>
                           ))}
@@ -294,6 +329,32 @@ export default function HeatmapPage() {
             )}
           </div>
         </section>
+
+        {otherReports.length > 0 && (
+          <section className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Other / unmapped reports</h2>
+              <span className="text-[11.5px] text-[color:var(--ink-mute)]">{otherReports.length}</span>
+            </header>
+            <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {otherReports.slice(0, 20).map((r) => (
+                <li key={r.id} className="px-6 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <Link href={`/dashboard/player/${r.player_id}`} className="text-[14px] font-semibold text-[color:var(--ink)] hover:underline">
+                        {r.player?.name ?? '—'}
+                      </Link>
+                      <p className="text-[13px] text-[color:var(--ink-soft)]">{r.description}</p>
+                    </div>
+                    <span className="mono text-[11px] text-[color:var(--ink-mute)] tabular shrink-0" title={prettyDate(r.reported_at)}>
+                      {relativeTime(r.reported_at)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </main>
     </>
   );

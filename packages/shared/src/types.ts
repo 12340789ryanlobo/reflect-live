@@ -1,5 +1,6 @@
 export type Category = 'workout' | 'rehab' | 'survey' | 'chat';
 export type ActivityKind = 'workout' | 'rehab';
+export type Gender = 'male' | 'female';
 
 export interface TeamScoring {
   workout_score: number;
@@ -16,6 +17,7 @@ export interface Team {
   twilio_auth_token?: string | null;
   twilio_phone_number?: string | null;
   scoring_json: TeamScoring;
+  default_gender: Gender;
 }
 
 export interface Player {
@@ -26,6 +28,7 @@ export interface Player {
   group: string | null;
   active: boolean;
   created_at: string;
+  gender: Gender | null;
 }
 
 export interface TwilioMessage {

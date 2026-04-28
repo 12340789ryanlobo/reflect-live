@@ -72,6 +72,8 @@ export default function SettingsPage() {
   const [rehabScore, setRehabScore] = useState<string>('0.5');
   const [scoringSaving, setScoringSaving] = useState(false);
   const [scoringStatus, setScoringStatus] = useState<string | null>(null);
+  const [genderSaving, setGenderSaving] = useState(false);
+  const [genderStatus, setGenderStatus] = useState<string | null>(null);
 
   async function refresh() {
     const { data: pref } = await sb.from('user_preferences').select('*').maybeSingle();
@@ -178,6 +180,26 @@ export default function SettingsPage() {
       setScoringStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
     }
     setScoringSaving(false);
+  }
+
+  async function saveGender(next: 'male' | 'female') {
+    setGenderSaving(true);
+    setGenderStatus(null);
+    const res = await fetch('/api/team/gender', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ default_gender: next }),
+    });
+    if (res.ok) {
+      setGenderStatus('Saved.');
+      await refresh();
+      await refreshShell();
+      setTimeout(() => setGenderStatus(null), 2000);
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setGenderStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    }
+    setGenderSaving(false);
   }
 
   async function setRoleAndSave(newRole: UserRole) {
@@ -400,6 +422,46 @@ export default function SettingsPage() {
               </Button>
               {scoringStatus && (
                 <span className="text-[12.5px] text-[color:var(--ink-mute)]">{scoringStatus}</span>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Heatmap default gender */}
+        {canConfigureScoring && (
+          <section
+            className="rounded-2xl bg-[color:var(--card)] border p-6"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <header className="mb-3">
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Heatmap silhouette</h2>
+              <p className="mt-1 text-[13px] text-[color:var(--ink-mute)]">
+                Default body figure on the team-wide injury heatmap. Per-athlete pages override this once a player sets their own.
+              </p>
+            </header>
+            <div className="flex items-center gap-2">
+              {(['male', 'female'] as const).map((g) => {
+                const active = (team?.default_gender ?? 'male') === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => !active && saveGender(g)}
+                    disabled={genderSaving || active}
+                    className={
+                      'rounded-xl border px-4 py-2 text-[13px] font-semibold capitalize transition ' +
+                      (active
+                        ? 'bg-[color:var(--blue-soft)] text-[color:var(--blue)]'
+                        : 'bg-[color:var(--card)] text-[color:var(--ink-soft)] hover:bg-[color:var(--card-hover)]')
+                    }
+                    style={{ borderColor: active ? 'var(--blue)' : 'var(--border)' }}
+                  >
+                    {g}
+                  </button>
+                );
+              })}
+              {genderStatus && (
+                <span className="ml-2 text-[12.5px] text-[color:var(--ink-mute)]">{genderStatus}</span>
               )}
             </div>
           </section>
