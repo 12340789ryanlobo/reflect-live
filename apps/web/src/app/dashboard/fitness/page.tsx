@@ -82,6 +82,7 @@ export default function FitnessPage() {
           .select('sid,player_id,body,date_sent,player:players(name, group)')
           .eq('team_id', prefs.team_id)
           .eq('category', 'rehab')
+          .eq('direction', 'inbound')
           .not('player_id', 'is', null)
           .gte('date_sent', since)
           .order('date_sent', { ascending: false })

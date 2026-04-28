@@ -125,11 +125,14 @@ export async function computeLeaderboard(
     .not('player_id', 'is', null);
   if (sinceISO) workoutsQ = workoutsQ.gte('logged_at', sinceISO);
 
+  // Only count inbound rehab submissions — outbound bot confirmations
+  // ("Rehab logged! ...") are categorized as 'rehab' too and would double-count.
   let rehabsQ = sb
     .from('twilio_messages')
     .select('player_id,category')
     .eq('team_id', teamId)
     .eq('category', 'rehab')
+    .eq('direction', 'inbound')
     .not('player_id', 'is', null);
   if (sinceISO) rehabsQ = rehabsQ.gte('date_sent', sinceISO);
 

@@ -24,12 +24,18 @@ export interface MessageRow {
   team_id: number | null;
 }
 
+export function normalizePhone(s: string | null | undefined): string | null {
+  if (!s) return null;
+  return s.replace(/^(whatsapp|sms):/i, '');
+}
+
 export async function toRow(
   m: TwilioMessageLike,
   cache: PhoneCache,
   defaultTeamId: number,
 ): Promise<MessageRow> {
-  const playerPhone = m.direction === 'inbound' ? m.from : m.to;
+  const rawPhone = m.direction === 'inbound' ? m.from : m.to;
+  const playerPhone = normalizePhone(rawPhone);
   const ref = playerPhone ? await cache.lookup(playerPhone) : null;
   return {
     sid: m.sid,
