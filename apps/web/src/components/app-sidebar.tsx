@@ -159,10 +159,11 @@ export function AppSidebar({
       <SidebarHeader>
         <Link
           href="/dashboard"
-          className={cn(
-            'flex items-center transition-all duration-200 ease-out hover:opacity-90 py-1.5',
-            collapsed ? 'justify-center px-0' : 'px-2',
-          )}
+          // Keep padding constant across states so the icon doesn't shift
+          // horizontally during the collapse animation. The text fade/slide
+          // is the only thing that moves; the icon sits at a steady left
+          // anchor that's near-centred in the 48px collapsed column.
+          className="flex items-center px-2 py-1.5 transition hover:opacity-90"
         >
           <Brand size="md" showText={!collapsed} />
         </Link>
