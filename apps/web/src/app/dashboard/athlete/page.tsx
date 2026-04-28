@@ -93,15 +93,19 @@ export default function AthletePage() {
     })();
   }, [sb, me, days]);
 
+  const workoutScore = team.scoring_json.workout_score;
+  const rehabScore = team.scoring_json.rehab_score;
   useEffect(() => {
     if (!me) return;
+    let cancelled = false;
     (async () => {
-      const scoring = team.scoring_json;
+      const scoring = { workout_score: workoutScore, rehab_score: rehabScore };
       const sinceISO = weekStartCT().toISOString();
       const [week, allTime] = await Promise.all([
         computeLeaderboard(sb, prefs.team_id, scoring, sinceISO),
         computeLeaderboard(sb, prefs.team_id, scoring),
       ]);
+      if (cancelled) return;
       const findRank = (rows: LeaderboardRow[], pid: number): number | null => {
         const idx = rows.findIndex((r) => r.player_id === pid);
         return idx === -1 ? null : idx + 1;
@@ -109,7 +113,10 @@ export default function AthletePage() {
       setWeekRank(findRank(week, me.id));
       setAllTimeRank(findRank(allTime, me.id));
     })();
-  }, [sb, prefs.team_id, team.scoring_json, me?.id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [sb, prefs.team_id, workoutScore, rehabScore, me?.id]);
 
   async function setAthlete(playerId: number | null) {
     setSaving(true);
