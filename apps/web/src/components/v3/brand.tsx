@@ -17,10 +17,9 @@ export function Brand({
 }) {
   const dim = size === 'sm' ? 24 : size === 'lg' ? 38 : 30;
   const textSize = size === 'sm' ? 'text-sm' : size === 'lg' ? 'text-lg' : 'text-base';
-  const dashSize = size === 'sm' ? 'text-base' : size === 'lg' ? 'text-2xl' : 'text-xl';
 
   return (
-    <span className={cn('inline-flex items-center', className)}>
+    <span className={cn('inline-flex items-center gap-2', className)}>
       <Image
         src="/logo.png"
         alt=""
@@ -30,21 +29,12 @@ export function Brand({
         className="select-none"
       />
       {showText && (
-        <>
-          <span
-            aria-hidden
-            className={cn('mx-2 font-semibold leading-none', dashSize)}
-            style={{ color: 'var(--blue)' }}
-          >
-            —
-          </span>
-          <span
-            className={cn('font-bold tracking-tight leading-none', textSize)}
-            style={{ color: 'var(--blue)' }}
-          >
-            reflect
-          </span>
-        </>
+        <span
+          className={cn('font-bold tracking-tight leading-none', textSize)}
+          style={{ color: 'var(--blue)' }}
+        >
+          Reflect
+        </span>
       )}
     </span>
   );

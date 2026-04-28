@@ -5,7 +5,7 @@ import { ImageResponse } from 'next/og';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-export const alt = 'reflect — team check-ins, dashboard, the works';
+export const alt = 'Reflect — team check-ins, dashboard, the works';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -41,12 +41,9 @@ export default async function OG() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoSrc} alt="" width={130} height={130} />
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <span style={{ fontSize: 96, fontWeight: 700, color: '#1F5FB0', lineHeight: 1 }}>—</span>
-            <span style={{ fontSize: 110, fontWeight: 700, letterSpacing: '-0.02em', color: '#1F5FB0', lineHeight: 1 }}>
-              reflect
-            </span>
-          </div>
+          <span style={{ fontSize: 110, fontWeight: 700, letterSpacing: '-0.02em', color: '#1F5FB0', lineHeight: 1 }}>
+            Reflect
+          </span>
         </div>
         <div style={{ fontSize: 36, fontWeight: 500, color: '#475264', marginTop: 36, maxWidth: 950 }}>
           Real-time team check-ins, fitness, and recovery — for college and club sports.

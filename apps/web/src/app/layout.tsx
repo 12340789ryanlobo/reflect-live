@@ -18,7 +18,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata = {
-  title: 'reflect — team check-ins, dashboard, the works',
+  title: 'Reflect — team check-ins, dashboard, the works',
   description:
     'Coach dashboard for team check-ins, fitness, schedule, AI assistant, and more.',
 };
