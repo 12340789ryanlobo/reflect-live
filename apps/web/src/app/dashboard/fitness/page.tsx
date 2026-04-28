@@ -30,6 +30,7 @@ function initials(name: string): string {
 
 interface ActivityWithPlayer extends ActivityLog {
   player: { name: string; group: string | null } | null;
+  _key?: string;
 }
 
 export default function FitnessPage() {
@@ -67,14 +68,47 @@ export default function FitnessPage() {
     (async () => {
       setLoading(true);
       const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
-      const { data } = await sb
-        .from('activity_logs')
-        .select('*, player:players(name, group)')
-        .eq('team_id', prefs.team_id)
-        .gte('logged_at', since)
-        .order('logged_at', { ascending: false })
-        .limit(300);
-      setLogs((data ?? []) as ActivityWithPlayer[]);
+      const [{ data: actData }, { data: rehabMsgs }] = await Promise.all([
+        sb
+          .from('activity_logs')
+          .select('*, player:players(name, group)')
+          .eq('team_id', prefs.team_id)
+          .eq('kind', 'workout')
+          .gte('logged_at', since)
+          .order('logged_at', { ascending: false })
+          .limit(300),
+        sb
+          .from('twilio_messages')
+          .select('sid,player_id,body,date_sent,player:players(name, group)')
+          .eq('team_id', prefs.team_id)
+          .eq('category', 'rehab')
+          .not('player_id', 'is', null)
+          .gte('date_sent', since)
+          .order('date_sent', { ascending: false })
+          .limit(300),
+      ]);
+      const workouts = (actData ?? []) as ActivityWithPlayer[];
+      const rehabs: ActivityWithPlayer[] = ((rehabMsgs ?? []) as unknown as Array<{
+        sid: string;
+        player_id: number;
+        body: string | null;
+        date_sent: string;
+        player: { name: string; group: string | null } | null;
+      }>).map((m) => ({
+        id: -1,
+        player_id: m.player_id,
+        team_id: prefs.team_id,
+        kind: 'rehab',
+        description: m.body ?? '',
+        image_path: null,
+        logged_at: m.date_sent,
+        player: m.player,
+        _key: m.sid,
+      }));
+      const merged = [...workouts, ...rehabs].sort((a, b) =>
+        a.logged_at < b.logged_at ? 1 : a.logged_at > b.logged_at ? -1 : 0,
+      );
+      setLogs(merged);
       setLoading(false);
     })();
   }, [sb, prefs.team_id, days]);
@@ -248,7 +282,7 @@ export default function FitnessPage() {
                     const name = l.player?.name ?? 'Unknown';
                     return (
                       <tr
-                        key={l.id}
+                        key={l._key ?? l.id}
                         className="border-b transition hover:bg-[color:var(--card-hover)]"
                         style={{ borderColor: 'var(--border)' }}
                       >

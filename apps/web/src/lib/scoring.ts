@@ -4,13 +4,13 @@
 // Pure aggregation lives in `aggregateLeaderboard`; the supabase-aware fetch
 // is `computeLeaderboard`. Tests target the pure function directly.
 //
-// Source-of-truth: scoring reads from `activity_logs` (kind = 'workout' | 'rehab').
-// This matches what the Activity page's Past activity table shows. Live SMS
-// messages tagged workout/rehab in `twilio_messages` are NOT yet counted —
-// the worker doesn't dual-write to activity_logs. That's the deferred
-// data-sync audit task; until it lands, scoring follows the canonical
-// activity_logs table to avoid double-counting and stay aligned with what
-// the user sees.
+// Source-of-truth (split): workouts come from `activity_logs` (bulk-imported
+// from reflect's API, kind='workout'); rehabs come from `twilio_messages`
+// (category='rehab'). reflect's API doesn't expose rehabs in bulk, so they
+// only land in twilio_messages — counting both sources gives the same totals
+// reflect's leaderboard produces. Once the worker dual-writes SMS-tagged
+// activity into activity_logs (deferred data-sync task), this can collapse
+// back to a single source.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -95,13 +95,13 @@ export function aggregateLeaderboard(
 /**
  * Fetch + aggregate. Used by Activity page render.
  *
- * Reads from `activity_logs` (kind workout/rehab). Optionally filters by
- * `logged_at >= sinceISO` for the weekly leaderboard window.
+ * Workouts: activity_logs.kind='workout' (filterable by logged_at >= sinceISO).
+ * Rehabs:   twilio_messages.category='rehab' (filterable by date_sent >= sinceISO).
  *
  * @param sb        supabase client
  * @param teamId    team to score
  * @param scoring   point values
- * @param sinceISO  optional lower bound on logged_at (omit for all-time)
+ * @param sinceISO  optional lower bound (omit for all-time)
  */
 export async function computeLeaderboard(
   sb: SupabaseClient,
@@ -117,23 +117,34 @@ export async function computeLeaderboard(
 
   const players: LeaderboardInputPlayer[] = (playersData ?? []) as LeaderboardInputPlayer[];
 
-  let q = sb
+  let workoutsQ = sb
     .from('activity_logs')
     .select('player_id,kind')
     .eq('team_id', teamId)
-    .in('kind', ['workout', 'rehab'])
+    .eq('kind', 'workout')
     .not('player_id', 'is', null);
+  if (sinceISO) workoutsQ = workoutsQ.gte('logged_at', sinceISO);
 
-  if (sinceISO) q = q.gte('logged_at', sinceISO);
+  let rehabsQ = sb
+    .from('twilio_messages')
+    .select('player_id,category')
+    .eq('team_id', teamId)
+    .eq('category', 'rehab')
+    .not('player_id', 'is', null);
+  if (sinceISO) rehabsQ = rehabsQ.gte('date_sent', sinceISO);
 
-  const { data: rowsData } = await q;
-  const entries: LeaderboardInputEntry[] = ((rowsData ?? []) as Array<{
-    player_id: number;
-    kind: string;
-  }>).map((r) => ({
-    player_id: r.player_id,
-    kind: r.kind,
-  }));
+  const [{ data: workoutRows }, { data: rehabRows }] = await Promise.all([workoutsQ, rehabsQ]);
+
+  const entries: LeaderboardInputEntry[] = [
+    ...((workoutRows ?? []) as Array<{ player_id: number }>).map((r) => ({
+      player_id: r.player_id,
+      kind: 'workout' as const,
+    })),
+    ...((rehabRows ?? []) as Array<{ player_id: number }>).map((r) => ({
+      player_id: r.player_id,
+      kind: 'rehab' as const,
+    })),
+  ];
 
   return aggregateLeaderboard(players, entries, scoring);
 }
