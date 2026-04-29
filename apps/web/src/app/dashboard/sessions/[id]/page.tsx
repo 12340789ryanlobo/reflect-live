@@ -68,13 +68,6 @@ const TYPE_LABEL: Record<SessionType, string> = {
   lifting: 'Lifting',
 };
 
-const STATUS_TONE: Record<DeliveryRow['status'], 'mute' | 'blue' | 'green' | 'red'> = {
-  pending: 'mute',
-  in_progress: 'blue',
-  completed: 'green',
-  abandoned: 'red',
-};
-
 export default function SessionDetailPage() {
   const params = useParams<{ id: string }>();
   const sessionId = Number(params.id);
@@ -151,21 +144,6 @@ export default function SessionDetailPage() {
     return out;
   }, [questions, responses]);
 
-  // Per-player view: each delivery and the answers they gave.
-  const playerView = useMemo(() => {
-    const byPlayer = new Map<number, { delivery: DeliveryRow; answers: ResponseRow[] }>();
-    for (const d of deliveries) {
-      byPlayer.set(d.player_id, { delivery: d, answers: [] });
-    }
-    for (const r of responses) {
-      const entry = byPlayer.get(r.player_id);
-      if (entry) entry.answers.push(r);
-    }
-    return Array.from(byPlayer.values()).sort((a, b) =>
-      (a.delivery.player?.name ?? '').localeCompare(b.delivery.player?.name ?? ''),
-    );
-  }, [deliveries, responses]);
-
   if (loading) {
     return (
       <main className="px-6 py-10 text-[13px] text-[color:var(--ink-mute)]">— loading —</main>
@@ -236,117 +214,48 @@ export default function SessionDetailPage() {
       />
 
       <main className="px-6 pb-12 pt-4 space-y-6">
-        {/* Stats row */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Sent" value={deliveries.length} tone="ink" />
-          <StatCard label="Completed" value={completed} tone="green" />
-          <StatCard label="In progress" value={inProgress} tone="blue" />
-          <StatCard label="Pending" value={pending} tone="mute" />
+        {/* Compact stats ribbon — replaces the four-stat-card grid. The
+            same numbers in one row keeps the page scannable when the
+            session has 30+ athletes and the matrix below already takes
+            most of the screen. */}
+        <section
+          className="rounded-2xl bg-[color:var(--card)] border px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-2"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <StatChip label="sent" value={deliveries.length} tone="ink" />
+          <StatChip label="completed" value={completed} tone="green" />
+          <StatChip label="in progress" value={inProgress} tone="blue" />
+          <StatChip label="pending" value={pending} tone="mute" />
+          {questions.length > 0 && (
+            <StatChip label="questions" value={questions.length} tone="ink" />
+          )}
+          {flags.length > 0 && (
+            <StatChip label="flags" value={flags.length} tone="red" />
+          )}
         </section>
 
-        {/* Question snapshot + stats */}
-        <section className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
-          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold text-[color:var(--ink)]">Question snapshot</h2>
-            <span className="text-[11.5px] text-[color:var(--ink-mute)]">
-              {session.metadata_json?.question_snapshot?.source ?? '—'}
-              {session.metadata_json?.question_snapshot?.captured_at &&
-                ` · frozen ${relativeTime(session.metadata_json.question_snapshot.captured_at)}`}
-            </span>
-          </header>
-          {questions.length === 0 ? (
-            <p className="px-6 py-8 text-[13px] text-[color:var(--ink-mute)]">
+        {/* Athlete × Question matrix.
+            Replaces the previous "Question snapshot" list and "Responses
+            by athlete" nested-bullet dump with a single dense table.
+            Color-coded cells by score so a coach can spot patterns
+            (low-readiness columns, injury-flag rows) at a glance. */}
+        {questions.length === 0 ? (
+          <section
+            className="rounded-2xl bg-[color:var(--card)] border px-6 py-8"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <p className="text-[13px] text-[color:var(--ink-mute)]">
               No questions captured yet — the snapshot is created the first time the survey runs.
             </p>
-          ) : (
-            <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {questions.map((q) => {
-                const stats = questionStats.get(q.id) ?? { count: 0, mean: null };
-                return (
-                  <li key={q.id} className="px-6 py-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold text-[color:var(--ink)]">
-                          <span className="mono text-[color:var(--ink-mute)] mr-2">#{q.order}</span>
-                          {q.text}
-                        </p>
-                        <p className="mt-1 text-[11.5px] text-[color:var(--ink-mute)]">
-                          {q.type}{q.captain_only ? ' · captain only' : ''}
-                          {q.conditional && ` · shows when ${q.conditional.depends_on} ${q.conditional.show_if}`}
-                          {q.flag_rule && ` · flags ${q.flag_rule.flag_type} when ${q.flag_rule.condition}`}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="mono text-[14px] font-bold tabular text-[color:var(--ink)]">
-                          {stats.count}
-                        </p>
-                        {stats.mean !== null && (
-                          <p className="text-[11px] text-[color:var(--ink-mute)] mono tabular">
-                            avg {stats.mean.toFixed(1)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        {/* Per-player responses */}
-        <section className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
-          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold text-[color:var(--ink)]">Responses by athlete</h2>
-            <span className="text-[11.5px] text-[color:var(--ink-mute)]">{playerView.length}</span>
-          </header>
-          {playerView.length === 0 ? (
-            <p className="px-6 py-8 text-[13px] text-[color:var(--ink-mute)]">
-              No deliveries yet — once the worker schedules + sends, athletes will appear here.
-            </p>
-          ) : (
-            <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {playerView.map(({ delivery, answers }) => (
-                <li key={delivery.id} className="px-6 py-3.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          href={`/dashboard/player/${delivery.player_id}`}
-                          className="text-[14px] font-semibold text-[color:var(--ink)] hover:underline"
-                        >
-                          {delivery.player?.name ?? '—'}
-                        </Link>
-                        <Pill tone={STATUS_TONE[delivery.status]}>{delivery.status.replace('_', ' ')}</Pill>
-                      </div>
-                      {answers.length > 0 && (
-                        <ul className="mt-2 space-y-1">
-                          {answers.map((a) => {
-                            const q = questions.find((x) => x.id === a.question_id);
-                            return (
-                              <li key={a.id} className="text-[12.5px] text-[color:var(--ink-soft)]">
-                                <span className="text-[color:var(--ink-mute)]">{q?.text ?? a.question_id}</span>
-                                {' → '}
-                                <span className="font-semibold text-[color:var(--ink)]">{a.answer_raw}</span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                    <div className="text-right shrink-0 mono text-[11px] tabular text-[color:var(--ink-mute)]">
-                      {delivery.completed_at
-                        ? `done ${relativeTime(delivery.completed_at)}`
-                        : delivery.started_at
-                          ? `started ${relativeTime(delivery.started_at)}`
-                          : 'not started'}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+          </section>
+        ) : (
+          <ResponseMatrix
+            questions={questions}
+            deliveries={deliveries}
+            responses={responses}
+            questionStats={questionStats}
+          />
+        )}
 
         {/* Flags */}
         {flags.length > 0 && (
@@ -410,24 +319,211 @@ export default function SessionDetailPage() {
   );
 }
 
-function StatCard({
+function StatChip({
   label,
   value,
   tone,
 }: {
   label: string;
   value: number;
-  tone: 'ink' | 'green' | 'blue' | 'mute';
+  tone: 'ink' | 'green' | 'blue' | 'mute' | 'red';
 }) {
   const color =
     tone === 'green' ? 'var(--green)' :
     tone === 'blue' ? 'var(--blue)' :
     tone === 'mute' ? 'var(--ink-mute)' :
+    tone === 'red' ? 'var(--red)' :
     'var(--ink)';
   return (
-    <div className="rounded-2xl bg-[color:var(--card)] border px-5 py-4" style={{ borderColor: 'var(--border)' }}>
-      <p className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">{label}</p>
-      <p className="mt-1 mono text-[28px] font-bold tabular" style={{ color }}>{value}</p>
+    <div className="inline-flex items-baseline gap-1.5">
+      <span className="mono text-[20px] font-bold tabular" style={{ color }}>{value}</span>
+      <span className="text-[11px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">{label}</span>
     </div>
+  );
+}
+
+// ---------------- ResponseMatrix --------------------------------------------
+//
+// Athlete-as-row, question-as-column grid. Cells render the raw answer
+// (numeric or short text) tinted by score. Sticky first column for the
+// athlete name; sticky header row for question numbers; horizontal scroll
+// when there are many questions; vertical scroll caps row count to keep
+// the page from running away.
+
+interface MatrixProps {
+  questions: SurveyQuestion[];
+  deliveries: DeliveryRow[];
+  responses: ResponseRow[];
+  questionStats: Map<string, { count: number; mean: number | null }>;
+}
+
+/**
+ * Map an answer to a tone class. Heuristic:
+ *   - scale_1_10 / captain_rating: 1-3 red-soft, 4-6 amber-soft, 7-10 green-soft
+ *     (high is "good" by default; questions where high is bad — pain — flip
+ *     via the flag_rule check below)
+ *   - binary: 1 → red-soft (yes-pain pattern matches the flag_rule conventions
+ *     in survey_v0.yaml), 0 → green-soft
+ *   - choice_1_3: 1 green-soft, 2 neutral, 3 amber-soft (light/right/heavy)
+ *   - free_text / multi_select_body_regions: neutral fill, content shown
+ */
+function cellTone(question: SurveyQuestion, answer: ResponseRow): { bg: string; text: string } {
+  const v = answer.answer_num;
+  const flag = question.flag_rule;
+  const highIsBad =
+    flag?.condition === 'value >= 7' ||
+    flag?.condition === 'any_rating >= 7' ||
+    flag?.condition === 'value == 1';
+
+  if (question.type === 'scale_1_10' || question.type === 'captain_rating') {
+    if (v === null) return { bg: 'var(--paper-2)', text: 'var(--ink-mute)' };
+    const lowGood = highIsBad; // pain-style — low number is the good outcome
+    const goodSoft = 'var(--green-soft)';
+    const badSoft = 'var(--red-soft)';
+    const midSoft = 'var(--amber-soft)';
+    if (v <= 3) return { bg: lowGood ? goodSoft : badSoft, text: 'var(--ink)' };
+    if (v <= 6) return { bg: midSoft, text: 'var(--ink)' };
+    return { bg: lowGood ? badSoft : goodSoft, text: 'var(--ink)' };
+  }
+  if (question.type === 'binary') {
+    if (v === 1) return { bg: 'var(--red-soft)', text: 'var(--ink)' };
+    if (v === 0) return { bg: 'var(--green-soft)', text: 'var(--ink)' };
+  }
+  if (question.type === 'choice_1_3') {
+    if (v === 1) return { bg: 'var(--green-soft)', text: 'var(--ink)' };
+    if (v === 2) return { bg: 'var(--paper-2)', text: 'var(--ink)' };
+    if (v === 3) return { bg: 'var(--amber-soft)', text: 'var(--ink)' };
+  }
+  return { bg: 'var(--paper-2)', text: 'var(--ink)' };
+}
+
+function shortAnswer(question: SurveyQuestion, answer: ResponseRow): string {
+  if (question.type === 'binary') {
+    if (answer.answer_num === 1) return 'yes';
+    if (answer.answer_num === 0) return 'no';
+  }
+  if (answer.answer_num !== null && (
+    question.type === 'scale_1_10' ||
+    question.type === 'choice_1_3' ||
+    question.type === 'captain_rating'
+  )) {
+    return String(answer.answer_num);
+  }
+  // Free text or unknown — clamp visible length so cells stay tidy
+  const t = answer.answer_raw ?? '';
+  return t.length > 18 ? `${t.slice(0, 17)}…` : t;
+}
+
+function ResponseMatrix({ questions, deliveries, responses, questionStats }: MatrixProps) {
+  // Build the (player_id × question_id → response) lookup once.
+  const byPlayerQ = new Map<number, Map<string, ResponseRow>>();
+  for (const r of responses) {
+    let m = byPlayerQ.get(r.player_id);
+    if (!m) { m = new Map(); byPlayerQ.set(r.player_id, m); }
+    m.set(r.question_id, r);
+  }
+  const rows = [...deliveries].sort((a, b) =>
+    (a.player?.name ?? '').localeCompare(b.player?.name ?? ''),
+  );
+
+  return (
+    <section
+      className="rounded-2xl bg-[color:var(--card)] border overflow-hidden"
+      style={{ borderColor: 'var(--border)' }}
+    >
+      <header
+        className="flex items-center justify-between gap-3 px-6 py-4 border-b"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <h2 className="text-base font-bold text-[color:var(--ink)]">Responses</h2>
+        <span className="text-[11.5px] text-[color:var(--ink-mute)]">
+          {rows.length} athlete{rows.length === 1 ? '' : 's'} · {questions.length} question{questions.length === 1 ? '' : 's'}
+        </span>
+      </header>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12.5px] tabular border-separate border-spacing-0">
+          <thead>
+            <tr>
+              <th
+                className="sticky left-0 z-10 bg-[color:var(--card)] text-left px-4 py-2 border-b"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <span className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
+                  Athlete
+                </span>
+              </th>
+              {questions.map((q) => {
+                const stats = questionStats.get(q.id) ?? { count: 0, mean: null };
+                return (
+                  <th
+                    key={q.id}
+                    title={q.text}
+                    className="text-left px-2 py-2 border-b align-bottom min-w-[80px]"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)] mono">
+                      Q{q.order}
+                    </div>
+                    {stats.mean !== null && (
+                      <div className="mono text-[11px] tabular text-[color:var(--ink-soft)]">
+                        avg {stats.mean.toFixed(1)}
+                      </div>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((d) => {
+              const answers = byPlayerQ.get(d.player_id) ?? new Map<string, ResponseRow>();
+              return (
+                <tr key={d.id} className="hover:bg-[color:var(--paper-2)]">
+                  <td
+                    className="sticky left-0 z-10 bg-[color:var(--card)] px-4 py-2 border-b align-middle"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <Link
+                      href={`/dashboard/player/${d.player_id}`}
+                      className="text-[13px] font-semibold text-[color:var(--ink)] hover:underline whitespace-nowrap"
+                    >
+                      {d.player?.name ?? '—'}
+                    </Link>
+                  </td>
+                  {questions.map((q) => {
+                    const ans = answers.get(q.id);
+                    if (!ans) {
+                      return (
+                        <td
+                          key={q.id}
+                          className="px-2 py-1.5 border-b text-center text-[color:var(--ink-mute)]"
+                          style={{ borderColor: 'var(--border)' }}
+                        >—</td>
+                      );
+                    }
+                    const tone = cellTone(q, ans);
+                    return (
+                      <td
+                        key={q.id}
+                        className="px-2 py-1.5 border-b"
+                        style={{ borderColor: 'var(--border)' }}
+                        title={ans.answer_raw}
+                      >
+                        <span
+                          className="inline-block rounded px-2 py-1 mono font-semibold whitespace-nowrap"
+                          style={{ background: tone.bg, color: tone.text }}
+                        >
+                          {shortAnswer(q, ans)}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
