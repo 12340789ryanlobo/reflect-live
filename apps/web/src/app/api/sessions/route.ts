@@ -1,10 +1,13 @@
 // apps/web/src/app/api/sessions/route.ts
 //
 // POST: create a session (practice/match/lifting) for the user's team.
-// Captains and coaches can create; athletes cannot. The session is created
-// in shadow mode — no outbound texts go out until the worker's
-// TWILIO_OUTBOUND_ENABLED flag flips. Until then the row is just a
-// container that future scheduled_sends + deliveries hang off.
+// Captains and coaches can create; athletes cannot.
+//
+// When a scheduled_at is supplied we also queue the corresponding
+// scheduled_sends row in the same request — that's the "least-friction"
+// flow the dashboard offers: pick when the survey goes out and we'll
+// handle the rest. We stay in shadow mode regardless: the worker only
+// flips would-be sends to actual sends once TWILIO_OUTBOUND_ENABLED=true.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
@@ -12,6 +15,9 @@ import { createClient } from '@supabase/supabase-js';
 
 const SESSION_TYPES = ['practice', 'match', 'lifting'] as const;
 type SessionType = (typeof SESSION_TYPES)[number];
+
+const CHANNELS = ['whatsapp', 'sms'] as const;
+type Channel = (typeof CHANNELS)[number];
 
 function serviceClient() {
   return createClient(
@@ -30,6 +36,8 @@ export async function POST(req: NextRequest) {
     label?: unknown;
     template_id?: unknown;
     video_links?: unknown;
+    scheduled_at?: unknown;
+    channel?: unknown;
   };
   try {
     body = await req.json();
@@ -49,6 +57,20 @@ export async function POST(req: NextRequest) {
     body.template_id == null ? null : Number(body.template_id);
   if (templateId !== null && !Number.isInteger(templateId)) {
     return NextResponse.json({ error: 'bad_template_id' }, { status: 400 });
+  }
+
+  let scheduledAt: string | null = null;
+  if (body.scheduled_at !== undefined && body.scheduled_at !== null && body.scheduled_at !== '') {
+    const d = new Date(String(body.scheduled_at));
+    if (Number.isNaN(d.getTime())) {
+      return NextResponse.json({ error: 'bad_scheduled_at' }, { status: 400 });
+    }
+    scheduledAt = d.toISOString();
+  }
+  const channel: Channel =
+    body.channel === 'sms' ? 'sms' : 'whatsapp';
+  if (body.channel !== undefined && !CHANNELS.includes(body.channel as Channel)) {
+    return NextResponse.json({ error: 'bad_channel' }, { status: 400 });
   }
 
   const sb = serviceClient();
@@ -76,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { data, error } = await sb
+  const { data: session, error } = await sb
     .from('sessions')
     .insert({
       team_id: pref.team_id,
@@ -90,5 +112,29 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: 'insert_failed', detail: error.message }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, session: data });
+
+  // If the coach picked a scheduled time, queue the send. Stays pending
+  // until the worker scheduler (3f) lands.
+  let scheduled_send: unknown = null;
+  if (scheduledAt) {
+    const { data: ss, error: ssErr } = await sb
+      .from('scheduled_sends')
+      .insert({
+        session_id: session.id,
+        scheduled_at: scheduledAt,
+        channel,
+        status: 'pending',
+      })
+      .select()
+      .single();
+    if (ssErr) {
+      return NextResponse.json(
+        { error: 'session_created_but_schedule_failed', detail: ssErr.message, session },
+        { status: 500 },
+      );
+    }
+    scheduled_send = ss;
+  }
+
+  return NextResponse.json({ ok: true, session, scheduled_send });
 }

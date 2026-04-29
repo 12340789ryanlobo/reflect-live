@@ -63,8 +63,9 @@ function timeBucket(d: Date): string {
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
- * Auto-generate a session label so the dialog opens with a sensible default.
- * The coach can overwrite it; if they don't, this is what gets saved.
+ * Auto-generate a session label from the scheduled-send time + type. Coach
+ * picks the date/time the survey will go out and we name the session for
+ * them. They can overwrite it; if they don't, this is what gets saved.
  *
  *   practice  → "Tue PM practice"
  *   lifting   → "Wed AM lifting"
@@ -81,6 +82,31 @@ function autoLabel(type: SessionType, when: Date): string {
   return `${day} ${bucket} ${noun}`;
 }
 
+/**
+ * Default scheduled-for time for new sessions: today at 5pm if it's still
+ * earlier than that, otherwise tomorrow at 5pm. Rounded to the half hour.
+ * 5pm is when most squads finish on-deck training and the survey can run
+ * the recap loop while it's fresh.
+ */
+function defaultScheduledFor(now = new Date()): Date {
+  const d = new Date(now);
+  d.setSeconds(0, 0);
+  d.setHours(17, 0);
+  if (d <= now) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
+/**
+ * Format a Date for an <input type="datetime-local">. The element wants a
+ * local-time string in `YYYY-MM-DDTHH:MM` form (no timezone suffix).
+ */
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function SessionsPage() {
   const { prefs, role } = useDashboard();
   const sb = useSupabase();
@@ -95,9 +121,11 @@ export default function SessionsPage() {
   const [formType, setFormType] = useState<SessionType>('practice');
   const [formLabel, setFormLabel] = useState('');
   const [formTemplateId, setFormTemplateId] = useState<string>('');
+  const [formScheduledAt, setFormScheduledAt] = useState<string>('');
+  const [formChannel, setFormChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
   // Track whether the coach has hand-edited the label. While untouched, we
-  // re-prefill it whenever they change the type so the suggestion stays in
-  // sync with their selection. Once they type anything, we stop touching it.
+  // re-prefill it whenever they change the type or scheduled-for so the
+  // suggestion stays in sync. Once they type anything, we stop touching it.
   const [labelEdited, setLabelEdited] = useState(false);
   const canCreate = role === 'coach' || role === 'captain' || role === 'admin';
 
@@ -141,21 +169,28 @@ export default function SessionsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Open: seed a fresh suggestion so the coach has one keystroke to commit.
+  // Open: seed sensible defaults so the coach has one keystroke to commit.
   useEffect(() => {
     if (!open) return;
+    const when = defaultScheduledFor();
     setFormType('practice');
     setFormTemplateId('');
-    setFormLabel(autoLabel('practice', new Date()));
+    setFormChannel('whatsapp');
+    setFormScheduledAt(toLocalInputValue(when));
+    setFormLabel(autoLabel('practice', when));
     setLabelEdited(false);
     setErrMsg(null);
   }, [open]);
 
-  // Type changes: refresh the prefilled label unless the coach has touched it.
+  // Type or scheduled-for changes: refresh the prefilled label until the
+  // coach hand-edits it.
   useEffect(() => {
     if (!open || labelEdited) return;
-    setFormLabel(autoLabel(formType, new Date()));
-  }, [formType, open, labelEdited]);
+    if (!formScheduledAt) return;
+    const when = new Date(formScheduledAt);
+    if (Number.isNaN(when.getTime())) return;
+    setFormLabel(autoLabel(formType, when));
+  }, [formType, formScheduledAt, open, labelEdited]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -168,6 +203,9 @@ export default function SessionsPage() {
 
   async function submit() {
     setSaving(true); setErrMsg(null);
+    const scheduledIso = formScheduledAt
+      ? new Date(formScheduledAt).toISOString()
+      : null;
     const res = await fetch('/api/sessions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -175,12 +213,13 @@ export default function SessionsPage() {
         type: formType,
         label: formLabel,
         template_id: formTemplateId ? Number(formTemplateId) : null,
+        scheduled_at: scheduledIso,
+        channel: formChannel,
       }),
     });
     setSaving(false);
     if (res.ok) {
       setOpen(false);
-      setFormLabel(''); setFormTemplateId(''); setFormType('practice');
       await load();
     } else {
       const j = await res.json().catch(() => ({}));
@@ -217,16 +256,40 @@ export default function SessionsPage() {
               <DialogContent>
                 <DialogHeader><DialogTitle>Create a session</DialogTitle></DialogHeader>
                 <div className="grid gap-4 pt-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-1.5">
+                      <label className="text-[12.5px] font-semibold" htmlFor="type">Type</label>
+                      <Select value={formType} onValueChange={(v) => setFormType(v as SessionType)}>
+                        <SelectTrigger id="type"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="practice">Practice</SelectItem>
+                          <SelectItem value="match">Competition</SelectItem>
+                          <SelectItem value="lifting">Lifting</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <label className="text-[12.5px] font-semibold" htmlFor="channel">Channel</label>
+                      <Select value={formChannel} onValueChange={(v) => setFormChannel(v as 'whatsapp' | 'sms')}>
+                        <SelectTrigger id="channel"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                          <SelectItem value="sms">SMS</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   <div className="grid gap-1.5">
-                    <label className="text-[12.5px] font-semibold" htmlFor="type">Type</label>
-                    <Select value={formType} onValueChange={(v) => setFormType(v as SessionType)}>
-                      <SelectTrigger id="type"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="practice">Practice</SelectItem>
-                        <SelectItem value="match">Competition</SelectItem>
-                        <SelectItem value="lifting">Lifting</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <label className="text-[12.5px] font-semibold" htmlFor="sched">Send the survey at</label>
+                    <Input
+                      id="sched"
+                      type="datetime-local"
+                      value={formScheduledAt}
+                      onChange={(e) => setFormScheduledAt(e.target.value)}
+                    />
+                    <p className="text-[11.5px] text-[color:var(--ink-mute)]">
+                      The label below auto-fills from this time and the type — just hit Create.
+                    </p>
                   </div>
                   <div className="grid gap-1.5">
                     <label className="text-[12.5px] font-semibold" htmlFor="label">Label</label>
@@ -236,11 +299,6 @@ export default function SessionsPage() {
                       onChange={(e) => { setFormLabel(e.target.value); setLabelEdited(true); }}
                       placeholder="e.g. Tue AM practice, Sat — Competition"
                     />
-                    {!labelEdited && (
-                      <p className="text-[11.5px] text-[color:var(--ink-mute)]">
-                        Auto-suggested from the type and time. Tweak it or just hit Create.
-                      </p>
-                    )}
                   </div>
                   <div className="grid gap-1.5">
                     <label className="text-[12.5px] font-semibold" htmlFor="tmpl">Template (optional)</label>
@@ -255,7 +313,7 @@ export default function SessionsPage() {
                       </SelectContent>
                     </Select>
                     <p className="text-[11.5px] text-[color:var(--ink-mute)]">
-                      No outbound texts go out yet — sessions are in shadow mode while we soak.
+                      Send is queued in shadow mode — no actual texts go out until cutover.
                     </p>
                   </div>
                   {errMsg && <p className="text-[12.5px] text-[color:var(--red)]">{errMsg}</p>}
