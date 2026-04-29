@@ -5,10 +5,12 @@ import { pollOnce } from './poll';
 import { pollWeatherOnce } from './poll-weather';
 import { pollNewsOnce } from './poll-news';
 import { updateWorkerState } from './state';
+import { pollScheduledSends, pollReminders } from './survey-scheduler';
 
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 15000);
 const WEATHER_INTERVAL_MS = Number(process.env.WEATHER_INTERVAL_MS ?? 600000);
 const NEWS_INTERVAL_MS = Number(process.env.NEWS_INTERVAL_MS ?? 1800000); // 30 min
+const SURVEY_INTERVAL_MS = Number(process.env.SURVEY_INTERVAL_MS ?? 60000); // 1 min
 const BACKFILL_DAYS = Number(process.env.BACKFILL_DAYS ?? 90);
 const DEFAULT_TEAM_ID = 1;
 
@@ -16,6 +18,7 @@ let running = true;
 let twilioErrors = 0;
 let weatherErrors = 0;
 let newsErrors = 0;
+let surveyErrors = 0;
 
 async function loadPhones(sb: ReturnType<typeof createServiceClient>) {
   return async () => {
@@ -90,6 +93,30 @@ async function newsLoop(sb: ReturnType<typeof createServiceClient>) {
   }
 }
 
+async function surveyLoop(
+  sb: ReturnType<typeof createServiceClient>,
+  tw: ReturnType<typeof twilio>,
+) {
+  while (running) {
+    try {
+      const sent = await pollScheduledSends(sb, tw);
+      const rem = await pollReminders(sb, tw);
+      if (sent.processed > 0 || rem.processed > 0) {
+        console.log(
+          '[survey] sends processed=%d dispatched=%d errors=%d · reminders processed=%d errors=%d',
+          sent.processed, sent.dispatched, sent.errors, rem.processed, rem.errors,
+        );
+      }
+      surveyErrors = 0;
+    } catch (err) {
+      surveyErrors += 1;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[survey] error (%d): %s', surveyErrors, msg);
+    }
+    await new Promise((r) => setTimeout(r, backoff(SURVEY_INTERVAL_MS, surveyErrors)));
+  }
+}
+
 async function main() {
   const sb = createServiceClient();
   const tw = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
@@ -98,9 +125,19 @@ async function main() {
   process.on('SIGTERM', () => { running = false; });
   process.on('SIGINT', () => { running = false; });
 
-  console.log('[worker] starting. twilio=%dms weather=%dms news=%dms', POLL_INTERVAL_MS, WEATHER_INTERVAL_MS, NEWS_INTERVAL_MS);
+  const outboundEnabled = process.env.TWILIO_OUTBOUND_ENABLED === 'true';
+  console.log(
+    '[worker] starting. twilio=%dms weather=%dms news=%dms survey=%dms outbound=%s',
+    POLL_INTERVAL_MS, WEATHER_INTERVAL_MS, NEWS_INTERVAL_MS, SURVEY_INTERVAL_MS,
+    outboundEnabled ? 'enabled' : 'shadow',
+  );
 
-  await Promise.all([twilioLoop(sb, tw, cache), weatherLoop(sb), newsLoop(sb)]);
+  await Promise.all([
+    twilioLoop(sb, tw, cache),
+    weatherLoop(sb),
+    newsLoop(sb),
+    surveyLoop(sb, tw),
+  ]);
 
   console.log('[worker] shutdown');
 }
