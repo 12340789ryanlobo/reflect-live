@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Search, Trash2 } from 'lucide-react';
 import { prettyDateTime, relativeTime } from '@/lib/format';
+import { DateTimePicker } from '@/components/v3/datetime-picker';
 import type { SessionType } from '@reflect-live/shared';
 
 interface SessionRow {
@@ -98,14 +99,6 @@ function defaultScheduledFor(now = new Date()): Date {
   return d;
 }
 
-/**
- * Format a Date for an <input type="datetime-local">. The element wants a
- * local-time string in `YYYY-MM-DDTHH:MM` form (no timezone suffix).
- */
-function toLocalInputValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 export default function SessionsPage() {
   const { prefs, role } = useDashboard();
@@ -121,7 +114,7 @@ export default function SessionsPage() {
   const [formType, setFormType] = useState<SessionType>('practice');
   const [formLabel, setFormLabel] = useState('');
   const [formTemplateId, setFormTemplateId] = useState<string>('');
-  const [formScheduledAt, setFormScheduledAt] = useState<string>('');
+  const [formScheduledAt, setFormScheduledAt] = useState<Date>(() => defaultScheduledFor());
   const [formChannel, setFormChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
   // Track whether the coach has hand-edited the label. While untouched, we
   // re-prefill it whenever they change the type or scheduled-for so the
@@ -176,7 +169,7 @@ export default function SessionsPage() {
     setFormType('practice');
     setFormTemplateId('');
     setFormChannel('whatsapp');
-    setFormScheduledAt(toLocalInputValue(when));
+    setFormScheduledAt(when);
     setFormLabel(autoLabel('practice', when));
     setLabelEdited(false);
     setErrMsg(null);
@@ -186,10 +179,7 @@ export default function SessionsPage() {
   // coach hand-edits it.
   useEffect(() => {
     if (!open || labelEdited) return;
-    if (!formScheduledAt) return;
-    const when = new Date(formScheduledAt);
-    if (Number.isNaN(when.getTime())) return;
-    setFormLabel(autoLabel(formType, when));
+    setFormLabel(autoLabel(formType, formScheduledAt));
   }, [formType, formScheduledAt, open, labelEdited]);
 
   const filtered = useMemo(() => {
@@ -203,9 +193,7 @@ export default function SessionsPage() {
 
   async function submit() {
     setSaving(true); setErrMsg(null);
-    const scheduledIso = formScheduledAt
-      ? new Date(formScheduledAt).toISOString()
-      : null;
+    const scheduledIso = formScheduledAt.toISOString();
     const res = await fetch('/api/sessions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -281,11 +269,10 @@ export default function SessionsPage() {
                   </div>
                   <div className="grid gap-1.5">
                     <label className="text-[12.5px] font-semibold" htmlFor="sched">Send the survey at</label>
-                    <Input
-                      id="sched"
-                      type="datetime-local"
+                    <DateTimePicker
                       value={formScheduledAt}
-                      onChange={(e) => setFormScheduledAt(e.target.value)}
+                      onChange={setFormScheduledAt}
+                      minDate={new Date()}
                     />
                     <p className="text-[11.5px] text-[color:var(--ink-mute)]">
                       The label below auto-fills from this time and the type — just hit Create.
