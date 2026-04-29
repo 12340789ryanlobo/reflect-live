@@ -135,16 +135,15 @@ export default function SessionDetailPage() {
     [session],
   );
 
-  // Per-question stats: count of answers + numeric mean for scale-style types.
+  // Per-question summary stats. Shape varies by question type because
+  // a single 'avg' field doesn't read well for binary (avg 0.3 means
+  // "30% yes") or 1-3 choice (avg 1.7 hides the distribution). Each
+  // type builds the summary it actually wants to display in the header.
   const questionStats = useMemo(() => {
-    const out = new Map<string, { count: number; mean: number | null }>();
+    const out = new Map<string, QuestionStats>();
     for (const q of questions) {
       const answers = responses.filter((r) => r.question_id === q.id);
-      const numeric = answers
-        .map((a) => a.answer_num)
-        .filter((n): n is number => n !== null);
-      const mean = numeric.length ? numeric.reduce((a, b) => a + b, 0) / numeric.length : null;
-      out.set(q.id, { count: answers.length, mean });
+      out.set(q.id, computeQuestionStats(q, answers));
     }
     return out;
   }, [questions, responses]);
@@ -359,7 +358,54 @@ interface MatrixProps {
   questions: SurveyQuestion[];
   deliveries: DeliveryRow[];
   responses: ResponseRow[];
-  questionStats: Map<string, { count: number; mean: number | null }>;
+  questionStats: Map<string, QuestionStats>;
+}
+
+// Per-question summary, shape per type. The header renderer
+// (QuestionSummary) consumes this — keeps the matrix code branch-free.
+type QuestionStats =
+  | { kind: 'numeric';      count: number; mean: number; min: number; max: number; highIsBad: boolean }
+  | { kind: 'binary';       count: number; yes: number }
+  | { kind: 'choice_1_3';   count: number; buckets: [number, number, number] }
+  | { kind: 'text';         count: number }
+  | { kind: 'empty' };
+
+function computeQuestionStats(q: SurveyQuestion, answers: ResponseRow[]): QuestionStats {
+  if (answers.length === 0) return { kind: 'empty' };
+  const flag = q.flag_rule;
+  const highIsBad =
+    flag?.condition === 'value >= 7' ||
+    flag?.condition === 'any_rating >= 7' ||
+    flag?.condition === 'value == 1';
+
+  if (q.type === 'scale_1_10' || q.type === 'captain_rating') {
+    const nums = answers.map((a) => a.answer_num).filter((n): n is number => n !== null);
+    if (nums.length === 0) return { kind: 'text', count: answers.length };
+    const sum = nums.reduce((a, b) => a + b, 0);
+    return {
+      kind: 'numeric',
+      count: answers.length,
+      mean: sum / nums.length,
+      min: q.validation?.min ?? 1,
+      max: q.validation?.max ?? 10,
+      highIsBad,
+    };
+  }
+  if (q.type === 'binary') {
+    let yes = 0;
+    for (const a of answers) if (a.answer_num === 1) yes += 1;
+    return { kind: 'binary', count: answers.length, yes };
+  }
+  if (q.type === 'choice_1_3') {
+    const buckets: [number, number, number] = [0, 0, 0];
+    for (const a of answers) {
+      if (a.answer_num === 1) buckets[0] += 1;
+      else if (a.answer_num === 2) buckets[1] += 1;
+      else if (a.answer_num === 3) buckets[2] += 1;
+    }
+    return { kind: 'choice_1_3', count: answers.length, buckets };
+  }
+  return { kind: 'text', count: answers.length };
 }
 
 /**
@@ -431,6 +477,90 @@ function shortAnswer(question: SurveyQuestion, answer: ResponseRow): DisplayedAn
     return { text: `${t.slice(0, CELL_TEXT_LIMIT - 1)}…`, truncated: true };
   }
   return { text: t, truncated: false };
+}
+
+/**
+ * Type-aware column header summary. Reads better than a single 'avg X.X'
+ * for every type:
+ *
+ *   numeric    → '4.9 / 10' with a tiny bar showing where the mean sits,
+ *                tinted by score (low = red unless the question is
+ *                pain-style, in which case low = green)
+ *   binary     → '30%' label + tiny fill bar showing yes-rate
+ *   choice_1_3 → small distribution stack (light · right · heavy)
+ *   text       → '12 replies'
+ *   empty      → nothing rendered
+ */
+function QuestionSummary({ stats }: { stats: QuestionStats }) {
+  if (stats.kind === 'empty') return null;
+
+  if (stats.kind === 'numeric') {
+    const ratio = (stats.mean - stats.min) / (stats.max - stats.min);
+    const goodSoft = 'var(--green)';
+    const badSoft = 'var(--red)';
+    const midSoft = 'var(--amber)';
+    const tone =
+      ratio <= 0.3 ? (stats.highIsBad ? goodSoft : badSoft)
+      : ratio >= 0.7 ? (stats.highIsBad ? badSoft : goodSoft)
+      : midSoft;
+    return (
+      <div className="mt-1 space-y-1">
+        <div className="mono text-[11.5px] tabular text-[color:var(--ink-soft)]">
+          {stats.mean.toFixed(1)}
+          <span className="text-[color:var(--ink-mute)]"> / {stats.max}</span>
+        </div>
+        <div className="h-[3px] rounded-full bg-[color:var(--paper-2)] overflow-hidden">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${Math.min(100, Math.max(0, ratio * 100))}%`, background: tone }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (stats.kind === 'binary') {
+    const pct = stats.count === 0 ? 0 : Math.round((stats.yes / stats.count) * 100);
+    // Yes-rate is "concerning" by reflect's convention (yes = pain/injury).
+    return (
+      <div className="mt-1 space-y-1">
+        <div className="mono text-[11.5px] tabular text-[color:var(--ink-soft)]">
+          {pct}% yes
+          <span className="text-[color:var(--ink-mute)]"> ({stats.yes}/{stats.count})</span>
+        </div>
+        <div className="h-[3px] rounded-full bg-[color:var(--paper-2)] overflow-hidden">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${pct}%`, background: 'var(--red)' }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (stats.kind === 'choice_1_3') {
+    const total = stats.count || 1;
+    const [light, right, heavy] = stats.buckets;
+    return (
+      <div className="mt-1 space-y-1">
+        <div className="mono text-[11.5px] tabular text-[color:var(--ink-soft)]">
+          {light}·{right}·{heavy}
+        </div>
+        <div className="flex h-[3px] w-full overflow-hidden rounded-full bg-[color:var(--paper-2)]">
+          <div style={{ width: `${(light / total) * 100}%`, background: 'var(--green)' }} />
+          <div style={{ width: `${(right / total) * 100}%`, background: 'var(--ink-mute)' }} />
+          <div style={{ width: `${(heavy / total) * 100}%`, background: 'var(--amber)' }} />
+        </div>
+      </div>
+    );
+  }
+
+  // text — just the count
+  return (
+    <div className="mt-1 mono text-[11.5px] tabular text-[color:var(--ink-mute)]">
+      {stats.count} repl{stats.count === 1 ? 'y' : 'ies'}
+    </div>
+  );
 }
 
 /**
@@ -534,22 +664,18 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                 </span>
               </th>
               {questions.map((q) => {
-                const stats = questionStats.get(q.id) ?? { count: 0, mean: null };
+                const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
                 return (
                   <th
                     key={q.id}
                     title={q.text}
-                    className="text-left px-2 py-2 border-b align-bottom min-w-[80px]"
+                    className="text-left px-2 py-2 border-b align-bottom min-w-[110px]"
                     style={{ borderColor: 'var(--border)' }}
                   >
                     <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)] mono">
                       Q{q.order}
                     </div>
-                    {stats.mean !== null && (
-                      <div className="mono text-[11px] tabular text-[color:var(--ink-soft)]">
-                        avg {stats.mean.toFixed(1)}
-                      </div>
-                    )}
+                    <QuestionSummary stats={stats} />
                   </th>
                 );
               })}
