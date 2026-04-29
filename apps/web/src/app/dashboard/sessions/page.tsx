@@ -244,6 +244,21 @@ export default function SessionsPage() {
     });
   }, [rows, search, typeFilter]);
 
+  // When neither search nor type filter is active, only the most recent
+  // INITIAL_VISIBLE rows render — coaches scroll through 'last few weeks'
+  // by default and click 'Show older' to load the rest. With a filter
+  // active, every match is rendered (so an old session is findable by
+  // name without expanding first).
+  const INITIAL_VISIBLE = 20;
+  const [showAll, setShowAll] = useState(false);
+  const isFiltered = search.trim() !== '' || typeFilter !== 'all';
+  const visible = isFiltered || showAll ? filtered : filtered.slice(0, INITIAL_VISIBLE);
+  const hiddenCount = filtered.length - visible.length;
+
+  // Reset the 'show all' toggle when filters change so the natural
+  // collapsed state returns the next time the user clears filters.
+  useEffect(() => { setShowAll(false); }, [search, typeFilter]);
+
   async function submit() {
     setSaving(true); setErrMsg(null);
     const scheduledIso = formScheduledAt.toISOString();
@@ -449,7 +464,13 @@ export default function SessionsPage() {
                 <SelectItem value="lifting">Lifting</SelectItem>
               </SelectContent>
             </Select>
-            <span className="text-[11.5px] text-[color:var(--ink-mute)]">{filtered.length} shown</span>
+            <span className="text-[11.5px] text-[color:var(--ink-mute)]">
+              {isFiltered || showAll
+                ? `${filtered.length} shown`
+                : hiddenCount > 0
+                  ? `${visible.length} of ${filtered.length}`
+                  : `${filtered.length} shown`}
+            </span>
           </header>
 
           {loading ? (
@@ -462,7 +483,7 @@ export default function SessionsPage() {
             </p>
           ) : (
             <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {filtered.map((s) => {
+              {visible.map((s) => {
                 const completion = s.delivered_count > 0
                   ? Math.round((s.completed_count / s.delivered_count) * 100)
                   : 0;
@@ -507,6 +528,16 @@ export default function SessionsPage() {
                 );
               })}
             </ul>
+          )}
+          {!loading && !isFiltered && hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="w-full border-t px-6 py-3 text-[12.5px] font-semibold text-[color:var(--blue)] hover:bg-[color:var(--paper-2)] transition"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              Show {hiddenCount} older session{hiddenCount === 1 ? '' : 's'}
+            </button>
           )}
         </section>
       </main>
