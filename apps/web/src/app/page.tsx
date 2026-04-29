@@ -3,6 +3,12 @@ import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { Brand } from '@/components/v3/brand';
 
+// auth() is dynamic — opt out of static rendering so the redirect runs
+// at request time on Vercel. Without this, Next 16 + Turbopack was
+// pre-rendering `/` and the deploy ended up serving a 500 instead of
+// either the static landing or the redirect.
+export const dynamic = 'force-dynamic';
+
 export default async function Landing() {
   const { userId } = await auth();
   if (userId) redirect('/dashboard');
