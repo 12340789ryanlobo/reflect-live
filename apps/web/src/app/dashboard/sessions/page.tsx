@@ -68,18 +68,21 @@ const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * picks the date/time the survey will go out and we name the session for
  * them. They can overwrite it; if they don't, this is what gets saved.
  *
- *   practice  → "Tue PM practice"
- *   lifting   → "Wed AM lifting"
- *   match     → "Sat Apr 28 — Competition"
+ * Standardized template: "{weekday} {time-bucket} {type}"
+ *   practice    → "Wed PM practice"
+ *   lifting     → "Wed PM lifting"
+ *   competition → "Wed PM competition"
+ *
+ * Same skeleton across all session types so labels sort and read
+ * predictably; only the trailing type-word changes.
  */
 function autoLabel(type: SessionType, when: Date): string {
   const day = WEEKDAY[when.getDay()];
-  if (type === 'match') {
-    const month = when.toLocaleString('en-US', { month: 'short' });
-    return `${day} ${month} ${when.getDate()} — Competition`;
-  }
   const bucket = timeBucket(when);
-  const noun = type === 'lifting' ? 'lifting' : 'practice';
+  const noun =
+    type === 'lifting' ? 'lifting'
+    : type === 'match' ? 'competition'
+    : 'practice';
   return `${day} ${bucket} ${noun}`;
 }
 

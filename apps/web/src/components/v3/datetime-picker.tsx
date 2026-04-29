@@ -126,7 +126,7 @@ export function DateTimePicker({ value, onChange, minDate, className }: Props) {
         <button
           type="button"
           className={cn(
-            'flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-[color:var(--card)] px-3 text-[13px] text-left',
+            'flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 text-[13px] text-left',
             'hover:border-[color:var(--border-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40',
             className,
           )}
