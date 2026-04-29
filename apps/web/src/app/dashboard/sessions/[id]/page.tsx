@@ -7,14 +7,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { Popover as PopoverPrimitive } from 'radix-ui';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Pill } from '@/components/v3/pill';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronLeft, Pencil, Save, X } from 'lucide-react';
+import { ChevronLeft, MessageSquareText, Pencil, Save, X } from 'lucide-react';
 import { prettyDateTime, relativeTime } from '@/lib/format';
 import type { SessionMetadata, SessionType, SurveyQuestion } from '@reflect-live/shared';
+
+// Truncation budget for text answers in the matrix. Anything longer is
+// shown as `<head>…` with a click-to-expand popover for the full text.
+const CELL_TEXT_LIMIT = 18;
 
 interface SessionRow {
   id: number;
@@ -397,21 +402,97 @@ function cellTone(question: SurveyQuestion, answer: ResponseRow): { bg: string; 
   return { bg: 'var(--paper-2)', text: 'var(--ink)' };
 }
 
-function shortAnswer(question: SurveyQuestion, answer: ResponseRow): string {
+interface DisplayedAnswer {
+  text: string;       // what to render inside the cell
+  truncated: boolean; // whether full text exceeds CELL_TEXT_LIMIT — drives the popover
+}
+
+function shortAnswer(question: SurveyQuestion, answer: ResponseRow): DisplayedAnswer {
   if (question.type === 'binary') {
-    if (answer.answer_num === 1) return 'yes';
-    if (answer.answer_num === 0) return 'no';
+    if (answer.answer_num === 1) return { text: 'yes', truncated: false };
+    if (answer.answer_num === 0) return { text: 'no', truncated: false };
   }
   if (answer.answer_num !== null && (
     question.type === 'scale_1_10' ||
     question.type === 'choice_1_3' ||
     question.type === 'captain_rating'
   )) {
-    return String(answer.answer_num);
+    // For captain_rating, the full text often carries a comment beyond the
+    // leading number — show the number in the cell, expose the comment via
+    // the popover when there's more content than just the digit.
+    const raw = (answer.answer_raw ?? '').trim();
+    const truncated = question.type === 'captain_rating'
+      && raw.length > String(answer.answer_num).length;
+    return { text: String(answer.answer_num), truncated };
   }
   // Free text or unknown — clamp visible length so cells stay tidy
   const t = answer.answer_raw ?? '';
-  return t.length > 18 ? `${t.slice(0, 17)}…` : t;
+  if (t.length > CELL_TEXT_LIMIT) {
+    return { text: `${t.slice(0, CELL_TEXT_LIMIT - 1)}…`, truncated: true };
+  }
+  return { text: t, truncated: false };
+}
+
+/**
+ * Single cell in the matrix. When the answer fits, renders a compact
+ * tinted span. When it's truncated (long free-text or captain-rating
+ * with a comment), wraps the span in a Radix Popover so the coach can
+ * tap/click to read the full message — keeps the table dense without
+ * losing access to the long-form content.
+ */
+function AnswerCell({
+  question,
+  answer,
+  athleteName,
+}: {
+  question: SurveyQuestion;
+  answer: ResponseRow;
+  athleteName: string;
+}) {
+  const tone = cellTone(question, answer);
+  const display = shortAnswer(question, answer);
+  const trigger = (
+    <span
+      className="inline-flex items-center gap-1 rounded px-2 py-1 mono font-semibold whitespace-nowrap"
+      style={{ background: tone.bg, color: tone.text }}
+    >
+      {display.text}
+      {display.truncated && (
+        <MessageSquareText className="size-3 opacity-60" aria-hidden />
+      )}
+    </span>
+  );
+
+  if (!display.truncated) {
+    return trigger;
+  }
+
+  return (
+    <PopoverPrimitive.Root>
+      <PopoverPrimitive.Trigger
+        className="cursor-pointer rounded transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40"
+        aria-label={`Full answer from ${athleteName} for question ${question.order}`}
+      >
+        {trigger}
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="start"
+          sideOffset={6}
+          className="z-50 max-w-[360px] rounded-2xl border bg-[color:var(--card)] p-4 shadow-lg"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
+            {athleteName} · Q{question.order}
+          </div>
+          <p className="mt-1 text-[12px] text-[color:var(--ink-soft)] italic">{question.text}</p>
+          <p className="mt-3 text-[13px] text-[color:var(--ink)] whitespace-pre-wrap break-words">
+            {answer.answer_raw}
+          </p>
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  );
 }
 
 function ResponseMatrix({ questions, deliveries, responses, questionStats }: MatrixProps) {
@@ -501,20 +582,17 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                         >—</td>
                       );
                     }
-                    const tone = cellTone(q, ans);
                     return (
                       <td
                         key={q.id}
                         className="px-2 py-1.5 border-b"
                         style={{ borderColor: 'var(--border)' }}
-                        title={ans.answer_raw}
                       >
-                        <span
-                          className="inline-block rounded px-2 py-1 mono font-semibold whitespace-nowrap"
-                          style={{ background: tone.bg, color: tone.text }}
-                        >
-                          {shortAnswer(q, ans)}
-                        </span>
+                        <AnswerCell
+                          question={q}
+                          answer={ans}
+                          athleteName={d.player?.name ?? '—'}
+                        />
                       </td>
                     );
                   })}
