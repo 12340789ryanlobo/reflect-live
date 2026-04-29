@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { load } from 'js-yaml';
 
-import type { SurveyConfig, SurveyQuestion } from './types.js';
-import { normalizeQuestions } from './flow.js';
+import type { SurveyConfig, SurveyQuestion } from './types';
+import { normalizeQuestions } from './flow';
 
 let cached: SurveyConfig | null = null;
 

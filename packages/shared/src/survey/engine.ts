@@ -19,19 +19,19 @@ import type {
   SessionRow,
   SurveyConfig,
   SurveyQuestion,
-} from './types.js';
+} from './types';
 import {
   getCompletionMessage,
   getErrorMessage,
   loadSurveyConfig,
   poolForSession,
-} from './config.js';
-import { evaluateFlagRule, validateAnswer } from './validate.js';
+} from './config';
+import { evaluateFlagRule, validateAnswer } from './validate';
 import {
   findNextQuestion,
   normalizeQuestions,
   questionAtProgress,
-} from './flow.js';
+} from './flow';
 
 export interface ProcessResponseResult {
   ok: boolean;

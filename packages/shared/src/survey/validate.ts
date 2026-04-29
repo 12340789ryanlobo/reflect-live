@@ -5,8 +5,8 @@
 //
 // Mirrors reflect/app/survey_engine.py::SurveyEngine._validate_response.
 
-import type { FlagSeverity, FlagType, SurveyConfig, SurveyQuestion } from './types.js';
-import { parseBodyRegions, parseScaleResponse } from './parse.js';
+import type { FlagSeverity, FlagType, SurveyConfig, SurveyQuestion } from './types';
+import { parseBodyRegions, parseScaleResponse } from './parse';
 
 export type ValidateResult =
   | { ok: true; value: number | null; error: null }

@@ -4,7 +4,7 @@
 //
 // `getResponse` is injected so this stays pure-ish (no Supabase coupling).
 
-import type { SurveyQuestion } from './types.js';
+import type { SurveyQuestion } from './types';
 
 export type GetResponseFn = (
   sessionId: number,
