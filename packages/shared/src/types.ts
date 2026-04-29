@@ -18,6 +18,10 @@ export interface Team {
   twilio_phone_number?: string | null;
   scoring_json: TeamScoring;
   default_gender: Gender;
+  // Phase 1a additions:
+  team_code: string | null;       // shareable join code
+  creation_status: TeamCreationStatus;
+  activity_visibility: ActivityVisibility;
 }
 
 export interface Player {
@@ -76,6 +80,8 @@ export interface UserPreferences {
   impersonate_player_id: number | null;
   created_at: string;
   updated_at: string;
+  // Phase 1a addition:
+  is_platform_admin: boolean;
 }
 
 export interface Location {
@@ -110,4 +116,40 @@ export interface NewsItem {
   image_url: string | null;
   published_at: string | null;
   ingested_at: string;
+}
+
+// ---- Membership foundation (sub-1, see 2026-04-29 spec) -------------------
+
+export type MembershipRole = 'athlete' | 'captain' | 'coach';
+
+export type MembershipStatus =
+  | 'requested'  // athlete asked to join, awaiting decision
+  | 'invited'    // (sub-4) coach pre-invited, awaiting claim
+  | 'active'     // confirmed both ways, full member
+  | 'denied'     // coach declined the request (audit row)
+  | 'left'       // athlete voluntarily left or withdrew request
+  | 'removed';   // coach removed athlete from team
+
+export type TeamCreationStatus = 'pending' | 'active' | 'suspended';
+
+export type ActivityVisibility = 'public' | 'coaches_only';
+
+export interface TeamMembership {
+  clerk_user_id: string;
+  team_id: number;
+  player_id: number | null;
+  role: MembershipRole;
+  status: MembershipStatus;
+  default_team: boolean;
+  requested_name: string | null;
+  requested_email: string | null;
+  requested_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+  deny_reason: string | null;
+}
+
+export interface PlatformSettings {
+  id: 1;
+  require_team_approval: boolean;
 }
