@@ -22,7 +22,6 @@ import {
   Radio,
   HeartPulse,
   ClipboardList,
-  FileText,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -46,6 +45,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Brand } from './v3/brand';
@@ -54,10 +56,12 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import type { UserRole } from '@reflect-live/shared';
 
+type NavChild = { href: string; label: string };
 type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  children?: NavChild[];
 };
 
 type NavGroup = {
@@ -71,8 +75,12 @@ const COACH_NAV: NavItem[] = [
   { href: '/dashboard/players', label: 'Athletes', icon: Users },
   { href: '/dashboard/fitness', label: 'Activity', icon: Dumbbell },
   { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
-  { href: '/dashboard/sessions', label: 'Sessions', icon: ClipboardList },
-  { href: '/dashboard/templates', label: 'Templates', icon: FileText },
+  {
+    href: '/dashboard/sessions',
+    label: 'Sessions',
+    icon: ClipboardList,
+    children: [{ href: '/dashboard/templates', label: 'Templates' }],
+  },
   { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
 ];
 
@@ -86,8 +94,12 @@ const CAPTAIN_NAV: NavItem[] = [
   { href: '/dashboard/live', label: 'Live', icon: Radio },
   { href: '/dashboard/captain/follow-ups', label: 'Follow-ups', icon: Users },
   { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
-  { href: '/dashboard/sessions', label: 'Sessions', icon: ClipboardList },
-  { href: '/dashboard/templates', label: 'Templates', icon: FileText },
+  {
+    href: '/dashboard/sessions',
+    label: 'Sessions',
+    icon: ClipboardList,
+    children: [{ href: '/dashboard/templates', label: 'Templates' }],
+  },
   { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
 ];
 
@@ -108,6 +120,8 @@ const ROLE_PILL: Record<UserRole, { tone: 'red' | 'blue' | 'amber' | 'green'; la
 
 function NavGroupBlock({ group }: { group: NavGroup }) {
   const pathname = usePathname();
+  const { state } = useSidebar();
+  const collapsed = state === 'collapsed';
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -115,9 +129,18 @@ function NavGroupBlock({ group }: { group: NavGroup }) {
         <SidebarMenu>
           {group.items.map((item) => {
             const Icon = item.icon;
+            const parentBase = item.href.split('#')[0];
             const active =
               pathname === item.href ||
-              (item.href !== '/dashboard' && pathname.startsWith(item.href.split('#')[0]));
+              (item.href !== '/dashboard' && pathname.startsWith(parentBase));
+            // Auto-expand the submenu when the user is on the parent or
+            // on any of its children. The list-of-templates page lives
+            // under a sibling route, so we treat any child being active
+            // as a reason to keep the dropdown open.
+            const childActive = !!item.children?.some(
+              (c) => pathname === c.href || pathname.startsWith(`${c.href}/`),
+            );
+            const expanded = !collapsed && (active || childActive);
             return (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
@@ -126,6 +149,22 @@ function NavGroupBlock({ group }: { group: NavGroup }) {
                     <span>{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
+                {item.children && expanded && (
+                  <SidebarMenuSub>
+                    {item.children.map((c) => {
+                      const cActive = pathname === c.href || pathname.startsWith(`${c.href}/`);
+                      return (
+                        <SidebarMenuSubItem key={c.href}>
+                          <SidebarMenuSubButton asChild isActive={cActive}>
+                            <Link href={c.href}>
+                              <span>{c.label}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
+                  </SidebarMenuSub>
+                )}
               </SidebarMenuItem>
             );
           })}
