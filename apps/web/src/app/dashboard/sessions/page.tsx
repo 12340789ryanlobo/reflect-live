@@ -139,15 +139,18 @@ export default function SessionsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: ss }, { data: ds }, { data: fs }, { data: tpls }, { data: pendingSends }] = await Promise.all([
+    // Sessions are fetched first so the heavier per-session joins
+    // (deliveries, flags) can be scoped via .in() rather than pulling
+    // every row on the team. At ~3-5 sessions/week that's a season's
+    // worth in the limit; the deliveries/flags scope keeps the join
+    // cheap regardless of how big sessions get.
+    const [{ data: ss }, { data: tpls }, { data: pendingSends }] = await Promise.all([
       sb.from('sessions')
         .select('id,type,label,template_id,created_at,deleted_at')
         .eq('team_id', prefs.team_id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
-        .limit(200),
-      sb.from('deliveries').select('session_id,status'),
-      sb.from('flags').select('session_id'),
+        .limit(500),
       sb.from('question_templates')
         .select('id,name,session_type')
         .eq('team_id', prefs.team_id)
@@ -159,6 +162,15 @@ export default function SessionsPage() {
         .is('sessions.deleted_at', null)
         .order('scheduled_at', { ascending: true })
         .limit(50),
+    ]);
+    const sessionIds = (ss ?? []).map((s) => (s as { id: number }).id);
+    const [{ data: ds }, { data: fs }] = await Promise.all([
+      sessionIds.length === 0
+        ? Promise.resolve({ data: [] })
+        : sb.from('deliveries').select('session_id,status').in('session_id', sessionIds),
+      sessionIds.length === 0
+        ? Promise.resolve({ data: [] })
+        : sb.from('flags').select('session_id').in('session_id', sessionIds),
     ]);
     const dCounts = new Map<number, { total: number; done: number }>();
     for (const d of (ds ?? []) as Array<{ session_id: number; status: string }>) {
