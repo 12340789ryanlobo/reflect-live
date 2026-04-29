@@ -216,6 +216,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         <AppSidebar
           role={role}
           teamName={team.name}
+          teamId={team.id}
+          isPlatformAdmin={prefs.is_platform_admin === true}
           hasLinkedAthlete={Boolean(prefs.impersonate_player_id)}
         />
         <SidebarInset>

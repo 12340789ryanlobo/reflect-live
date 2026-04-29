@@ -52,6 +52,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Brand } from './v3/brand';
+import { TeamSwitcher } from './v3/team-switcher';
 import { Pill } from './v3/pill';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -180,10 +181,14 @@ function NavGroupBlock({ group }: { group: NavGroup }) {
 export function AppSidebar({
   role,
   teamName,
+  teamId,
+  isPlatformAdmin = false,
   hasLinkedAthlete,
 }: {
   role: UserRole;
   teamName?: string;
+  teamId?: number;
+  isPlatformAdmin?: boolean;
   hasLinkedAthlete?: boolean;
 }) {
   const { state } = useSidebar();
@@ -243,10 +248,12 @@ export function AppSidebar({
           aria-hidden={collapsed}
         >
           <RoleSwitcher current={role} />
-          {teamName && (
-            <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
-              {teamName}
-            </span>
+          {teamName && teamId !== undefined && (
+            <TeamSwitcher
+              currentTeamId={teamId}
+              currentTeamName={teamName}
+              isPlatformAdmin={isPlatformAdmin}
+            />
           )}
         </div>
       </SidebarHeader>
