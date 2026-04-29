@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Popover as PopoverPrimitive } from 'radix-ui';
+import { HoverCard as HoverCardPrimitive, Popover as PopoverPrimitive } from 'radix-ui';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Pill } from '@/components/v3/pill';
@@ -510,37 +510,6 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
         </span>
       </header>
 
-      {/* Question reference list — sits at the TOP of the matrix card.
-          Coach reads what each Q is asking once, then scans the heatmap
-          below using just the Q-numbers. Two-column flex per row keeps
-          the question text on the left and the team summary right-aligned. */}
-      <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
-        <ol className="space-y-1.5">
-          {questions.map((q) => {
-            const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
-            return (
-              <li key={q.id} className="flex items-baseline gap-3">
-                <span className="mono text-[11px] font-bold tabular text-[color:var(--ink-mute)] shrink-0 w-6">
-                  Q{q.order}
-                </span>
-                <span className="flex-1 min-w-0 text-[13px] text-[color:var(--ink)] leading-snug">
-                  {q.text}
-                  {(q.captain_only || q.conditional) && (
-                    <span className="ml-2 text-[11px] text-[color:var(--ink-mute)]">
-                      {q.captain_only && '· captain only '}
-                      {q.conditional && `· shows when ${q.conditional.depends_on} = ${q.conditional.show_if}`}
-                    </span>
-                  )}
-                </span>
-                <span className="shrink-0 text-[11.5px] text-[color:var(--ink-mute)]">
-                  <SummaryBar stats={stats} />
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      </div>
-
       <div className="overflow-x-auto">
         <table className="w-full text-[12.5px] tabular border-separate border-spacing-0">
           <thead>
@@ -553,18 +522,18 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                   Athlete
                 </span>
               </th>
-              {questions.map((q) => (
-                <th
-                  key={q.id}
-                  title={q.text}
-                  className="text-center px-2 py-2 border-b w-[64px]"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <span className="mono text-[11px] font-bold tabular text-[color:var(--ink-soft)]">
-                    Q{q.order}
-                  </span>
-                </th>
-              ))}
+              {questions.map((q) => {
+                const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
+                return (
+                  <th
+                    key={q.id}
+                    className="text-center px-2 py-2 border-b w-[64px]"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <QuestionHover q={q} stats={stats} />
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -675,11 +644,66 @@ function AnswerCell({
 }
 
 /**
- * Compact team-level summary used in the question reference list at the
- * top of the matrix card. Type-aware so the label matches the answer
- * space (avg out-of-N for scales, % yes for binary, etc.). No bar —
- * just text — so the reference list stays a tight one-line-per-question
- * read.
+ * Q-number column header. Looks like just 'Q1' / 'Q2' to keep columns
+ * tight, but is a HoverCard trigger: hovering or focusing the cell pops
+ * up a card with the full question text + type + any conditional/flag
+ * rules + the type-aware team summary. Touch devices fall back to
+ * tap-to-open via the same Radix primitive.
+ */
+function QuestionHover({ q, stats }: { q: SurveyQuestion; stats: QuestionStats }) {
+  return (
+    <HoverCardPrimitive.Root openDelay={120} closeDelay={80}>
+      <HoverCardPrimitive.Trigger asChild>
+        <button
+          type="button"
+          aria-label={`Question ${q.order}: ${q.text}`}
+          className="mono text-[11px] font-bold tabular text-[color:var(--ink-soft)] cursor-help hover:text-[color:var(--blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40 rounded"
+        >
+          Q{q.order}
+        </button>
+      </HoverCardPrimitive.Trigger>
+      <HoverCardPrimitive.Portal>
+        <HoverCardPrimitive.Content
+          align="center"
+          sideOffset={6}
+          className="z-50 max-w-[360px] rounded-2xl border bg-[color:var(--card)] p-4 shadow-lg"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
+              Question {q.order}
+            </div>
+            <Pill tone="mute">{QUESTION_TYPE_LABEL[q.type] ?? q.type}</Pill>
+          </div>
+          <p className="text-[13px] text-[color:var(--ink)] whitespace-pre-wrap break-words text-left">
+            {q.text}
+          </p>
+          {(q.captain_only || q.conditional || q.flag_rule) && (
+            <ul className="mt-3 space-y-1 text-[11.5px] text-[color:var(--ink-mute)] text-left">
+              {q.captain_only && <li>· captain only</li>}
+              {q.conditional && (
+                <li>· shows when <span className="mono">{q.conditional.depends_on}</span> = <span className="mono">{q.conditional.show_if}</span></li>
+              )}
+              {q.flag_rule && (
+                <li>· flags <span className="mono">{q.flag_rule.flag_type}</span> when <span className="mono">{q.flag_rule.condition}</span></li>
+              )}
+            </ul>
+          )}
+          {stats.kind !== 'empty' && (
+            <div className="mt-3 pt-3 border-t text-[11.5px] text-[color:var(--ink-mute)] text-left" style={{ borderColor: 'var(--border)' }}>
+              <SummaryBar stats={stats} />
+            </div>
+          )}
+        </HoverCardPrimitive.Content>
+      </HoverCardPrimitive.Portal>
+    </HoverCardPrimitive.Root>
+  );
+}
+
+/**
+ * Compact team-level summary used in the question hover popover.
+ * Type-aware so the label matches the answer space (avg out-of-N for
+ * scales, % yes for binary, etc.).
  */
 function SummaryBar({ stats }: { stats: QuestionStats }) {
   if (stats.kind === 'empty') {
