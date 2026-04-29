@@ -245,11 +245,11 @@ export default function SessionsPage() {
   }, [rows, search, typeFilter]);
 
   // When neither search nor type filter is active, only the most recent
-  // INITIAL_VISIBLE rows render — coaches scroll through 'last few weeks'
-  // by default and click 'Show older' to load the rest. With a filter
-  // active, every match is rendered (so an old session is findable by
-  // name without expanding first).
-  const INITIAL_VISIBLE = 20;
+  // INITIAL_VISIBLE rows render — coaches scroll through 'last couple
+  // of weeks' by default and click 'Show older' to load the rest. With
+  // a filter active, every match is rendered (so an old session is
+  // findable by name without expanding first).
+  const INITIAL_VISIBLE = 10;
   const [showAll, setShowAll] = useState(false);
   const isFiltered = search.trim() !== '' || typeFilter !== 'all';
   const visible = isFiltered || showAll ? filtered : filtered.slice(0, INITIAL_VISIBLE);
