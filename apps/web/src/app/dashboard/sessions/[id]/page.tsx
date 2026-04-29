@@ -479,6 +479,92 @@ function shortAnswer(question: SurveyQuestion, answer: ResponseRow): DisplayedAn
   return { text: t, truncated: false };
 }
 
+// Short tags for each question type — shown in the popover so the
+// coach knows what answer shape the question expected. Same vocabulary
+// as the templates editor.
+const QUESTION_TYPE_LABEL: Record<SurveyQuestion['type'], string> = {
+  scale_1_10: '1-10 scale',
+  binary: 'yes / no',
+  choice_1_3: '1-3 choice',
+  captain_rating: 'captain rating',
+  multi_select_body_regions: 'body regions',
+  free_text: 'free text',
+};
+
+const QUESTION_HINT_LIMIT = 30;
+
+function shortenQuestion(text: string): string {
+  // Some YAML questions embed instructions on a second line
+  // ("Reply: 0=no, 1=yes"); collapse those to a single space and clip
+  // so the column header stays one tidy row.
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > QUESTION_HINT_LIMIT
+    ? `${flat.slice(0, QUESTION_HINT_LIMIT - 1)}…`
+    : flat;
+}
+
+/**
+ * Column header for a single question. Three pieces stacked:
+ *   1) Q-number + truncated question text (clickable — opens a popover
+ *      with the full question + type + any conditional/flag rules)
+ *   2) The type-aware QuestionSummary (avg, yes-rate, distribution, etc.)
+ *
+ * The Q-number+hint area is the popover trigger so the entire <th>
+ * stays inert for table interactions. Works for all six question types.
+ */
+function QuestionHeader({ q, stats }: { q: SurveyQuestion; stats: QuestionStats }) {
+  const hint = shortenQuestion(q.text);
+  const typeLabel = QUESTION_TYPE_LABEL[q.type] ?? q.type;
+  return (
+    <div className="space-y-1.5">
+      <PopoverPrimitive.Root>
+        <PopoverPrimitive.Trigger
+          className="block text-left rounded transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40"
+          aria-label={`Show full question ${q.order}`}
+        >
+          <div className="flex items-center gap-1 text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)] mono">
+            Q{q.order}
+            <span className="text-[9.5px] normal-case font-normal">↗</span>
+          </div>
+          <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--ink)] leading-tight max-w-[180px] truncate">
+            {hint}
+          </div>
+        </PopoverPrimitive.Trigger>
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Content
+            align="start"
+            sideOffset={6}
+            className="z-50 max-w-[360px] rounded-2xl border bg-[color:var(--card)] p-4 shadow-lg"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
+                Question {q.order}
+              </div>
+              <Pill tone="mute">{typeLabel}</Pill>
+            </div>
+            <p className="text-[13px] text-[color:var(--ink)] whitespace-pre-wrap break-words">
+              {q.text}
+            </p>
+            {(q.captain_only || q.conditional || q.flag_rule) && (
+              <ul className="mt-3 space-y-1 text-[11.5px] text-[color:var(--ink-mute)]">
+                {q.captain_only && <li>· captain only</li>}
+                {q.conditional && (
+                  <li>· shows when <span className="mono">{q.conditional.depends_on}</span> = <span className="mono">{q.conditional.show_if}</span></li>
+                )}
+                {q.flag_rule && (
+                  <li>· flags <span className="mono">{q.flag_rule.flag_type}</span> when <span className="mono">{q.flag_rule.condition}</span></li>
+                )}
+              </ul>
+            )}
+          </PopoverPrimitive.Content>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+      <QuestionSummary stats={stats} />
+    </div>
+  );
+}
+
 /**
  * Type-aware column header summary. Reads better than a single 'avg X.X'
  * for every type:
@@ -668,14 +754,10 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                 return (
                   <th
                     key={q.id}
-                    title={q.text}
-                    className="text-left px-2 py-2 border-b align-bottom min-w-[110px]"
+                    className="text-left px-2 py-2 border-b align-bottom min-w-[140px]"
                     style={{ borderColor: 'var(--border)' }}
                   >
-                    <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)] mono">
-                      Q{q.order}
-                    </div>
-                    <QuestionSummary stats={stats} />
+                    <QuestionHeader q={q} stats={stats} />
                   </th>
                 );
               })}
