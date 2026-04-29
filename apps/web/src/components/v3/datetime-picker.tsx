@@ -125,13 +125,13 @@ export function DateTimePicker({ value, onChange, minDate, className }: Props) {
       <PopoverPrimitive.Trigger asChild>
         <button
           type="button"
-          // Mirror shadcn SelectTrigger's class string so the picker
-          // renders pixel-identical to the other form fields (same
-          // border-input token, same bg-transparent, same shadow-xs).
-          // Diverging classes in earlier passes caused a subtle bg shift
-          // that read as 'lighter' next to the Select dropdowns.
+          // Explicit paper-2 fill so the picker sits at the same cream tone
+          // as the Type/Channel/Template Selects on the dialog. With plain
+          // bg-transparent the picker reads as too-pale next to them — the
+          // hard-coded fill removes any guesswork from inherited bg layers.
           className={cn(
-            'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+            'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+            'bg-[color:var(--paper-2)] hover:bg-[color:var(--paper-2)]',
             className,
           )}
         >
