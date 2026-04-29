@@ -125,12 +125,15 @@ export function DateTimePicker({ value, onChange, minDate, className }: Props) {
       <PopoverPrimitive.Trigger asChild>
         <button
           type="button"
+          // Mirror shadcn SelectTrigger's class string so the picker
+          // renders pixel-identical to the other form fields (same
+          // border-input token, same bg-transparent, same shadow-xs).
+          // Diverging classes in earlier passes caused a subtle bg shift
+          // that read as 'lighter' next to the Select dropdowns.
           className={cn(
-            'flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 text-[13px] text-left',
-            'hover:border-[color:var(--border-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40',
+            'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
             className,
           )}
-          style={{ borderColor: 'var(--border)' }}
         >
           <span className="truncate">{formatDisplay(value)}</span>
           <CalendarIcon className="size-4 text-[color:var(--ink-mute)] shrink-0" />
