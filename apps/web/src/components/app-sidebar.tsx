@@ -22,6 +22,7 @@ import {
   Radio,
   HeartPulse,
   ClipboardList,
+  UserPlus,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -73,6 +74,7 @@ const COACH_NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/live', label: 'Live', icon: Radio },
   { href: '/dashboard/players', label: 'Athletes', icon: Users },
+  { href: '/dashboard/requests', label: 'Requests', icon: UserPlus },
   { href: '/dashboard/fitness', label: 'Activity', icon: Dumbbell },
   { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
   {
@@ -93,6 +95,7 @@ const CAPTAIN_NAV: NavItem[] = [
   { href: '/dashboard/captain', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/live', label: 'Live', icon: Radio },
   { href: '/dashboard/captain/follow-ups', label: 'Follow-ups', icon: Users },
+  { href: '/dashboard/requests', label: 'Requests', icon: UserPlus },
   { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
   {
     href: '/dashboard/sessions',
