@@ -515,7 +515,7 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
           <thead>
             <tr>
               <th
-                className="sticky left-0 z-10 bg-[color:var(--card)] text-left px-4 py-2 border-b"
+                className="sticky left-0 z-10 bg-[color:var(--card)] text-left px-3 py-2 border-b w-[140px]"
                 style={{ borderColor: 'var(--border)' }}
               >
                 <span className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
@@ -542,12 +542,13 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
               return (
                 <tr key={d.id} className="hover:bg-[color:var(--paper-2)]">
                   <td
-                    className="sticky left-0 z-10 bg-[color:var(--card)] px-4 py-2 border-b align-middle"
+                    className="sticky left-0 z-10 bg-[color:var(--card)] px-3 py-2 border-b align-middle w-[140px] max-w-[140px]"
                     style={{ borderColor: 'var(--border)' }}
                   >
                     <Link
                       href={`/dashboard/player/${d.player_id}`}
-                      className="text-[13px] font-semibold text-[color:var(--ink)] hover:underline whitespace-nowrap"
+                      title={d.player?.name ?? ''}
+                      className="block text-[13px] font-semibold text-[color:var(--ink)] hover:underline truncate"
                     >
                       {d.player?.name ?? '—'}
                     </Link>
