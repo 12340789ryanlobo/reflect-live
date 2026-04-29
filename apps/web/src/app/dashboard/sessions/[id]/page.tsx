@@ -238,11 +238,14 @@ export default function SessionDetailPage() {
           )}
         </section>
 
-        {/* Athlete × Question matrix.
-            Replaces the previous "Question snapshot" list and "Responses
-            by athlete" nested-bullet dump with a single dense table.
-            Color-coded cells by score so a coach can spot patterns
-            (low-readiness columns, injury-flag rows) at a glance. */}
+        {/* Two-part visualization:
+            1) QuestionsKey — wraps to multiple rows on narrow screens.
+               Each card shows the question text + per-question summary
+               (avg / yes-rate / distribution) so a coach reads the
+               'what' and 'team-level result' once at the top.
+            2) ResponseMatrix — pure heatmap below, with just Q-numbers
+               as column headers. Cells stay tight (~64px) so the table
+               fits the viewport even with 8+ questions. */}
         {questions.length === 0 ? (
           <section
             className="rounded-2xl bg-[color:var(--card)] border px-6 py-8"
@@ -253,12 +256,14 @@ export default function SessionDetailPage() {
             </p>
           </section>
         ) : (
-          <ResponseMatrix
-            questions={questions}
-            deliveries={deliveries}
-            responses={responses}
-            questionStats={questionStats}
-          />
+          <>
+            <QuestionsKey questions={questions} questionStats={questionStats} />
+            <ResponseMatrix
+              questions={questions}
+              deliveries={deliveries}
+              responses={responses}
+            />
+          </>
         )}
 
         {/* Flags */}
@@ -358,7 +363,6 @@ interface MatrixProps {
   questions: SurveyQuestion[];
   deliveries: DeliveryRow[];
   responses: ResponseRow[];
-  questionStats: Map<string, QuestionStats>;
 }
 
 // Per-question summary, shape per type. The header renderer
@@ -491,77 +495,105 @@ const QUESTION_TYPE_LABEL: Record<SurveyQuestion['type'], string> = {
   free_text: 'free text',
 };
 
-const QUESTION_HINT_LIMIT = 30;
-
-function shortenQuestion(text: string): string {
-  // Some YAML questions embed instructions on a second line
-  // ("Reply: 0=no, 1=yes"); collapse those to a single space and clip
-  // so the column header stays one tidy row.
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > QUESTION_HINT_LIMIT
-    ? `${flat.slice(0, QUESTION_HINT_LIMIT - 1)}…`
-    : flat;
+/**
+ * Questions key — wrapping grid of cards rendered ABOVE the matrix.
+ * Each card carries the per-question identity (Q-number, type, full
+ * question text) plus the type-aware team-level summary. By moving
+ * this out of the matrix headers, the matrix itself can stay narrow
+ * and dense, while coaches still see what each Q stands for at a
+ * glance up top.
+ *
+ * Cards collapse to two-up at md, three-up at lg — fits within the
+ * dashboard's content column without scroll on typical desktops.
+ */
+function QuestionsKey({
+  questions,
+  questionStats,
+}: {
+  questions: SurveyQuestion[];
+  questionStats: Map<string, QuestionStats>;
+}) {
+  return (
+    <section
+      className="rounded-2xl bg-[color:var(--card)] border"
+      style={{ borderColor: 'var(--border)' }}
+    >
+      <header
+        className="flex items-center justify-between gap-3 px-6 py-3 border-b"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <h2 className="text-[13px] font-bold text-[color:var(--ink)]">Questions</h2>
+        <span className="text-[11px] text-[color:var(--ink-mute)]">
+          {questions.length} · click any card for details
+        </span>
+      </header>
+      <ul className="grid grid-cols-1 gap-px bg-[color:var(--border)] sm:grid-cols-2 lg:grid-cols-3">
+        {questions.map((q) => {
+          const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
+          return (
+            <li key={q.id} className="bg-[color:var(--card)]">
+              <QuestionKeyCard q={q} stats={stats} />
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
 
-/**
- * Column header for a single question. Three pieces stacked:
- *   1) Q-number + truncated question text (clickable — opens a popover
- *      with the full question + type + any conditional/flag rules)
- *   2) The type-aware QuestionSummary (avg, yes-rate, distribution, etc.)
- *
- * The Q-number+hint area is the popover trigger so the entire <th>
- * stays inert for table interactions. Works for all six question types.
- */
-function QuestionHeader({ q, stats }: { q: SurveyQuestion; stats: QuestionStats }) {
-  const hint = shortenQuestion(q.text);
+function QuestionKeyCard({ q, stats }: { q: SurveyQuestion; stats: QuestionStats }) {
   const typeLabel = QUESTION_TYPE_LABEL[q.type] ?? q.type;
   return (
-    <div className="space-y-1.5">
-      <PopoverPrimitive.Root>
-        <PopoverPrimitive.Trigger
-          className="block text-left rounded transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40"
-          aria-label={`Show full question ${q.order}`}
-        >
-          <div className="flex items-center gap-1 text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)] mono">
+    <PopoverPrimitive.Root>
+      <PopoverPrimitive.Trigger
+        className="block w-full text-left px-4 py-3 transition hover:bg-[color:var(--paper-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40"
+        aria-label={`Show full question ${q.order}`}
+      >
+        <div className="flex items-baseline gap-2">
+          <span className="mono text-[10.5px] font-bold tabular text-[color:var(--ink-mute)]">
             Q{q.order}
-            <span className="text-[9.5px] normal-case font-normal">↗</span>
-          </div>
-          <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--ink)] leading-tight max-w-[180px] truncate">
-            {hint}
-          </div>
-        </PopoverPrimitive.Trigger>
-        <PopoverPrimitive.Portal>
-          <PopoverPrimitive.Content
-            align="start"
-            sideOffset={6}
-            className="z-50 max-w-[360px] rounded-2xl border bg-[color:var(--card)] p-4 shadow-lg"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
-                Question {q.order}
-              </div>
-              <Pill tone="mute">{typeLabel}</Pill>
+          </span>
+          <span className="text-[10px] uppercase tracking-wide text-[color:var(--ink-mute)]">
+            {typeLabel}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[13px] font-semibold text-[color:var(--ink)] leading-snug line-clamp-2">
+          {q.text}
+        </p>
+        <div className="mt-1.5">
+          <QuestionSummary stats={stats} />
+        </div>
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="start"
+          sideOffset={6}
+          className="z-50 max-w-[400px] rounded-2xl border bg-[color:var(--card)] p-4 shadow-lg"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
+              Question {q.order}
             </div>
-            <p className="text-[13px] text-[color:var(--ink)] whitespace-pre-wrap break-words">
-              {q.text}
-            </p>
-            {(q.captain_only || q.conditional || q.flag_rule) && (
-              <ul className="mt-3 space-y-1 text-[11.5px] text-[color:var(--ink-mute)]">
-                {q.captain_only && <li>· captain only</li>}
-                {q.conditional && (
-                  <li>· shows when <span className="mono">{q.conditional.depends_on}</span> = <span className="mono">{q.conditional.show_if}</span></li>
-                )}
-                {q.flag_rule && (
-                  <li>· flags <span className="mono">{q.flag_rule.flag_type}</span> when <span className="mono">{q.flag_rule.condition}</span></li>
-                )}
-              </ul>
-            )}
-          </PopoverPrimitive.Content>
-        </PopoverPrimitive.Portal>
-      </PopoverPrimitive.Root>
-      <QuestionSummary stats={stats} />
-    </div>
+            <Pill tone="mute">{typeLabel}</Pill>
+          </div>
+          <p className="text-[13px] text-[color:var(--ink)] whitespace-pre-wrap break-words">
+            {q.text}
+          </p>
+          {(q.captain_only || q.conditional || q.flag_rule) && (
+            <ul className="mt-3 space-y-1 text-[11.5px] text-[color:var(--ink-mute)]">
+              {q.captain_only && <li>· captain only</li>}
+              {q.conditional && (
+                <li>· shows when <span className="mono">{q.conditional.depends_on}</span> = <span className="mono">{q.conditional.show_if}</span></li>
+              )}
+              {q.flag_rule && (
+                <li>· flags <span className="mono">{q.flag_rule.flag_type}</span> when <span className="mono">{q.flag_rule.condition}</span></li>
+              )}
+            </ul>
+          )}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 }
 
@@ -711,7 +743,7 @@ function AnswerCell({
   );
 }
 
-function ResponseMatrix({ questions, deliveries, responses, questionStats }: MatrixProps) {
+function ResponseMatrix({ questions, deliveries, responses }: MatrixProps) {
   // Build the (player_id × question_id → response) lookup once.
   const byPlayerQ = new Map<number, Map<string, ResponseRow>>();
   for (const r of responses) {
@@ -749,18 +781,18 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                   Athlete
                 </span>
               </th>
-              {questions.map((q) => {
-                const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
-                return (
-                  <th
-                    key={q.id}
-                    className="text-left px-2 py-2 border-b align-bottom min-w-[140px]"
-                    style={{ borderColor: 'var(--border)' }}
-                  >
-                    <QuestionHeader q={q} stats={stats} />
-                  </th>
-                );
-              })}
+              {questions.map((q) => (
+                <th
+                  key={q.id}
+                  title={q.text}
+                  className="text-center px-2 py-2 border-b w-[64px]"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  <span className="mono text-[11px] font-bold tabular text-[color:var(--ink-soft)]">
+                    Q{q.order}
+                  </span>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
