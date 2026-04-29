@@ -34,17 +34,20 @@ export function regionToMuscles(region: string, view: View = 'front'): MuscleSlu
     case 'hand':        return ['hands'];
     case 'wrist':       return ['forearm'];   // no wrist slug; closest muscle
     case 'forearm':     return ['forearm'];
-    case 'elbow':       return view === 'front' ? ['biceps'] : ['triceps'];
-    case 'upper_arm':   return view === 'front' ? ['biceps'] : ['triceps'];
+    // upper_arm + elbow paint both biceps and triceps on every view —
+    // the lateral triceps head is visible from the front too.
+    case 'elbow':       return ['biceps', 'triceps'];
+    case 'upper_arm':   return ['biceps', 'triceps'];
     case 'shoulder':    return ['deltoids'];
-    // upper_back also lights up the trapezius on the back view, since
-    // lats/rhomboids/scaps text aliases collapse here and overlap visually.
-    case 'upper_back':  return view === 'back' ? ['upper-back', 'trapezius'] : ['upper-back'];
+    // upper_back paints trapezius on both views — the upper trap wraps
+    // around to the front (neck/shoulder area).
+    case 'upper_back':  return ['upper-back', 'trapezius'];
     case 'mid_back':    return ['upper-back'];   // no mid_back slug; nearest
     case 'lower_back':  return ['lower-back'];
-    // neck lights up the cervical neck slug + the trapezius on the back
-    // (text aliases trap/traps/trapezius collapse to the neck region).
-    case 'neck':        return view === 'back' ? ['neck', 'trapezius'] : ['neck'];
+    // neck paints trapezius on both views (text aliases trap/traps/
+    // trapezius collapse to the neck region, and the upper trap is
+    // visible from the front).
+    case 'neck':        return ['neck', 'trapezius'];
     case 'hip':         return ['gluteal'];
     case 'groin':       return ['adductors'];
     case 'hamstring':   return ['hamstring'];
