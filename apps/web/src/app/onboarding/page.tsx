@@ -35,15 +35,20 @@ export default function Onboarding() {
   // Athlete identity captured for the request
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
 
-  // Pre-fill name/email from Clerk
+  // Pre-fill name/email/phone from Clerk
   useEffect(() => {
     if (!user) return;
     if (!name) setName(user.fullName ?? user.firstName ?? '');
     if (!email) setEmail(user.primaryEmailAddress?.emailAddress ?? '');
+    if (!phone) {
+      const verifiedPhone = user.phoneNumbers?.find((p) => p.verification?.status === 'verified');
+      if (verifiedPhone) setPhone(verifiedPhone.phoneNumber);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -88,6 +93,7 @@ export default function Onboarding() {
         team_id: selectedTeam.id,
         name: name.trim(),
         email: email.trim(),
+        phone: phone.trim(),
       }),
     });
     setSubmitting(false);
@@ -195,6 +201,20 @@ export default function Onboarding() {
                       onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
+                  <div className="grid gap-1.5">
+                    <label className="text-[11.5px] font-semibold text-[color:var(--ink)]" htmlFor="phone">Phone</label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+1 555 555 5555"
+                      autoComplete="tel"
+                    />
+                    <p className="text-[11px] text-[color:var(--ink-mute)]">
+                      So your coach can reach you and link you to surveys.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -204,7 +224,7 @@ export default function Onboarding() {
 
               <Button
                 onClick={submit}
-                disabled={!selectedTeam || !name.trim() || submitting}
+                disabled={!selectedTeam || !name.trim() || !phone.trim() || submitting}
                 className="mt-6 w-full rounded-xl font-bold"
                 style={{ background: 'var(--blue)' }}
               >
