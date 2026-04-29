@@ -1,0 +1,348 @@
+# Survey Configuration v0
+# Post-session wellness check-in for college athletes
+# Designed for quick, low-friction responses via SMS/WhatsApp
+# Supports different question flows for practice vs match sessions
+
+version: "v0"
+name: "Post-Session Check-In"
+estimated_time_minutes: 2
+
+questions:
+  # ========================================
+  # SHARED questions (both practice + match)
+  # ========================================
+  - id: "q1_readiness"
+    order: 1
+    session_types: ["practice", "match", "lifting"]
+    type: "scale_1_10"
+    text: "Overall body readiness right now? (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+    flag_rule:
+      condition: "value <= 3"
+      flag_type: "low_readiness"
+      severity: "medium"
+
+  - id: "q2_injury"
+    order: 2
+    session_types: ["practice", "match"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "binary"
+    text: "Any sharp pain or injury concern?\nReply: 0 = no, 1 = yes"
+    validation:
+      required: true
+    flag_rule:
+      condition: "value == 1"
+      flag_type: "injury_concern"
+      severity: "high"
+    # When answer is 1, prepend acknowledgment to next question
+    ack_on_yes: "Got it. Appreciate you flagging that."
+
+  - id: "q3_injury_location"
+    order: 3
+    session_types: ["practice", "match"]
+    type: "free_text"
+    text: "Where? (e.g. left wrist, right ankle)"
+    validation:
+      required: true
+      max_length: 800
+    conditional:
+      depends_on: "q2_injury"
+      show_if: "value == 1"
+
+  - id: "q4_individual_tennis"
+    order: 4
+    session_types: ["practice", "match"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "scale_1_10"
+    text: "Rate your individual tennis level today (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+
+  # Track: Lifting-specific questions (orders 2-4)
+  - id: "q2_lift_today_track"
+    order: 2
+    session_types: ["lifting"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "binary"
+    text: "Did you lift today?\nReply: 0 = no, 1 = yes"
+    validation:
+      required: true
+
+  - id: "q3_lift_enthusiasm_track"
+    order: 3
+    session_types: ["lifting"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "scale_1_10"
+    text: "Rate your enthusiasm level for lifting today (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+    conditional:
+      depends_on: "q2_lift_today_track"
+      show_if: "value == 1"
+
+  - id: "q4_lift_effort_track"
+    order: 4
+    session_types: ["lifting"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "scale_1_10"
+    text: "Rate your perceived effort on the lift (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+    conditional:
+      depends_on: "q2_lift_today_track"
+      show_if: "value == 1"
+
+  # Track: Practice-specific questions (orders 2-8)
+  - id: "q2_practice_attended_track"
+    order: 2
+    session_types: ["practice"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "binary"
+    text: "Did you go to practice today?\nReply: 0 = no, 1 = yes"
+    validation:
+      required: true
+
+  - id: "q3_practice_missed_reason_track"
+    order: 3
+    session_types: ["practice"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "free_text"
+    text: "What prevented you from attending practice?"
+    validation:
+      required: true
+      max_length: 800
+    conditional:
+      depends_on: "q2_practice_attended_track"
+      show_if: "value == 0"
+
+  - id: "q4_practice_enthusiasm_track"
+    order: 4
+    session_types: ["practice"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "scale_1_10"
+    text: "Rate your enthusiasm level for practice today (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+    conditional:
+      depends_on: "q2_practice_attended_track"
+      show_if: "value == 1"
+
+  - id: "q5_practice_effort_track"
+    order: 5
+    session_types: ["practice"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "scale_1_10"
+    text: "Rate your perceived effort during practice (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+    conditional:
+      depends_on: "q2_practice_attended_track"
+      show_if: "value == 1"
+
+  - id: "q6_sick_track"
+    order: 6
+    session_types: ["practice"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "binary"
+    text: "Are you sick?\nReply: 0 = no, 1 = yes"
+    validation:
+      required: true
+
+  - id: "q7_acute_pain_track"
+    order: 7
+    session_types: ["practice"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "binary"
+    text: "Any acute (sharp) pain?\nReply: 0 = no, 1 = yes"
+    validation:
+      required: true
+    flag_rule:
+      condition: "value == 1"
+      flag_type: "injury_concern"
+      severity: "high"
+
+  - id: "q8_acute_pain_location_track"
+    order: 8
+    session_types: ["practice"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "free_text"
+    text: "Where? (e.g., left wrist, right ankle)"
+    validation:
+      required: true
+      max_length: 800
+    conditional:
+      depends_on: "q7_acute_pain_track"
+      show_if: "value == 1"
+
+  # Track: Shared questions for practice/match (orders 9-11)
+  - id: "q4_soreness_track"
+    order: 9
+    session_types: ["practice", "match"]
+    team_codes: ["test-team"]
+    type: "scale_1_10"
+    text: "Rate your individual soreness level coming into practice today (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+
+  - id: "q5_practice_feel_track"
+    order: 10
+    session_types: ["practice", "match"]
+    team_codes: ["test-team"]
+    type: "choice_1_3"
+    text: "How did today's practice feel for you?\nReply: 1=too light, 2=about right, 3=too heavy"
+    validation:
+      min: 1
+      max: 3
+      required: true
+
+  - id: "q6_next_focus_track"
+    order: 11
+    session_types: ["practice", "match"]
+    team_codes: ["uchicago-track-field", "test-team"]
+    type: "free_text"
+    text: "One thing you want to work on next session?"
+    validation:
+      required: true
+      max_length: 800
+
+  # ========================================
+  # PRACTICE-ONLY questions (tennis)
+  # ========================================
+  - id: "q4_team_energy"
+    order: 5
+    session_types: ["practice"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "scale_1_10"
+    text: "Team energy level today? (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+    flag_rule:
+      condition: "value <= 3"
+      flag_type: "low_readiness"
+      severity: "low"
+
+  - id: "q5_team_effort"
+    order: 6
+    session_types: ["practice"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "scale_1_10"
+    text: "Team effort level today? (1-10)"
+    validation:
+      min: 1
+      max: 10
+      required: true
+
+  - id: "q6_practice_feel"
+    order: 7
+    session_types: ["practice"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "choice_1_3"
+    text: "How did today's practice feel for you?\nReply: 1=too light, 2=about right, 3=too heavy"
+    validation:
+      min: 1
+      max: 3
+      required: true
+
+  - id: "q7_next_focus"
+    order: 8
+    session_types: ["practice"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "free_text"
+    text: "One thing you want to work on next session?"
+    validation:
+      required: true
+      max_length: 800
+
+  # ========================================
+  # MATCH-ONLY questions (tight phrasing)
+  # ========================================
+  - id: "q5_match_reflection"
+    order: 9
+    session_types: ["match"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "free_text"
+    text: "Overall match feeling?"
+    validation:
+      required: true
+      max_length: 800
+
+  - id: "q6_match_takeaway"
+    order: 10
+    session_types: ["match"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "free_text"
+    text: "One key takeaway?"
+    validation:
+      required: true
+      max_length: 800
+
+  - id: "q7_match_focus"
+    order: 11
+    session_types: ["match"]
+    team_codes: ["uchicago-mens-tennis"]
+    type: "free_text"
+    text: "Future focus?"
+    validation:
+      required: true
+      max_length: 800
+
+  # ========================================
+  # CAPTAIN-ONLY questions (structured: rating + comment)
+  # ========================================
+  - id: "q8_captain_practice"
+    order: 12
+    session_types: ["practice"]
+    team_codes: ["uchicago-mens-tennis"]
+    captain_only: true
+    type: "captain_rating"
+    text: "Captain check: Practice quality (1-10) + quick comment"
+    validation:
+      min: 1
+      max: 10
+      required: true
+      max_length: 300
+
+  - id: "q8_captain_match"
+    order: 13
+    session_types: ["match"]
+    team_codes: ["uchicago-mens-tennis"]
+    captain_only: true
+    type: "captain_rating"
+    text: "Captain check: Team compete level (1-10) + quick comment"
+    validation:
+      min: 1
+      max: 10
+      required: true
+      max_length: 300
+
+completion_messages:
+  - "Got it, thanks!"
+  - "All done - appreciate the input!"
+  - "Thanks for checking in!"
+  - "Noted, thanks for the feedback!"
+
+error_messages:
+  invalid_scale: "Please reply with a number 1-10."
+  invalid_binary: "Please reply 0 (no) or 1 (yes)."
+  invalid_choice: "Please reply 1, 2, or 3."
+  invalid_format: "Didn't catch that. Please try again."
+  invalid_captain_rating: "Reply with a number 1-10 (optionally followed by a comment)."
+  too_long: "Too long - keep it brief!"
+  required: "Please provide an answer."
