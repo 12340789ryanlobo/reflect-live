@@ -238,14 +238,9 @@ export default function SessionDetailPage() {
           )}
         </section>
 
-        {/* Two-part visualization:
-            1) QuestionsKey — wraps to multiple rows on narrow screens.
-               Each card shows the question text + per-question summary
-               (avg / yes-rate / distribution) so a coach reads the
-               'what' and 'team-level result' once at the top.
-            2) ResponseMatrix — pure heatmap below, with just Q-numbers
-               as column headers. Cells stay tight (~64px) so the table
-               fits the viewport even with 8+ questions. */}
+        {/* Single card: tight matrix on top + numbered question legend
+            below. Question identity lives in plain reading order under
+            the matrix instead of in a separate card-grid above it. */}
         {questions.length === 0 ? (
           <section
             className="rounded-2xl bg-[color:var(--card)] border px-6 py-8"
@@ -256,14 +251,12 @@ export default function SessionDetailPage() {
             </p>
           </section>
         ) : (
-          <>
-            <QuestionsKey questions={questions} questionStats={questionStats} />
-            <ResponseMatrix
-              questions={questions}
-              deliveries={deliveries}
-              responses={responses}
-            />
-          </>
+          <ResponseMatrix
+            questions={questions}
+            deliveries={deliveries}
+            responses={responses}
+            questionStats={questionStats}
+          />
         )}
 
         {/* Flags */}
@@ -363,6 +356,7 @@ interface MatrixProps {
   questions: SurveyQuestion[];
   deliveries: DeliveryRow[];
   responses: ResponseRow[];
+  questionStats: Map<string, QuestionStats>;
 }
 
 // Per-question summary, shape per type. The header renderer
@@ -496,192 +490,6 @@ const QUESTION_TYPE_LABEL: Record<SurveyQuestion['type'], string> = {
 };
 
 /**
- * Questions key — wrapping grid of cards rendered ABOVE the matrix.
- * Each card carries the per-question identity (Q-number, type, full
- * question text) plus the type-aware team-level summary. By moving
- * this out of the matrix headers, the matrix itself can stay narrow
- * and dense, while coaches still see what each Q stands for at a
- * glance up top.
- *
- * Cards collapse to two-up at md, three-up at lg — fits within the
- * dashboard's content column without scroll on typical desktops.
- */
-function QuestionsKey({
-  questions,
-  questionStats,
-}: {
-  questions: SurveyQuestion[];
-  questionStats: Map<string, QuestionStats>;
-}) {
-  return (
-    <section
-      className="rounded-2xl bg-[color:var(--card)] border"
-      style={{ borderColor: 'var(--border)' }}
-    >
-      <header
-        className="flex items-center justify-between gap-3 px-6 py-3 border-b"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <h2 className="text-[13px] font-bold text-[color:var(--ink)]">Questions</h2>
-        <span className="text-[11px] text-[color:var(--ink-mute)]">
-          {questions.length} · click any card for details
-        </span>
-      </header>
-      <ul className="grid grid-cols-1 gap-px bg-[color:var(--border)] sm:grid-cols-2 lg:grid-cols-3">
-        {questions.map((q) => {
-          const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
-          return (
-            <li key={q.id} className="bg-[color:var(--card)]">
-              <QuestionKeyCard q={q} stats={stats} />
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-function QuestionKeyCard({ q, stats }: { q: SurveyQuestion; stats: QuestionStats }) {
-  const typeLabel = QUESTION_TYPE_LABEL[q.type] ?? q.type;
-  return (
-    <PopoverPrimitive.Root>
-      <PopoverPrimitive.Trigger
-        className="block w-full text-left px-4 py-3 transition hover:bg-[color:var(--paper-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40"
-        aria-label={`Show full question ${q.order}`}
-      >
-        <div className="flex items-baseline gap-2">
-          <span className="mono text-[10.5px] font-bold tabular text-[color:var(--ink-mute)]">
-            Q{q.order}
-          </span>
-          <span className="text-[10px] uppercase tracking-wide text-[color:var(--ink-mute)]">
-            {typeLabel}
-          </span>
-        </div>
-        <p className="mt-0.5 text-[13px] font-semibold text-[color:var(--ink)] leading-snug line-clamp-2">
-          {q.text}
-        </p>
-        <div className="mt-1.5">
-          <QuestionSummary stats={stats} />
-        </div>
-      </PopoverPrimitive.Trigger>
-      <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          align="start"
-          sideOffset={6}
-          className="z-50 max-w-[400px] rounded-2xl border bg-[color:var(--card)] p-4 shadow-lg"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
-              Question {q.order}
-            </div>
-            <Pill tone="mute">{typeLabel}</Pill>
-          </div>
-          <p className="text-[13px] text-[color:var(--ink)] whitespace-pre-wrap break-words">
-            {q.text}
-          </p>
-          {(q.captain_only || q.conditional || q.flag_rule) && (
-            <ul className="mt-3 space-y-1 text-[11.5px] text-[color:var(--ink-mute)]">
-              {q.captain_only && <li>· captain only</li>}
-              {q.conditional && (
-                <li>· shows when <span className="mono">{q.conditional.depends_on}</span> = <span className="mono">{q.conditional.show_if}</span></li>
-              )}
-              {q.flag_rule && (
-                <li>· flags <span className="mono">{q.flag_rule.flag_type}</span> when <span className="mono">{q.flag_rule.condition}</span></li>
-              )}
-            </ul>
-          )}
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
-  );
-}
-
-/**
- * Type-aware column header summary. Reads better than a single 'avg X.X'
- * for every type:
- *
- *   numeric    → '4.9 / 10' with a tiny bar showing where the mean sits,
- *                tinted by score (low = red unless the question is
- *                pain-style, in which case low = green)
- *   binary     → '30%' label + tiny fill bar showing yes-rate
- *   choice_1_3 → small distribution stack (light · right · heavy)
- *   text       → '12 replies'
- *   empty      → nothing rendered
- */
-function QuestionSummary({ stats }: { stats: QuestionStats }) {
-  if (stats.kind === 'empty') return null;
-
-  if (stats.kind === 'numeric') {
-    const ratio = (stats.mean - stats.min) / (stats.max - stats.min);
-    const goodSoft = 'var(--green)';
-    const badSoft = 'var(--red)';
-    const midSoft = 'var(--amber)';
-    const tone =
-      ratio <= 0.3 ? (stats.highIsBad ? goodSoft : badSoft)
-      : ratio >= 0.7 ? (stats.highIsBad ? badSoft : goodSoft)
-      : midSoft;
-    return (
-      <div className="mt-1 space-y-1">
-        <div className="mono text-[11.5px] tabular text-[color:var(--ink-soft)]">
-          {stats.mean.toFixed(1)}
-          <span className="text-[color:var(--ink-mute)]"> / {stats.max}</span>
-        </div>
-        <div className="h-[3px] rounded-full bg-[color:var(--paper-2)] overflow-hidden">
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${Math.min(100, Math.max(0, ratio * 100))}%`, background: tone }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (stats.kind === 'binary') {
-    const pct = stats.count === 0 ? 0 : Math.round((stats.yes / stats.count) * 100);
-    // Yes-rate is "concerning" by reflect's convention (yes = pain/injury).
-    return (
-      <div className="mt-1 space-y-1">
-        <div className="mono text-[11.5px] tabular text-[color:var(--ink-soft)]">
-          {pct}% yes
-          <span className="text-[color:var(--ink-mute)]"> ({stats.yes}/{stats.count})</span>
-        </div>
-        <div className="h-[3px] rounded-full bg-[color:var(--paper-2)] overflow-hidden">
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${pct}%`, background: 'var(--red)' }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (stats.kind === 'choice_1_3') {
-    const total = stats.count || 1;
-    const [light, right, heavy] = stats.buckets;
-    return (
-      <div className="mt-1 space-y-1">
-        <div className="mono text-[11.5px] tabular text-[color:var(--ink-soft)]">
-          {light}·{right}·{heavy}
-        </div>
-        <div className="flex h-[3px] w-full overflow-hidden rounded-full bg-[color:var(--paper-2)]">
-          <div style={{ width: `${(light / total) * 100}%`, background: 'var(--green)' }} />
-          <div style={{ width: `${(right / total) * 100}%`, background: 'var(--ink-mute)' }} />
-          <div style={{ width: `${(heavy / total) * 100}%`, background: 'var(--amber)' }} />
-        </div>
-      </div>
-    );
-  }
-
-  // text — just the count
-  return (
-    <div className="mt-1 mono text-[11.5px] tabular text-[color:var(--ink-mute)]">
-      {stats.count} repl{stats.count === 1 ? 'y' : 'ies'}
-    </div>
-  );
-}
-
-/**
  * Single cell in the matrix. When the answer fits, renders a compact
  * tinted span. When it's truncated (long free-text or captain-rating
  * with a comment), wraps the span in a Radix Popover so the coach can
@@ -743,7 +551,7 @@ function AnswerCell({
   );
 }
 
-function ResponseMatrix({ questions, deliveries, responses }: MatrixProps) {
+function ResponseMatrix({ questions, deliveries, responses, questionStats }: MatrixProps) {
   // Build the (player_id × question_id → response) lookup once.
   const byPlayerQ = new Map<number, Map<string, ResponseRow>>();
   for (const r of responses) {
@@ -842,6 +650,121 @@ function ResponseMatrix({ questions, deliveries, responses }: MatrixProps) {
           </tbody>
         </table>
       </div>
+      <QuestionsLegend questions={questions} questionStats={questionStats} />
     </section>
+  );
+}
+
+/**
+ * Numbered question legend rendered below the matrix in the same card.
+ * Reads top-to-bottom in normal prose order: 'Q1 — full question · type
+ * · summary'. No popover, no card grid — just a list. The matrix above
+ * is the heatmap; this is the answer to "what was Q1 again?".
+ */
+function QuestionsLegend({
+  questions,
+  questionStats,
+}: {
+  questions: SurveyQuestion[];
+  questionStats: Map<string, QuestionStats>;
+}) {
+  return (
+    <div className="border-t px-6 py-4 space-y-2.5" style={{ borderColor: 'var(--border)' }}>
+      <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
+        Questions
+      </div>
+      <ol className="space-y-2">
+        {questions.map((q) => {
+          const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
+          return (
+            <li key={q.id} className="flex items-start gap-3">
+              <span className="mono text-[11px] font-bold tabular text-[color:var(--ink-mute)] shrink-0 pt-0.5 w-6">
+                Q{q.order}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] text-[color:var(--ink)]">
+                  {q.text}
+                  {(q.captain_only || q.conditional) && (
+                    <span className="ml-2 text-[11px] text-[color:var(--ink-mute)]">
+                      {q.captain_only && '· captain only '}
+                      {q.conditional && `· shows when ${q.conditional.depends_on} = ${q.conditional.show_if}`}
+                    </span>
+                  )}
+                </p>
+                <div className="mt-1 flex items-center gap-3 text-[11.5px] text-[color:var(--ink-mute)]">
+                  <span className="uppercase tracking-wide">{QUESTION_TYPE_LABEL[q.type] ?? q.type}</span>
+                  <LegendSummary stats={stats} />
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * Compact inline summary used in the legend. Shape is the same as the
+ * old QuestionSummary but rendered horizontally on a single line so the
+ * legend reads like a natural list rather than a stack of mini-charts.
+ */
+function LegendSummary({ stats }: { stats: QuestionStats }) {
+  if (stats.kind === 'empty') {
+    return <span className="text-[color:var(--ink-mute)]">no replies yet</span>;
+  }
+  if (stats.kind === 'numeric') {
+    const ratio = (stats.mean - stats.min) / (stats.max - stats.min);
+    const tone =
+      ratio <= 0.3 ? (stats.highIsBad ? 'var(--green)' : 'var(--red)')
+      : ratio >= 0.7 ? (stats.highIsBad ? 'var(--red)' : 'var(--green)')
+      : 'var(--amber)';
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span className="mono tabular text-[color:var(--ink-soft)]">
+          avg {stats.mean.toFixed(1)} / {stats.max}
+        </span>
+        <span className="inline-block h-[3px] w-[60px] rounded-full bg-[color:var(--paper-2)] overflow-hidden">
+          <span
+            className="block h-full rounded-full"
+            style={{ width: `${Math.min(100, Math.max(0, ratio * 100))}%`, background: tone }}
+          />
+        </span>
+      </span>
+    );
+  }
+  if (stats.kind === 'binary') {
+    const pct = stats.count === 0 ? 0 : Math.round((stats.yes / stats.count) * 100);
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span className="mono tabular text-[color:var(--ink-soft)]">
+          {pct}% yes ({stats.yes}/{stats.count})
+        </span>
+        <span className="inline-block h-[3px] w-[60px] rounded-full bg-[color:var(--paper-2)] overflow-hidden">
+          <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--red)' }} />
+        </span>
+      </span>
+    );
+  }
+  if (stats.kind === 'choice_1_3') {
+    const total = stats.count || 1;
+    const [light, right, heavy] = stats.buckets;
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span className="mono tabular text-[color:var(--ink-soft)]">
+          light {light} · right {right} · heavy {heavy}
+        </span>
+        <span className="inline-flex h-[3px] w-[60px] overflow-hidden rounded-full bg-[color:var(--paper-2)]">
+          <span style={{ width: `${(light / total) * 100}%`, background: 'var(--green)' }} />
+          <span style={{ width: `${(right / total) * 100}%`, background: 'var(--ink-mute)' }} />
+          <span style={{ width: `${(heavy / total) * 100}%`, background: 'var(--amber)' }} />
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="mono tabular text-[color:var(--ink-soft)]">
+      {stats.count} repl{stats.count === 1 ? 'y' : 'ies'}
+    </span>
   );
 }
