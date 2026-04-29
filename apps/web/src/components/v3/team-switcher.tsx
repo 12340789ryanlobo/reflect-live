@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -31,18 +32,24 @@ interface TeamLite { id: number; name: string }
 export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }: Props) {
   const router = useRouter();
   const sb = useSupabase();
+  const { user } = useUser();
   const [memberships, setMemberships] = useState<TeamMembership[]>([]);
   const [memberTeamNames, setMemberTeamNames] = useState<Record<number, string>>({});
   const [allTeams, setAllTeams] = useState<TeamLite[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [switching, setSwitching] = useState<number | null>(null);
 
-  // Pull the user's memberships on mount. RLS allows them to read their
-  // own rows. Team names follow in a second tiny query.
+  // Pull *this* user's memberships. We can't rely on RLS to scope —
+  // platform admins have a read-all policy, so we filter explicitly
+  // by clerk_user_id.
   useEffect(() => {
+    if (!user) return;
     let alive = true;
     (async () => {
-      const { data: mems } = await sb.from('team_memberships').select('*');
+      const { data: mems } = await sb
+        .from('team_memberships')
+        .select('*')
+        .eq('clerk_user_id', user.id);
       if (!alive) return;
       const list = ((mems ?? []) as TeamMembership[]).filter((m) => m.status === 'active');
       setMemberships(list);
@@ -56,7 +63,7 @@ export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }
       setLoaded(true);
     })();
     return () => { alive = false; };
-  }, [sb]);
+  }, [sb, user]);
 
   // Platform admin: lazy-load every team for the pass-through list,
   // only when the dropdown opens (the click-handler triggers it).
