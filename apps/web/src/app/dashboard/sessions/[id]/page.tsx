@@ -62,6 +62,12 @@ const TYPE_TONE: Record<SessionType, 'blue' | 'amber' | 'green'> = {
   lifting: 'green',
 };
 
+const TYPE_LABEL: Record<SessionType, string> = {
+  practice: 'Practice',
+  match: 'Competition',
+  lifting: 'Lifting',
+};
+
 const STATUS_TONE: Record<DeliveryRow['status'], 'mute' | 'blue' | 'green' | 'red'> = {
   pending: 'mute',
   in_progress: 'blue',
@@ -222,7 +228,7 @@ export default function SessionDetailPage() {
         }
         subtitle={
           <span className="inline-flex items-center gap-2">
-            <Pill tone={TYPE_TONE[session.type]}>{session.type}</Pill>
+            <Pill tone={TYPE_TONE[session.type]}>{TYPE_LABEL[session.type]}</Pill>
             <span>created {relativeTime(session.created_at)}</span>
             {questions.length > 0 && <span>· {questions.length} question{questions.length === 1 ? '' : 's'}</span>}
           </span>

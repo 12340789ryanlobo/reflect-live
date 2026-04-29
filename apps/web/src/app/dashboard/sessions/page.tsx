@@ -1,8 +1,12 @@
 'use client';
 
-// Sessions list — practice/match/lifting cohorts. Coaches/captains can
+// Sessions list — practice/competition/lifting cohorts. Coaches/captains can
 // create new sessions; rows show progress (deliveries completed / total)
 // and any flags raised. Soft-deleted rows are hidden.
+//
+// Internally the DB enum still uses 'match' (matches reflect's source-of-truth
+// schema so the shadow-soak diff stays clean). Everywhere a coach sees it,
+// it's labelled 'Competition'.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -38,6 +42,45 @@ const TYPE_TONE: Record<SessionType, 'blue' | 'amber' | 'green'> = {
   lifting: 'green',
 };
 
+const TYPE_LABEL: Record<SessionType, string> = {
+  practice: 'Practice',
+  match: 'Competition',
+  lifting: 'Lifting',
+};
+
+// Time-of-day buckets for the auto-label. Morning: 4am–11am, midday: noon–3pm,
+// afternoon: 4pm–7pm, evening: 8pm onwards. Tuned to swim-team practice
+// rhythms — most squads have AM/PM workouts, lifts in the afternoon, and
+// meets that are dated rather than time-bucketed.
+function timeBucket(d: Date): string {
+  const h = d.getHours();
+  if (h < 11) return 'AM';
+  if (h < 16) return 'midday';
+  if (h < 20) return 'PM';
+  return 'evening';
+}
+
+const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * Auto-generate a session label so the dialog opens with a sensible default.
+ * The coach can overwrite it; if they don't, this is what gets saved.
+ *
+ *   practice  → "Tue PM practice"
+ *   lifting   → "Wed AM lifting"
+ *   match     → "Sat Apr 28 — Competition"
+ */
+function autoLabel(type: SessionType, when: Date): string {
+  const day = WEEKDAY[when.getDay()];
+  if (type === 'match') {
+    const month = when.toLocaleString('en-US', { month: 'short' });
+    return `${day} ${month} ${when.getDate()} — Competition`;
+  }
+  const bucket = timeBucket(when);
+  const noun = type === 'lifting' ? 'lifting' : 'practice';
+  return `${day} ${bucket} ${noun}`;
+}
+
 export default function SessionsPage() {
   const { prefs, role } = useDashboard();
   const sb = useSupabase();
@@ -52,6 +95,10 @@ export default function SessionsPage() {
   const [formType, setFormType] = useState<SessionType>('practice');
   const [formLabel, setFormLabel] = useState('');
   const [formTemplateId, setFormTemplateId] = useState<string>('');
+  // Track whether the coach has hand-edited the label. While untouched, we
+  // re-prefill it whenever they change the type so the suggestion stays in
+  // sync with their selection. Once they type anything, we stop touching it.
+  const [labelEdited, setLabelEdited] = useState(false);
   const canCreate = role === 'coach' || role === 'captain' || role === 'admin';
 
   const load = useCallback(async () => {
@@ -93,6 +140,22 @@ export default function SessionsPage() {
   }, [sb, prefs.team_id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Open: seed a fresh suggestion so the coach has one keystroke to commit.
+  useEffect(() => {
+    if (!open) return;
+    setFormType('practice');
+    setFormTemplateId('');
+    setFormLabel(autoLabel('practice', new Date()));
+    setLabelEdited(false);
+    setErrMsg(null);
+  }, [open]);
+
+  // Type changes: refresh the prefilled label unless the coach has touched it.
+  useEffect(() => {
+    if (!open || labelEdited) return;
+    setFormLabel(autoLabel(formType, new Date()));
+  }, [formType, open, labelEdited]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -144,7 +207,7 @@ export default function SessionsPage() {
       <PageHeader
         eyebrow="Survey engine"
         title="Sessions"
-        subtitle={`${stats.total} session${stats.total === 1 ? '' : 's'} — ${stats.practice} practice · ${stats.match} match · ${stats.lifting} lifting`}
+        subtitle={`${stats.total} session${stats.total === 1 ? '' : 's'} — ${stats.practice} practice · ${stats.match} competition · ${stats.lifting} lifting`}
         actions={
           canCreate ? (
             <Dialog open={open} onOpenChange={setOpen}>
@@ -160,7 +223,7 @@ export default function SessionsPage() {
                       <SelectTrigger id="type"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="practice">Practice</SelectItem>
-                        <SelectItem value="match">Match</SelectItem>
+                        <SelectItem value="match">Competition</SelectItem>
                         <SelectItem value="lifting">Lifting</SelectItem>
                       </SelectContent>
                     </Select>
@@ -170,9 +233,14 @@ export default function SessionsPage() {
                     <Input
                       id="label"
                       value={formLabel}
-                      onChange={(e) => setFormLabel(e.target.value)}
-                      placeholder="e.g. Tuesday AM, vs Wash U Saturday"
+                      onChange={(e) => { setFormLabel(e.target.value); setLabelEdited(true); }}
+                      placeholder="e.g. Tue AM practice, Sat — Competition"
                     />
+                    {!labelEdited && (
+                      <p className="text-[11.5px] text-[color:var(--ink-mute)]">
+                        Auto-suggested from the type and time. Tweak it or just hit Create.
+                      </p>
+                    )}
                   </div>
                   <div className="grid gap-1.5">
                     <label className="text-[12.5px] font-semibold" htmlFor="tmpl">Template (optional)</label>
@@ -221,7 +289,7 @@ export default function SessionsPage() {
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="practice">Practice</SelectItem>
-                <SelectItem value="match">Match</SelectItem>
+                <SelectItem value="match">Competition</SelectItem>
                 <SelectItem value="lifting">Lifting</SelectItem>
               </SelectContent>
             </Select>
@@ -253,7 +321,7 @@ export default function SessionsPage() {
                           >
                             {s.label}
                           </Link>
-                          <Pill tone={TYPE_TONE[s.type]}>{s.type}</Pill>
+                          <Pill tone={TYPE_TONE[s.type]}>{TYPE_LABEL[s.type]}</Pill>
                           {s.flag_count > 0 && (
                             <Pill tone="red">{s.flag_count} flag{s.flag_count === 1 ? '' : 's'}</Pill>
                           )}
