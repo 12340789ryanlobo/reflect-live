@@ -19,7 +19,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Search, Trash2 } from 'lucide-react';
+import { CalendarClock, Search, Trash2, X } from 'lucide-react';
 import { prettyDateTime, relativeTime } from '@/lib/format';
 import { DateTimePicker } from '@/components/v3/datetime-picker';
 import type { SessionType } from '@reflect-live/shared';
@@ -36,6 +36,17 @@ interface SessionRow {
 }
 
 interface TemplateLite { id: number; name: string; session_type: SessionType }
+
+interface UpcomingSend {
+  id: number;
+  scheduled_at: string;
+  channel: 'whatsapp' | 'sms';
+  group_filter: string | null;
+  player_ids_json: number[] | null;
+  session_id: number;
+  session_label: string;
+  session_type: SessionType;
+}
 
 const TYPE_TONE: Record<SessionType, 'blue' | 'amber' | 'green'> = {
   practice: 'blue',
@@ -107,6 +118,7 @@ export default function SessionsPage() {
   const { prefs, role } = useDashboard();
   const sb = useSupabase();
   const [rows, setRows] = useState<SessionRow[]>([]);
+  const [upcoming, setUpcoming] = useState<UpcomingSend[]>([]);
   const [templates, setTemplates] = useState<TemplateLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -127,7 +139,7 @@ export default function SessionsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: ss }, { data: ds }, { data: fs }, { data: tpls }] = await Promise.all([
+    const [{ data: ss }, { data: ds }, { data: fs }, { data: tpls }, { data: pendingSends }] = await Promise.all([
       sb.from('sessions')
         .select('id,type,label,template_id,created_at,deleted_at')
         .eq('team_id', prefs.team_id)
@@ -140,6 +152,13 @@ export default function SessionsPage() {
         .select('id,name,session_type')
         .eq('team_id', prefs.team_id)
         .order('name'),
+      sb.from('scheduled_sends')
+        .select('id,scheduled_at,channel,group_filter,player_ids_json,session_id,sessions!inner(label,type,team_id,deleted_at)')
+        .eq('status', 'pending')
+        .eq('sessions.team_id', prefs.team_id)
+        .is('sessions.deleted_at', null)
+        .order('scheduled_at', { ascending: true })
+        .limit(50),
     ]);
     const dCounts = new Map<number, { total: number; done: number }>();
     for (const d of (ds ?? []) as Array<{ session_id: number; status: string }>) {
@@ -160,8 +179,39 @@ export default function SessionsPage() {
     }));
     setRows(enriched);
     setTemplates((tpls ?? []) as TemplateLite[]);
+
+    type RawUpcoming = {
+      id: number;
+      scheduled_at: string;
+      channel: 'whatsapp' | 'sms';
+      group_filter: string | null;
+      player_ids_json: number[] | null;
+      session_id: number;
+      sessions: { label: string; type: SessionType };
+    };
+    setUpcoming(((pendingSends ?? []) as unknown as RawUpcoming[]).map((s) => ({
+      id: s.id,
+      scheduled_at: s.scheduled_at,
+      channel: s.channel,
+      group_filter: s.group_filter,
+      player_ids_json: s.player_ids_json,
+      session_id: s.session_id,
+      session_label: s.sessions.label,
+      session_type: s.sessions.type,
+    })));
+
     setLoading(false);
   }, [sb, prefs.team_id]);
+
+  async function cancelSend(sendId: number) {
+    if (!confirm('Cancel this send? It will not go out at the scheduled time.')) return;
+    const res = await fetch(`/api/scheduled-sends/${sendId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ cancel: true }),
+    });
+    if (res.ok) await load();
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -321,6 +371,64 @@ export default function SessionsPage() {
       />
 
       <main className="px-6 pb-12 pt-4 space-y-6">
+        {upcoming.length > 0 && (
+          <section className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+            <header
+              className="flex items-center justify-between gap-3 px-6 py-3 border-b"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <div className="flex items-center gap-2">
+                <CalendarClock className="size-4 text-[color:var(--blue)]" />
+                <h2 className="text-[13px] font-bold text-[color:var(--ink)]">Upcoming sends</h2>
+              </div>
+              <span className="text-[11.5px] text-[color:var(--ink-mute)]">
+                {upcoming.length} queued · shadow mode
+              </span>
+            </header>
+            <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {upcoming.map((s) => {
+                const audience = s.player_ids_json && s.player_ids_json.length > 0
+                  ? `${s.player_ids_json.length} athlete${s.player_ids_json.length === 1 ? '' : 's'}`
+                  : s.group_filter
+                    ? `group: ${s.group_filter}`
+                    : 'whole team';
+                return (
+                  <li key={s.id} className="px-6 py-3 flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/dashboard/sessions/${s.session_id}`}
+                          className="text-[13.5px] font-semibold text-[color:var(--ink)] hover:underline truncate"
+                        >
+                          {s.session_label}
+                        </Link>
+                        <Pill tone={TYPE_TONE[s.session_type]}>{TYPE_LABEL[s.session_type]}</Pill>
+                      </div>
+                      <p
+                        className="mt-0.5 mono text-[11.5px] tabular text-[color:var(--ink-mute)]"
+                        title={prettyDateTime(s.scheduled_at)}
+                      >
+                        {relativeTime(s.scheduled_at)} · {s.channel} · {audience}
+                      </p>
+                    </div>
+                    {canCreate && (
+                      <button
+                        type="button"
+                        onClick={() => cancelSend(s.id)}
+                        className="rounded p-1.5 text-[color:var(--ink-mute)] hover:bg-[color:var(--paper-2)] hover:text-[color:var(--red)]"
+                        aria-label="Cancel scheduled send"
+                        title="Cancel scheduled send"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
         <section className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
           <header className="flex flex-wrap items-center gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <div className="relative flex-1 min-w-[220px]">
