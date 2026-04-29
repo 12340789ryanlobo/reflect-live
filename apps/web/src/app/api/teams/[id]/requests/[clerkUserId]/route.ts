@@ -10,11 +10,14 @@
 //   1. Update the team_membership row: status='denied',
 //      deny_reason=<reason or null>, decided_at=now(), decided_by=<approver>.
 //
-// Decision SMS (1e) keys off the realtime change to the row.
+// Decision SMS (1e): after the row is updated successfully, send a one-shot
+// SMS to the requester. Fire-and-forget — failures are logged in the
+// response payload but don't roll back the decision.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { getTwilioConfigForTeam, sendSms } from '@/lib/twilio-sms';
 
 function serviceClient() {
   return createClient(
@@ -22,6 +25,29 @@ function serviceClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } },
   );
+}
+
+function appBaseUrl(req: NextRequest): string {
+  const env = process.env.NEXT_PUBLIC_APP_URL;
+  if (env) return env.replace(/\/$/, '');
+  const host = req.headers.get('host');
+  const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+  return host ? `${proto}://${host}` : 'https://reflect-live-delta.vercel.app';
+}
+
+async function sendDecisionSms(opts: {
+  sb: ReturnType<typeof serviceClient>;
+  teamId: number;
+  toPhone: string;
+  body: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const cfg = await getTwilioConfigForTeam(opts.sb, opts.teamId);
+    await sendSms(cfg, opts.toPhone, opts.body);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function PATCH(
@@ -88,6 +114,15 @@ export async function PATCH(
 
   const now = new Date().toISOString();
 
+  // Pull the team name once — we use it in the SMS copy below.
+  const { data: teamRow } = await sb
+    .from('teams')
+    .select('name')
+    .eq('id', teamId)
+    .maybeSingle<{ name: string }>();
+  const teamName = teamRow?.name ?? 'your team';
+  const baseUrl = appBaseUrl(req);
+
   if (action === 'deny') {
     const { data, error } = await sb
       .from('team_memberships')
@@ -102,7 +137,14 @@ export async function PATCH(
       .select()
       .single();
     if (error) return NextResponse.json({ error: 'update_failed', detail: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, membership: data });
+
+    let sms: { ok: true } | { ok: false; error: string } | { ok: false; error: 'no_phone' } = { ok: false, error: 'no_phone' };
+    if (request.requested_phone) {
+      const reasonClause = reason ? `: ${reason}` : '';
+      const body = `${teamName} declined your request${reasonClause}. You can request again at ${baseUrl}/onboarding`;
+      sms = await sendDecisionSms({ sb, teamId, toPhone: request.requested_phone, body });
+    }
+    return NextResponse.json({ ok: true, membership: data, sms });
   }
 
   // approve: create the players row first.
@@ -164,5 +206,11 @@ export async function PATCH(
     .select()
     .single();
   if (error) return NextResponse.json({ error: 'update_failed', detail: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, membership: data, player_id: playerId });
+
+  const approveBody = `${teamName} approved your request. Open your dashboard at ${baseUrl}/dashboard`;
+  const sms = request.requested_phone
+    ? await sendDecisionSms({ sb, teamId, toPhone: request.requested_phone, body: approveBody })
+    : ({ ok: false, error: 'no_phone' } as const);
+
+  return NextResponse.json({ ok: true, membership: data, player_id: playerId, sms });
 }

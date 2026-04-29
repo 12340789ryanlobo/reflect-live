@@ -33,6 +33,28 @@ export default function RequestsPage() {
   const [actingOn, setActingOn] = useState<string | null>(null);
   const [denyTarget, setDenyTarget] = useState<RequestRow | null>(null);
   const [denyReason, setDenyReason] = useState('');
+  const [flash, setFlash] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
+
+  function showFlash(tone: 'ok' | 'warn', text: string) {
+    setFlash({ tone, text });
+    setTimeout(() => setFlash(null), 6000);
+  }
+
+  function describeSmsResult(
+    name: string | null,
+    decision: 'approved' | 'denied',
+    sms: { ok: true } | { ok: false; error: string } | undefined,
+  ): { tone: 'ok' | 'warn'; text: string } {
+    const who = name ?? 'request';
+    if (sms?.ok) return { tone: 'ok', text: `${who} ${decision}. SMS sent.` };
+    if (sms && !sms.ok) {
+      if (sms.error === 'no_phone') {
+        return { tone: 'warn', text: `${who} ${decision}. No phone on file — no SMS sent.` };
+      }
+      return { tone: 'warn', text: `${who} ${decision}. SMS failed: ${sms.error}` };
+    }
+    return { tone: 'warn', text: `${who} ${decision}.` };
+  }
 
   const canManage = role === 'coach' || role === 'captain' || role === 'admin';
 
@@ -65,26 +87,33 @@ export default function RequestsPage() {
 
   async function approve(req: RequestRow) {
     setActingOn(req.clerk_user_id);
-    await fetch(`/api/teams/${prefs.team_id}/requests/${encodeURIComponent(req.clerk_user_id)}`, {
+    const res = await fetch(`/api/teams/${prefs.team_id}/requests/${encodeURIComponent(req.clerk_user_id)}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'approve' }),
     });
+    const j = res.ok ? await res.json().catch(() => null) : null;
     setActingOn(null);
+    const f = describeSmsResult(req.requested_name, 'approved', j?.sms);
+    showFlash(f.tone, f.text);
     await load();
   }
 
   async function submitDeny() {
     if (!denyTarget) return;
     setActingOn(denyTarget.clerk_user_id);
-    await fetch(`/api/teams/${prefs.team_id}/requests/${encodeURIComponent(denyTarget.clerk_user_id)}`, {
+    const res = await fetch(`/api/teams/${prefs.team_id}/requests/${encodeURIComponent(denyTarget.clerk_user_id)}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'deny', reason: denyReason.trim() || null }),
     });
+    const j = res.ok ? await res.json().catch(() => null) : null;
+    const target = denyTarget;
     setActingOn(null);
     setDenyTarget(null);
     setDenyReason('');
+    const f = describeSmsResult(target.requested_name, 'denied', j?.sms);
+    showFlash(f.tone, f.text);
     await load();
   }
 
@@ -112,6 +141,19 @@ export default function RequestsPage() {
         }
       />
       <main className="px-6 pb-12 pt-4">
+        {flash && (
+          <div
+            className="mb-4 rounded-lg border px-4 py-2.5 text-[13px]"
+            style={{
+              borderColor: flash.tone === 'ok' ? 'var(--green)' : 'var(--amber)',
+              backgroundColor: flash.tone === 'ok' ? 'color-mix(in srgb, var(--green) 8%, transparent)' : 'color-mix(in srgb, var(--amber) 8%, transparent)',
+              color: 'var(--ink)',
+            }}
+            role="status"
+          >
+            {flash.text}
+          </div>
+        )}
         <section className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
           {loading ? (
             <p className="px-6 py-10 text-[13px] text-[color:var(--ink-mute)]">— loading —</p>
