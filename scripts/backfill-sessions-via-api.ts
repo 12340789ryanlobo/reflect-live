@@ -188,7 +188,35 @@ async function main() {
   }
   console.log(`[templates] imported=${tplImported} skipped=${tplSkipped}`);
 
-  // ---- 4. discover all session ids via the responses CSV ----
+  // ---- 4. authoritative reflect player roster via /admin/export/players ----
+  // The responses endpoint only carries phones for players who actually replied,
+  // so deriving the reflect.player_id → phone map from responses misses anyone
+  // who got the survey but never answered. Pull the full player export to get
+  // an authoritative map up front, independent of response activity.
+  const playersCsv = await apiText('/admin/export/players');
+  const phoneByReflectPid = new Map<number, string>();
+  {
+    const rows = playersCsv.split(/\r?\n/);
+    if (rows.length > 0) {
+      const head = rows[0].split(',');
+      const idCol = head.indexOf('id');
+      // /admin/export/players exposes the column as `phone` (E.164 values);
+      // tolerate `phone_e164` too in case reflect renames it later.
+      const phoneCol = head.indexOf('phone') >= 0 ? head.indexOf('phone') : head.indexOf('phone_e164');
+      if (idCol >= 0 && phoneCol >= 0) {
+        for (let i = 1; i < rows.length; i++) {
+          if (!rows[i]) continue;
+          const cols = rows[i].split(',');
+          const pid = Number(cols[idCol]);
+          const phone = cols[phoneCol]?.trim();
+          if (Number.isInteger(pid) && phone) phoneByReflectPid.set(pid, phone);
+        }
+      }
+    }
+  }
+  console.log(`[players] reflect roster from /admin/export/players: ${phoneByReflectPid.size}`);
+
+  // ---- 5. discover all session ids via the responses CSV ----
   const csv = await apiText('/admin/export/responses');
   const sessionIds = uniqueSessionIdsFromCsv(csv);
   console.log(`[sessions] discovered ${sessionIds.length} session_ids in /admin/export/responses`);
@@ -257,9 +285,9 @@ async function main() {
       sImported += 1;
     }
 
-    // Map players via phone — the summary endpoint gives player_name but
-    // not phone, so we look phone up from the responses endpoint (player
-    // count is small per session).
+    // Responses for this session — used directly to insert into reflect-live's
+    // responses table. Player→phone mapping no longer derives from these rows;
+    // it lives in the global phoneByReflectPid map built from the player export.
     let respList: ApiResponse[] = [];
     try {
       const r = await api<{ responses: ApiResponse[] }>(`/admin/sessions/${reflectSid}/responses`);
@@ -267,16 +295,6 @@ async function main() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[responses] reflect.session=${reflectSid} fetch failed: ${msg}`);
-    }
-
-    // Build reflect.player_id → phone map from the response rows
-    // (deliveries carry player_id but no phone; responses carry phone).
-    const phoneByReflectPid = new Map<number, string>();
-    for (const r of respList) {
-      // We need reflect's player_id but the response endpoint doesn't
-      // return it directly. Match by player_name → deliveries player_id.
-      const d = summary.deliveries.find((x) => x.player_name === r.player_name);
-      if (d) phoneByReflectPid.set(d.player_id, r.player_phone);
     }
 
     function mapPlayer(reflectPid: number): number | null {
