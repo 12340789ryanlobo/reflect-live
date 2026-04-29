@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  let body: { team_id?: unknown; name?: unknown; email?: unknown };
+  let body: { team_id?: unknown; name?: unknown; email?: unknown; phone?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
 
   const teamId = Number(body.team_id);
@@ -51,6 +51,14 @@ export async function POST(req: NextRequest) {
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name) return NextResponse.json({ error: 'name_required' }, { status: 400 });
   if (name.length > 120) return NextResponse.json({ error: 'name_too_long' }, { status: 400 });
+
+  // Light phone normalization — strip whitespace and dashes; keep leading '+'.
+  const phoneRaw = typeof body.phone === 'string' ? body.phone.trim() : '';
+  const phone = phoneRaw.replace(/[\s\-().]/g, '');
+  if (!phone) return NextResponse.json({ error: 'phone_required' }, { status: 400 });
+  if (!/^\+?\d{7,15}$/.test(phone)) {
+    return NextResponse.json({ error: 'bad_phone' }, { status: 400 });
+  }
 
   let email = typeof body.email === 'string' ? body.email.trim() : '';
   if (!email) {
@@ -98,6 +106,7 @@ export async function POST(req: NextRequest) {
       default_team: false,
       requested_name: name,
       requested_email: email || null,
+      requested_phone: phone,
       requested_at: now,
     })
     .select()

@@ -143,6 +143,7 @@ export interface TeamMembership {
   default_team: boolean;
   requested_name: string | null;
   requested_email: string | null;
+  requested_phone: string | null;
   requested_at: string;
   decided_at: string | null;
   decided_by: string | null;

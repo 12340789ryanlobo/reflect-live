@@ -12,6 +12,7 @@ function mk(partial: Partial<TeamMembership>): TeamMembership {
     default_team: false,
     requested_name: null,
     requested_email: null,
+    requested_phone: null,
     requested_at: '2026-04-29T00:00:00Z',
     decided_at: null,
     decided_by: null,
