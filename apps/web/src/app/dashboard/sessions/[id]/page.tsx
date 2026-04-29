@@ -17,9 +17,10 @@ import { ChevronLeft, MessageSquareText, Pencil, Save, X } from 'lucide-react';
 import { prettyDateTime, relativeTime } from '@/lib/format';
 import type { SessionMetadata, SessionType, SurveyQuestion } from '@reflect-live/shared';
 
-// Truncation budget for free-text answers in matrix cells. Anything
-// longer renders as `<head>…` with a click-to-expand popover.
-const CELL_TEXT_LIMIT = 18;
+// Truncation budget for free-text answers in matrix cells. Tuned to fit
+// comfortably inside the fixed Q-column width (96px) — anything longer
+// renders as `<head>…` with a click-to-expand popover for the full text.
+const CELL_TEXT_LIMIT = 10;
 
 interface SessionRow {
   id: number;
@@ -511,7 +512,11 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
       </header>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-[12.5px] tabular border-separate border-spacing-0">
+        {/* table-fixed + uniform Q-column width gives the grid a single
+            visual rhythm — numeric, binary, and free-text columns all
+            sit in 96px slots so the matrix reads as a clean grid
+            instead of widths-by-content. */}
+        <table className="w-full text-[12.5px] tabular border-separate border-spacing-0 table-fixed">
           <thead>
             <tr>
               <th
@@ -527,7 +532,7 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                 return (
                   <th
                     key={q.id}
-                    className="text-center px-2 py-2 border-b w-[64px]"
+                    className="text-center px-2 py-2 border-b w-[96px]"
                     style={{ borderColor: 'var(--border)' }}
                   >
                     <QuestionHover q={q} stats={stats} />
@@ -559,7 +564,7 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                       return (
                         <td
                           key={q.id}
-                          className="px-2 py-1.5 border-b text-center text-[color:var(--ink-mute)]"
+                          className="px-2 py-1.5 border-b text-center text-[color:var(--ink-mute)] w-[96px]"
                           style={{ borderColor: 'var(--border)' }}
                         >—</td>
                       );
@@ -567,7 +572,7 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                     return (
                       <td
                         key={q.id}
-                        className="px-2 py-1.5 border-b"
+                        className="px-2 py-1.5 border-b text-center w-[96px]"
                         style={{ borderColor: 'var(--border)' }}
                       >
                         <AnswerCell
