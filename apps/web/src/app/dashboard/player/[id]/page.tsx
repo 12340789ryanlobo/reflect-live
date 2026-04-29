@@ -5,6 +5,7 @@ import { StatCell } from '@/components/v3/stat-cell';
 import { Pill } from '@/components/v3/pill';
 import { ReadinessBar } from '@/components/v3/readiness-bar';
 import { BodyHeatmap } from '@/components/v3/body-heatmap';
+import { PlayerSummaryCard } from '@/components/v3/player-summary-card';
 import { regionLabel } from '@/lib/injury-aliases';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog, Category } from '@reflect-live/shared';
@@ -205,6 +206,9 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             />
           </div>
         </section>
+
+        {/* AI summary */}
+        <PlayerSummaryCard playerId={player.id} />
 
         {/* Injury heatmap */}
         <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
