@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import Body, { type ExtendedBodyPart, type Slug } from 'react-muscle-highlighter';
 import {
   regionCountsToMuscleCounts,
-  regionToMuscle,
+  regionToMuscles,
   muscleToRegions,
   type View,
 } from '@/lib/region-to-muscle';
@@ -84,10 +84,8 @@ export function BodyHeatmap({
     const front = new Set<Slug>();
     const back = new Set<Slug>();
     for (const r of selectedRegions ?? []) {
-      const f = regionToMuscle(r, 'front');
-      const b = regionToMuscle(r, 'back');
-      if (f) front.add(f);
-      if (b) back.add(b);
+      for (const slug of regionToMuscles(r, 'front')) front.add(slug);
+      for (const slug of regionToMuscles(r, 'back')) back.add(slug);
     }
     return { frontSelected: front, backSelected: back };
   }, [selectedRegions]);
