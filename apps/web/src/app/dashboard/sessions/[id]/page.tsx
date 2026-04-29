@@ -7,14 +7,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { Popover as PopoverPrimitive } from 'radix-ui';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Pill } from '@/components/v3/pill';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronLeft, Pencil, Save, X } from 'lucide-react';
+import { ChevronLeft, MessageSquareText, Pencil, Save, X } from 'lucide-react';
 import { prettyDateTime, relativeTime } from '@/lib/format';
 import type { SessionMetadata, SessionType, SurveyQuestion } from '@reflect-live/shared';
+
+// Truncation budget for free-text answers in matrix cells. Anything
+// longer renders as `<head>…` with a click-to-expand popover.
+const CELL_TEXT_LIMIT = 18;
 
 interface SessionRow {
   id: number;
@@ -233,10 +238,10 @@ export default function SessionDetailPage() {
           )}
         </section>
 
-        {/* Per-question insight blocks. One block per question. The
-            block surfaces just the actionable bit: outlier athletes for
-            numeric, yes-sayers for binary, the actual replies for free
-            text. No matrix, no spreadsheet feel. */}
+        {/* Single matrix card. Question reference (numbered list with
+            summary) sits at the TOP of the card — coach reads it once,
+            then scans the dense heatmap below. No second card, no
+            popover dance just to find what Q1 asks. */}
         {questions.length === 0 ? (
           <section
             className="rounded-2xl bg-[color:var(--card)] border px-6 py-8"
@@ -247,7 +252,7 @@ export default function SessionDetailPage() {
             </p>
           </section>
         ) : (
-          <QuestionInsights
+          <ResponseMatrix
             questions={questions}
             deliveries={deliveries}
             responses={responses}
@@ -340,18 +345,85 @@ function StatChip({
   );
 }
 
-// ---------------- QuestionInsights ------------------------------------------
+// ---------------- ResponseMatrix --------------------------------------------
 //
-// One block per question, rendered top-to-bottom. Surfaces just the
-// actionable signal — outliers for numeric, yes-sayers for binary,
-// the actual replies for free text. No matrix, no spreadsheet view;
-// reads as a coach's-eye summary of what the team said.
+// Athlete-as-row, question-as-column heatmap. Question reference list
+// sits at the TOP of the same card so a coach reads what each Q is
+// asking before scanning the cells. Matrix uses tight 64px columns and
+// just 'Q1', 'Q2' labels — the top-of-card list does the heavy lifting
+// for question identity.
 
-interface InsightsProps {
+interface MatrixProps {
   questions: SurveyQuestion[];
   deliveries: DeliveryRow[];
   responses: ResponseRow[];
   questionStats: Map<string, QuestionStats>;
+}
+
+/**
+ * Color logic for matrix cells. Heuristic:
+ *   - scale_1_10 / captain_rating: 1-3 red-soft, 4-6 amber-soft, 7-10 green-soft
+ *     (high is "good" by default; questions where high is bad — pain — flip)
+ *   - binary: 1 → red-soft (yes-pain pattern matches reflect's flag rules),
+ *             0 → green-soft
+ *   - choice_1_3: 1 green-soft, 2 neutral, 3 amber-soft (light/right/heavy)
+ *   - free_text / multi_select_body_regions: neutral fill, content shown
+ */
+function cellTone(question: SurveyQuestion, answer: ResponseRow): { bg: string; text: string } {
+  const v = answer.answer_num;
+  const flag = question.flag_rule;
+  const highIsBad =
+    flag?.condition === 'value >= 7' ||
+    flag?.condition === 'any_rating >= 7' ||
+    flag?.condition === 'value == 1';
+
+  if (question.type === 'scale_1_10' || question.type === 'captain_rating') {
+    if (v === null) return { bg: 'var(--paper-2)', text: 'var(--ink-mute)' };
+    const lowGood = highIsBad;
+    const goodSoft = 'var(--green-soft)';
+    const badSoft = 'var(--red-soft)';
+    const midSoft = 'var(--amber-soft)';
+    if (v <= 3) return { bg: lowGood ? goodSoft : badSoft, text: 'var(--ink)' };
+    if (v <= 6) return { bg: midSoft, text: 'var(--ink)' };
+    return { bg: lowGood ? badSoft : goodSoft, text: 'var(--ink)' };
+  }
+  if (question.type === 'binary') {
+    if (v === 1) return { bg: 'var(--red-soft)', text: 'var(--ink)' };
+    if (v === 0) return { bg: 'var(--green-soft)', text: 'var(--ink)' };
+  }
+  if (question.type === 'choice_1_3') {
+    if (v === 1) return { bg: 'var(--green-soft)', text: 'var(--ink)' };
+    if (v === 2) return { bg: 'var(--paper-2)', text: 'var(--ink)' };
+    if (v === 3) return { bg: 'var(--amber-soft)', text: 'var(--ink)' };
+  }
+  return { bg: 'var(--paper-2)', text: 'var(--ink)' };
+}
+
+interface DisplayedAnswer {
+  text: string;
+  truncated: boolean;
+}
+
+function shortAnswer(question: SurveyQuestion, answer: ResponseRow): DisplayedAnswer {
+  if (question.type === 'binary') {
+    if (answer.answer_num === 1) return { text: 'yes', truncated: false };
+    if (answer.answer_num === 0) return { text: 'no', truncated: false };
+  }
+  if (answer.answer_num !== null && (
+    question.type === 'scale_1_10' ||
+    question.type === 'choice_1_3' ||
+    question.type === 'captain_rating'
+  )) {
+    const raw = (answer.answer_raw ?? '').trim();
+    const truncated = question.type === 'captain_rating'
+      && raw.length > String(answer.answer_num).length;
+    return { text: String(answer.answer_num), truncated };
+  }
+  const t = answer.answer_raw ?? '';
+  if (t.length > CELL_TEXT_LIMIT) {
+    return { text: `${t.slice(0, CELL_TEXT_LIMIT - 1)}…`, truncated: true };
+  }
+  return { text: t, truncated: false };
 }
 
 // Per-question summary, shape per type. The header renderer
@@ -411,328 +483,234 @@ const QUESTION_TYPE_LABEL: Record<SurveyQuestion['type'], string> = {
   free_text: 'free text',
 };
 
-const FREE_TEXT_PREVIEW_LIMIT = 5;
-
-interface AthleteAnswer {
-  player_id: number;
-  player_name: string;
-  answer: ResponseRow;
-}
-
-function QuestionInsights({ questions, deliveries, responses, questionStats }: InsightsProps) {
-  // Build playerId → name map once for inline athlete chips.
-  const nameByPid = new Map<number, string>();
-  for (const d of deliveries) {
-    if (d.player) nameByPid.set(d.player_id, d.player.name);
-  }
-
-  // Bucket responses by question.
-  const respByQ = new Map<string, AthleteAnswer[]>();
+function ResponseMatrix({ questions, deliveries, responses, questionStats }: MatrixProps) {
+  // Build the (player_id × question_id → response) lookup once.
+  const byPlayerQ = new Map<number, Map<string, ResponseRow>>();
   for (const r of responses) {
-    const list = respByQ.get(r.question_id) ?? [];
-    list.push({
-      player_id: r.player_id,
-      player_name: nameByPid.get(r.player_id) ?? '—',
-      answer: r,
-    });
-    respByQ.set(r.question_id, list);
+    let m = byPlayerQ.get(r.player_id);
+    if (!m) { m = new Map(); byPlayerQ.set(r.player_id, m); }
+    m.set(r.question_id, r);
   }
+  const rows = [...deliveries].sort((a, b) =>
+    (a.player?.name ?? '').localeCompare(b.player?.name ?? ''),
+  );
 
   return (
-    <section className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+    <section
+      className="rounded-2xl bg-[color:var(--card)] border overflow-hidden"
+      style={{ borderColor: 'var(--border)' }}
+    >
       <header
         className="flex items-center justify-between gap-3 px-6 py-3 border-b"
         style={{ borderColor: 'var(--border)' }}
       >
         <h2 className="text-base font-bold text-[color:var(--ink)]">Responses</h2>
         <span className="text-[11.5px] text-[color:var(--ink-mute)]">
-          {questions.length} question{questions.length === 1 ? '' : 's'}
+          {rows.length} athlete{rows.length === 1 ? '' : 's'} · {questions.length} question{questions.length === 1 ? '' : 's'}
         </span>
       </header>
-      <ol className="divide-y" style={{ borderColor: 'var(--border)' }}>
-        {questions.map((q) => {
-          const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
-          const list = respByQ.get(q.id) ?? [];
-          return (
-            <li key={q.id}>
-              <QuestionInsight q={q} stats={stats} answers={list} />
-            </li>
-          );
-        })}
-      </ol>
+
+      {/* Question reference list — sits at the TOP of the matrix card.
+          Coach reads what each Q is asking once, then scans the heatmap
+          below using just the Q-numbers. Two-column flex per row keeps
+          the question text on the left and the team summary right-aligned. */}
+      <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
+        <ol className="space-y-1.5">
+          {questions.map((q) => {
+            const stats = questionStats.get(q.id) ?? { kind: 'empty' as const };
+            return (
+              <li key={q.id} className="flex items-baseline gap-3">
+                <span className="mono text-[11px] font-bold tabular text-[color:var(--ink-mute)] shrink-0 w-6">
+                  Q{q.order}
+                </span>
+                <span className="flex-1 min-w-0 text-[13px] text-[color:var(--ink)] leading-snug">
+                  {q.text}
+                  {(q.captain_only || q.conditional) && (
+                    <span className="ml-2 text-[11px] text-[color:var(--ink-mute)]">
+                      {q.captain_only && '· captain only '}
+                      {q.conditional && `· shows when ${q.conditional.depends_on} = ${q.conditional.show_if}`}
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 text-[11.5px] text-[color:var(--ink-mute)]">
+                  <SummaryBar stats={stats} />
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12.5px] tabular border-separate border-spacing-0">
+          <thead>
+            <tr>
+              <th
+                className="sticky left-0 z-10 bg-[color:var(--card)] text-left px-4 py-2 border-b"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <span className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
+                  Athlete
+                </span>
+              </th>
+              {questions.map((q) => (
+                <th
+                  key={q.id}
+                  title={q.text}
+                  className="text-center px-2 py-2 border-b w-[64px]"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  <span className="mono text-[11px] font-bold tabular text-[color:var(--ink-soft)]">
+                    Q{q.order}
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((d) => {
+              const answers = byPlayerQ.get(d.player_id) ?? new Map<string, ResponseRow>();
+              return (
+                <tr key={d.id} className="hover:bg-[color:var(--paper-2)]">
+                  <td
+                    className="sticky left-0 z-10 bg-[color:var(--card)] px-4 py-2 border-b align-middle"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <Link
+                      href={`/dashboard/player/${d.player_id}`}
+                      className="text-[13px] font-semibold text-[color:var(--ink)] hover:underline whitespace-nowrap"
+                    >
+                      {d.player?.name ?? '—'}
+                    </Link>
+                  </td>
+                  {questions.map((q) => {
+                    const ans = answers.get(q.id);
+                    if (!ans) {
+                      return (
+                        <td
+                          key={q.id}
+                          className="px-2 py-1.5 border-b text-center text-[color:var(--ink-mute)]"
+                          style={{ borderColor: 'var(--border)' }}
+                        >—</td>
+                      );
+                    }
+                    return (
+                      <td
+                        key={q.id}
+                        className="px-2 py-1.5 border-b"
+                        style={{ borderColor: 'var(--border)' }}
+                      >
+                        <AnswerCell
+                          question={q}
+                          answer={ans}
+                          athleteName={d.player?.name ?? '—'}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
 
-function QuestionInsight({
-  q,
-  stats,
-  answers,
+/**
+ * Single matrix cell. Tinted span for short answers; click-to-expand
+ * popover when the answer is truncated (long free-text or captain-rating
+ * with a comment).
+ */
+function AnswerCell({
+  question,
+  answer,
+  athleteName,
 }: {
-  q: SurveyQuestion;
-  stats: QuestionStats;
-  answers: AthleteAnswer[];
+  question: SurveyQuestion;
+  answer: ResponseRow;
+  athleteName: string;
 }) {
+  const tone = cellTone(question, answer);
+  const display = shortAnswer(question, answer);
+  const trigger = (
+    <span
+      className="inline-flex items-center gap-1 rounded px-2 py-1 mono font-semibold whitespace-nowrap"
+      style={{ background: tone.bg, color: tone.text }}
+    >
+      {display.text}
+      {display.truncated && (
+        <MessageSquareText className="size-3 opacity-60" aria-hidden />
+      )}
+    </span>
+  );
+  if (!display.truncated) return trigger;
   return (
-    <div className="px-6 py-4">
-      {/* Header row — Q-number, question text, modifiers */}
-      <div className="flex items-baseline gap-3">
-        <span className="mono text-[11px] font-bold tabular text-[color:var(--ink-mute)] shrink-0 w-6">
-          Q{q.order}
-        </span>
-        <p className="text-[14px] font-semibold text-[color:var(--ink)] leading-snug">
-          {q.text}
-          {(q.captain_only || q.conditional) && (
-            <span className="ml-2 text-[11px] font-normal text-[color:var(--ink-mute)]">
-              {q.captain_only && '· captain only '}
-              {q.conditional && `· shows when ${q.conditional.depends_on} = ${q.conditional.show_if}`}
-            </span>
-          )}
-        </p>
-      </div>
-      {/* Type + summary row */}
-      <div className="mt-1.5 ml-9 flex items-center gap-3 text-[11.5px] text-[color:var(--ink-mute)]">
-        <span className="uppercase tracking-wide">{QUESTION_TYPE_LABEL[q.type] ?? q.type}</span>
-        <SummaryBar stats={stats} />
-      </div>
-      {/* Highlight row — outliers, yes-sayers, free-text replies */}
-      <div className="mt-2 ml-9">
-        <Highlight q={q} stats={stats} answers={answers} />
-      </div>
-    </div>
+    <PopoverPrimitive.Root>
+      <PopoverPrimitive.Trigger
+        className="cursor-pointer rounded transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--blue)]/40"
+        aria-label={`Full answer from ${athleteName} for question ${question.order}`}
+      >
+        {trigger}
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="start"
+          sideOffset={6}
+          className="z-50 max-w-[360px] rounded-2xl border bg-[color:var(--card)] p-4 shadow-lg"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <div className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">
+            {athleteName} · Q{question.order}
+          </div>
+          <p className="mt-1 text-[12px] text-[color:var(--ink-soft)] italic">{question.text}</p>
+          <p className="mt-3 text-[13px] text-[color:var(--ink)] whitespace-pre-wrap break-words">
+            {answer.answer_raw}
+          </p>
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 }
 
 /**
- * Compact summary bar — a single line that shows the team-level
- * aggregate for the question. Shape varies per question type so the
- * label always matches the answer space (avg out-of-N for scales,
- * percent yes for binary, distribution for 1-3 choice, count for text).
+ * Compact team-level summary used in the question reference list at the
+ * top of the matrix card. Type-aware so the label matches the answer
+ * space (avg out-of-N for scales, % yes for binary, etc.). No bar —
+ * just text — so the reference list stays a tight one-line-per-question
+ * read.
  */
 function SummaryBar({ stats }: { stats: QuestionStats }) {
   if (stats.kind === 'empty') {
-    return <span className="text-[color:var(--ink-mute)]">no replies yet</span>;
+    return <span>—</span>;
   }
   if (stats.kind === 'numeric') {
-    const ratio = (stats.mean - stats.min) / (stats.max - stats.min);
-    const tone =
-      ratio <= 0.3 ? (stats.highIsBad ? 'var(--green)' : 'var(--red)')
-      : ratio >= 0.7 ? (stats.highIsBad ? 'var(--red)' : 'var(--green)')
-      : 'var(--amber)';
     return (
-      <span className="inline-flex items-center gap-2">
-        <span className="mono tabular text-[color:var(--ink-soft)]">
-          avg {stats.mean.toFixed(1)} / {stats.max}
-        </span>
-        <span className="inline-block h-[3px] w-[60px] rounded-full bg-[color:var(--paper-2)] overflow-hidden">
-          <span
-            className="block h-full rounded-full"
-            style={{ width: `${Math.min(100, Math.max(0, ratio * 100))}%`, background: tone }}
-          />
-        </span>
-        <span>· {stats.count} repl{stats.count === 1 ? 'y' : 'ies'}</span>
+      <span className="mono tabular">
+        avg {stats.mean.toFixed(1)} / {stats.max} · {stats.count}
       </span>
     );
   }
   if (stats.kind === 'binary') {
     const pct = stats.count === 0 ? 0 : Math.round((stats.yes / stats.count) * 100);
     return (
-      <span className="inline-flex items-center gap-2">
-        <span className="mono tabular text-[color:var(--ink-soft)]">
-          {pct}% yes ({stats.yes}/{stats.count})
-        </span>
-        <span className="inline-block h-[3px] w-[60px] rounded-full bg-[color:var(--paper-2)] overflow-hidden">
-          <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--red)' }} />
-        </span>
+      <span className="mono tabular">
+        {pct}% yes · {stats.count}
       </span>
     );
   }
   if (stats.kind === 'choice_1_3') {
-    const total = stats.count || 1;
     const [light, right, heavy] = stats.buckets;
     return (
-      <span className="inline-flex items-center gap-2">
-        <span className="mono tabular text-[color:var(--ink-soft)]">
-          light {light} · right {right} · heavy {heavy}
-        </span>
-        <span className="inline-flex h-[3px] w-[60px] overflow-hidden rounded-full bg-[color:var(--paper-2)]">
-          <span style={{ width: `${(light / total) * 100}%`, background: 'var(--green)' }} />
-          <span style={{ width: `${(right / total) * 100}%`, background: 'var(--ink-mute)' }} />
-          <span style={{ width: `${(heavy / total) * 100}%`, background: 'var(--amber)' }} />
-        </span>
+      <span className="mono tabular">
+        {light} / {right} / {heavy} · {stats.count}
       </span>
     );
   }
   return (
-    <span className="mono tabular text-[color:var(--ink-soft)]">
+    <span className="mono tabular">
       {stats.count} repl{stats.count === 1 ? 'y' : 'ies'}
     </span>
-  );
-}
-
-/**
- * The 'actionable' line under each question. What gets surfaced varies
- * with the question's intent:
- *
- *   numeric (1-10)         → outliers in the bad zone (≤ 3 normally,
- *                            ≥ 7 when the flag rule says high-is-bad).
- *                            Listed lowest-first as inline chips.
- *   binary (yes/no)        → who said yes (the concerning answer).
- *                            Listed alphabetically.
- *   choice_1_3             → who said heavy (3) — the concerning bucket.
- *   captain_rating         → outliers like numeric.
- *   free_text / regions    → the actual replies, athlete: "answer". When
- *                            there are too many to show inline, render
- *                            the first FREE_TEXT_PREVIEW_LIMIT and an
- *                            'expand' button that swaps to the full list.
- *
- * If no athletes hit the actionable bucket (e.g. nobody said yes, all
- * scores are healthy), we render a single muted 'all clear' line so the
- * row still anchors visually.
- */
-function Highlight({
-  q,
-  stats,
-  answers,
-}: {
-  q: SurveyQuestion;
-  stats: QuestionStats;
-  answers: AthleteAnswer[];
-}) {
-  if (stats.kind === 'empty' || answers.length === 0) {
-    return <p className="text-[12px] text-[color:var(--ink-mute)] italic">No replies on record.</p>;
-  }
-
-  if (q.type === 'scale_1_10' || q.type === 'captain_rating') {
-    const highIsBad =
-      q.flag_rule?.condition === 'value >= 7' ||
-      q.flag_rule?.condition === 'any_rating >= 7';
-    const outliers = answers
-      .filter((a) => a.answer.answer_num !== null)
-      .filter((a) => highIsBad
-        ? (a.answer.answer_num as number) >= 7
-        : (a.answer.answer_num as number) <= 3,
-      )
-      .sort((a, b) => highIsBad
-        ? (b.answer.answer_num as number) - (a.answer.answer_num as number)
-        : (a.answer.answer_num as number) - (b.answer.answer_num as number),
-      );
-    if (outliers.length === 0) {
-      return (
-        <p className="text-[12px] text-[color:var(--ink-mute)]">
-          {highIsBad ? 'No high-pain reports.' : 'No one in the low zone.'}
-        </p>
-      );
-    }
-    return (
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-[11.5px] uppercase tracking-wide text-[color:var(--ink-mute)] mr-1">
-          {highIsBad ? 'High' : 'Low'}
-        </span>
-        {outliers.map((a) => (
-          <Link
-            key={a.answer.id}
-            href={`/dashboard/player/${a.player_id}`}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] hover:underline"
-            style={{
-              background: highIsBad ? 'var(--red-soft)' : 'var(--red-soft)',
-              color: 'var(--ink)',
-            }}
-          >
-            <span className="font-semibold">{a.player_name}</span>
-            <span className="mono tabular text-[color:var(--ink-soft)]">{a.answer.answer_num}</span>
-          </Link>
-        ))}
-      </div>
-    );
-  }
-
-  if (q.type === 'binary') {
-    const yesList = answers
-      .filter((a) => a.answer.answer_num === 1)
-      .sort((a, b) => a.player_name.localeCompare(b.player_name));
-    if (yesList.length === 0) {
-      return <p className="text-[12px] text-[color:var(--ink-mute)]">Everyone replied no.</p>;
-    }
-    return (
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-[11.5px] uppercase tracking-wide text-[color:var(--ink-mute)] mr-1">Yes</span>
-        {yesList.map((a) => (
-          <Link
-            key={a.answer.id}
-            href={`/dashboard/player/${a.player_id}`}
-            className="rounded px-1.5 py-0.5 text-[12px] font-semibold hover:underline"
-            style={{ background: 'var(--red-soft)', color: 'var(--ink)' }}
-          >
-            {a.player_name}
-          </Link>
-        ))}
-      </div>
-    );
-  }
-
-  if (q.type === 'choice_1_3') {
-    const heavyList = answers
-      .filter((a) => a.answer.answer_num === 3)
-      .sort((a, b) => a.player_name.localeCompare(b.player_name));
-    if (heavyList.length === 0) {
-      return <p className="text-[12px] text-[color:var(--ink-mute)]">No 'too heavy' replies.</p>;
-    }
-    return (
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-[11.5px] uppercase tracking-wide text-[color:var(--ink-mute)] mr-1">Too heavy</span>
-        {heavyList.map((a) => (
-          <Link
-            key={a.answer.id}
-            href={`/dashboard/player/${a.player_id}`}
-            className="rounded px-1.5 py-0.5 text-[12px] font-semibold hover:underline"
-            style={{ background: 'var(--amber-soft)', color: 'var(--ink)' }}
-          >
-            {a.player_name}
-          </Link>
-        ))}
-      </div>
-    );
-  }
-
-  // free_text and multi_select_body_regions — show the actual replies.
-  return <FreeTextReplies q={q} answers={answers} />;
-}
-
-function FreeTextReplies({ q, answers }: { q: SurveyQuestion; answers: AthleteAnswer[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const sorted = [...answers].sort((a, b) => a.player_name.localeCompare(b.player_name));
-  const visible = expanded ? sorted : sorted.slice(0, FREE_TEXT_PREVIEW_LIMIT);
-  const hidden = sorted.length - visible.length;
-
-  return (
-    <ul className="space-y-1">
-      {visible.map((a) => (
-        <li key={a.answer.id} className="flex items-baseline gap-2 text-[12.5px]">
-          <Link
-            href={`/dashboard/player/${a.player_id}`}
-            className="font-semibold text-[color:var(--ink)] hover:underline whitespace-nowrap"
-          >
-            {a.player_name}
-          </Link>
-          <span className="text-[color:var(--ink-mute)]">·</span>
-          <span className="text-[color:var(--ink-soft)] whitespace-pre-wrap break-words">
-            {a.answer.answer_raw}
-          </span>
-        </li>
-      ))}
-      {hidden > 0 && (
-        <li>
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
-            className="text-[11.5px] font-semibold text-[color:var(--blue)] hover:underline"
-            aria-label={`Show ${hidden} more replies for question ${q.order}`}
-          >
-            Show {hidden} more reply{hidden === 1 ? '' : 's'}
-          </button>
-        </li>
-      )}
-    </ul>
   );
 }
