@@ -32,15 +32,17 @@ const CHIPS: Array<{ key: Chip; label: string }> = [
 ];
 
 // Treat as noise on the "Important" view: Clerk verification SMS, the
-// system onboarding template the worker sends to a new number, and very
-// short single-word chat replies that are usually tests. Keep the regex
-// list narrow — false positives here mean real messages get hidden.
+// worker's onboarding/help template, the worker's "Workout logged!" /
+// "Rehab logged!" confirmation echoes (the real activity_log row is
+// already shown), and bare "test"/"testing" probes. Keep the regex list
+// narrow — false positives here mean real messages get hidden.
 function isNoise(e: TimelineEntry): boolean {
   const body = e.body.toLowerCase().trim();
   if (!body) return true;
   if (/verification code/.test(body)) return true;
   if (body.startsWith('to log a workout') || body.startsWith('to log rehab')) return true;
-  if ((e.kind === 'inbound' || e.kind === 'outbound') && body.length < 4) return true;
+  if (body.startsWith('workout logged!') || body.startsWith('rehab logged!')) return true;
+  if ((e.kind === 'inbound' || e.kind === 'outbound') && /^(test|testing|hi|hey|hello|ok|okay|yes|no|y|n)[.!?]?$/.test(body)) return true;
   return false;
 }
 

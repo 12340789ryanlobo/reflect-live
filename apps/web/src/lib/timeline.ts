@@ -24,12 +24,18 @@ export interface TimelineEntry {
     | { source: 'msg'; sid: string; direction: string };
 }
 
+// Strip the SMS protocol prefix ("Workout: " / "Rehab: ") from descriptions
+// so the row body reads as content, not protocol noise.
+function stripProtocolPrefix(text: string): string {
+  return text.replace(/^\s*(workout|rehab)\s*:\s*/i, '').trim();
+}
+
 function logToEntry(l: ActivityLog): TimelineEntry {
   return {
     id: `log:${l.id}`,
     kind: l.kind === 'rehab' ? 'rehab' : 'workout',
     ts: l.logged_at,
-    body: l.description ?? '',
+    body: stripProtocolPrefix(l.description ?? ''),
     meta: { source: 'log', logId: l.id },
   };
 }
@@ -57,12 +63,19 @@ export function buildTimeline(
   logs: ActivityLog[],
   msgs: TwilioMessage[],
 ): TimelineEntry[] {
+  // Dedup: when an activity_log was derived from an inbound SMS (linked
+  // via source_sid), the SMS itself is redundant — show the canonical
+  // log row only. Without this, an athlete texting "Workout: leg day..."
+  // produces two rows (the inbound message AND the parsed log entry).
+  const sourcedSids = new Set<string>();
   const entries: TimelineEntry[] = [];
   for (const l of logs) {
     if (l.hidden) continue;
+    if (l.source_sid) sourcedSids.add(l.source_sid);
     entries.push(logToEntry(l));
   }
   for (const m of msgs) {
+    if (sourcedSids.has(m.sid)) continue;
     entries.push(msgToEntry(m));
   }
   entries.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));

@@ -106,4 +106,26 @@ describe('buildTimeline', () => {
     const out = buildTimeline([], [msg({ sid: 'D1', direction: 'outbound', category: 'survey' })]);
     expect(out[0].meta).toMatchObject({ direction: 'outbound' });
   });
+
+  it('dedupes: drops the source SMS when an activity_log was derived from it', () => {
+    const logs = [log({ id: 7, kind: 'workout', description: 'leg day', source_sid: 'SM_abc' })];
+    const msgs = [
+      msg({ sid: 'SM_abc', category: 'workout', body: 'Workout: leg day' }),
+      msg({ sid: 'SM_other', category: 'chat', body: 'thanks coach' }),
+    ];
+    const out = buildTimeline(logs, msgs);
+    expect(out.map((e) => e.id).sort()).toEqual(['log:7', 'msg:SM_other']);
+  });
+
+  it('strips the "Workout:" / "Rehab:" SMS protocol prefix from log bodies', () => {
+    const out = buildTimeline(
+      [
+        log({ id: 1, kind: 'workout', description: 'Workout: leg day' }),
+        log({ id: 2, kind: 'rehab', description: 'rehab:  knee mobility' }),
+      ],
+      [],
+    );
+    expect(out.find((e) => e.id === 'log:1')?.body).toBe('leg day');
+    expect(out.find((e) => e.id === 'log:2')?.body).toBe('knee mobility');
+  });
 });
