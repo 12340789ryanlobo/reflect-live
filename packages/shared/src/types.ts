@@ -59,6 +59,9 @@ export interface ActivityLog {
   description: string;
   image_path: string | null;
   logged_at: string;
+  created_at: string;
+  source_sid: string | null;
+  hidden: boolean;
 }
 
 export interface WorkerState {
