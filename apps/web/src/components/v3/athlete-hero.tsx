@@ -5,7 +5,7 @@
 // Auto-fetches the AI summary when player or period changes; no
 // "Generate" button. The freshness chip + refresh icon expose the cache.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Sparkles, RefreshCw } from 'lucide-react';
 import { Pill } from '@/components/v3/pill';
 import { PeriodToggle } from '@/components/v3/period-toggle';
@@ -73,9 +73,12 @@ export function AthleteHero({
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const inFlightRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    inFlightRef.current?.abort();
     const ac = new AbortController();
+    inFlightRef.current = ac;
     (async () => {
       setLoading(true);
       setErr(null);
@@ -102,20 +105,28 @@ export function AthleteHero({
   }, [player.id, period]);
 
   async function forceRegen() {
+    inFlightRef.current?.abort();
+    const ac = new AbortController();
+    inFlightRef.current = ac;
     setLoading(true);
     setErr(null);
     try {
       const qs = new URLSearchParams({ days: periodKey(period), force: '1' });
-      const r = await fetch(`/api/players/${player.id}/summary?${qs}`, { method: 'POST' });
+      const r = await fetch(`/api/players/${player.id}/summary?${qs}`, {
+        method: 'POST',
+        signal: ac.signal,
+      });
       if (!r.ok) {
-        setErr(`Request failed (${r.status}).`);
+        if (!ac.signal.aborted) setErr(`Request failed (${r.status}).`);
         return;
       }
-      setSummary((await r.json()) as SummaryResult);
+      const j = (await r.json()) as SummaryResult;
+      if (!ac.signal.aborted) setSummary(j);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      if ((e as Error).name === 'AbortError') return;
+      if (!ac.signal.aborted) setErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (!ac.signal.aborted) setLoading(false);
     }
   }
 

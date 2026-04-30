@@ -161,5 +161,7 @@ export async function POST(
     );
   }
 
-  return NextResponse.json(result);
+  // Echo cached_at on the fresh path too — the row was just upserted with
+  // created_at = now(), so the UI's "Generated Xh ago" chip stays continuous.
+  return NextResponse.json({ ...result, cached_at: new Date().toISOString() });
 }
