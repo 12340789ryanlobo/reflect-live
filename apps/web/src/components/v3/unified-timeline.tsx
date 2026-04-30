@@ -4,6 +4,7 @@
 // Default chip is 'all' — interleaved by timestamp desc.
 
 import { useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { Pill } from '@/components/v3/pill';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { type Period, periodLabel } from '@/lib/period';
@@ -12,6 +13,7 @@ import {
   type TimelineEntry,
   type TimelineKind,
 } from '@/lib/timeline';
+import { regionLabel } from '@/lib/injury-aliases';
 import type { ActivityLog, TwilioMessage } from '@reflect-live/shared';
 import { prettyDateTime, relativeTime } from '@/lib/format';
 
@@ -21,6 +23,14 @@ interface Props {
   logs: ActivityLog[];
   messages: TwilioMessage[];
   period: Period;
+  /**
+   * Region keys the timeline is currently filtered to (driven by clicks
+   * on the body heatmap). Only entries whose `regions` overlap with
+   * this set survive. Empty / undefined = no filter.
+   */
+  selectedRegions?: string[];
+  /** Called when the user clears the region filter from the banner. */
+  onClearRegionFilter?: () => void;
 }
 
 const CHIPS: Array<{ key: Chip; label: string }> = [
@@ -109,13 +119,36 @@ function entryMatchesChip(e: TimelineEntry, chip: Chip): boolean {
   return true;
 }
 
-export function UnifiedTimeline({ logs, messages, period }: Props) {
+export function UnifiedTimeline({
+  logs,
+  messages,
+  period,
+  selectedRegions,
+  onClearRegionFilter,
+}: Props) {
   const [chip, setChip] = useState<Chip>('important');
 
   const all = useMemo(() => buildTimeline(logs, messages), [logs, messages]);
+
+  // Region filter: when the user has clicked a muscle on the body
+  // heatmap, narrow to entries whose parsed regions overlap. Composes
+  // with the chip filter — both must pass.
+  const regionSet = useMemo(
+    () => (selectedRegions && selectedRegions.length > 0 ? new Set(selectedRegions) : null),
+    [selectedRegions],
+  );
   const filtered = useMemo(
-    () => all.filter((e) => entryMatchesChip(e, chip)),
-    [all, chip],
+    () =>
+      all.filter((e) => {
+        if (!entryMatchesChip(e, chip)) return false;
+        if (regionSet) {
+          // Empty regions or no overlap → exclude.
+          if (e.regions.length === 0) return false;
+          if (!e.regions.some((r) => regionSet.has(r))) return false;
+        }
+        return true;
+      }),
+    [all, chip, regionSet],
   );
 
   return (
@@ -161,9 +194,34 @@ export function UnifiedTimeline({ logs, messages, period }: Props) {
         </div>
       </header>
 
+      {regionSet && (
+        <div
+          className="flex items-center justify-between gap-3 px-6 py-2 border-b text-[12px]"
+          style={{ borderColor: 'var(--border)', background: 'var(--blue-soft)' }}
+        >
+          <span className="text-[color:var(--ink-soft)]">
+            Filtered by:{' '}
+            <span className="font-semibold text-[color:var(--ink)]">
+              {Array.from(regionSet).map(regionLabel).join(', ')}
+            </span>
+          </span>
+          {onClearRegionFilter && (
+            <button
+              type="button"
+              onClick={onClearRegionFilter}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] transition"
+            >
+              <X className="size-3" /> Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="px-6 py-10 text-center">
-          <p className="text-[13px] text-[color:var(--ink-mute)]">— no entries in this view —</p>
+          <p className="text-[13px] text-[color:var(--ink-mute)]">
+            {regionSet ? '— no entries match this region in the current view —' : '— no entries in this view —'}
+          </p>
         </div>
       ) : (
         <ScrollArea className="h-[440px]">

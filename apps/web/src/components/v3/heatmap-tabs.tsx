@@ -31,6 +31,11 @@ interface Props {
   rehabCounts: Record<string, number>;
   injuryRows: InjurySideRow[];
   gender: Gender;
+  /** Regions currently selected via click — drives the silhouette
+   *  highlight ring and the timeline filter. */
+  selectedRegions?: string[];
+  /** Called with the canonical region(s) the clicked muscle maps to. */
+  onMuscleClick?: (regions: string[]) => void;
 }
 
 const TABS: Array<{ key: HeatmapTab; label: string }> = [
@@ -57,6 +62,8 @@ export function HeatmapTabs({
   rehabCounts,
   injuryRows,
   gender,
+  selectedRegions,
+  onMuscleClick,
 }: Props) {
   const [tab, setTab] = useState<HeatmapTab>('injury');
 
@@ -114,6 +121,8 @@ export function HeatmapTabs({
             gender={gender}
             scale={0.85}
             className="w-full"
+            selectedRegions={selectedRegions}
+            onMuscleClick={onMuscleClick}
           />
           {(() => {
             // Compute the same global max BodyHeatmap uses for intensity,

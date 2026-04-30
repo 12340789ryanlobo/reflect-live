@@ -62,6 +62,12 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // make the timestamp disappear.
   const [lastInboundEver, setLastInboundEver] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>(30);
+  // Region filter driven by clicks on the body heatmap. Empty = no
+  // filter; otherwise the heatmap silhouette draws a click-highlight
+  // ring on these regions and the timeline narrows to entries that
+  // mention them. Shared across all 3 heatmap tabs so the filter
+  // persists when the user flips between Injury / Activity / Rehab.
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -225,8 +231,25 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           rehabCounts={rehabCounts}
           injuryRows={injurySideRows}
           gender={(player.gender ?? team.default_gender ?? 'male')}
+          selectedRegions={selectedRegions}
+          onMuscleClick={(regions) => {
+            // Clicking the same muscle clears the filter; clicking a
+            // different one replaces it. Always derive a sorted, deduped
+            // set so click on biceps + click again toggles cleanly.
+            const next = Array.from(new Set(regions)).sort();
+            const same =
+              selectedRegions.length === next.length &&
+              selectedRegions.every((r, i) => r === next[i]);
+            setSelectedRegions(same ? [] : next);
+          }}
         />
-        <UnifiedTimeline logs={logs} messages={msgs} period={period} />
+        <UnifiedTimeline
+          logs={logs}
+          messages={msgs}
+          period={period}
+          selectedRegions={selectedRegions}
+          onClearRegionFilter={() => setSelectedRegions([])}
+        />
       </main>
     </>
   );

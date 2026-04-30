@@ -2,6 +2,7 @@
 // for the unified athlete timeline. Pure logic; no side effects.
 
 import type { ActivityLog, TwilioMessage } from '@reflect-live/shared';
+import { parseAllRegions } from './injury-aliases';
 
 export type TimelineKind =
   | 'workout'
@@ -18,6 +19,14 @@ export interface TimelineEntry {
   ts: string;
   /** Human-readable body — log description or message body. */
   body: string;
+  /**
+   * Canonical body regions referenced in the entry's text. Drives the
+   * click-to-filter from the body heatmap: clicking bicep narrows the
+   * timeline to entries whose `regions` include 'bicep'. Empty array
+   * for entries with no recognized region (plain chat, surveys with
+   * just a number).
+   */
+  regions: string[];
   /** Per-source extras for the row renderer. */
   meta:
     | { source: 'log'; logId: number }
@@ -43,11 +52,13 @@ function fingerprint(text: string | null | undefined): string {
 const DEDUP_WINDOW_MS = 5 * 60 * 1000;
 
 function logToEntry(l: ActivityLog): TimelineEntry {
+  const body = stripProtocolPrefix(l.description ?? '');
   return {
     id: `log:${l.id}`,
     kind: l.kind === 'rehab' ? 'rehab' : 'workout',
     ts: l.logged_at,
-    body: stripProtocolPrefix(l.description ?? ''),
+    body,
+    regions: parseAllRegions(body),
     meta: { source: 'log', logId: l.id },
   };
 }
@@ -62,11 +73,13 @@ function msgToEntry(m: TwilioMessage): TimelineEntry {
   else if (m.category === 'rehab') kind = 'rehab';
   else kind = m.direction === 'outbound' ? 'outbound' : 'inbound';
 
+  const body = m.body ?? '';
   return {
     id: `msg:${m.sid}`,
     kind,
     ts: m.date_sent,
-    body: m.body ?? '',
+    body,
+    regions: parseAllRegions(body),
     meta: { source: 'msg', sid: m.sid, direction: m.direction },
   };
 }
