@@ -24,11 +24,23 @@ export interface TimelineEntry {
     | { source: 'msg'; sid: string; direction: string };
 }
 
-// Strip the SMS protocol prefix ("Workout: " / "Rehab: ") from descriptions
-// so the row body reads as content, not protocol noise.
+// Strip the SMS protocol prefix ("Workout: " / "Rehab: " / "Recovery: ")
+// from descriptions so the row body reads as content, not protocol noise.
+// Also used to fingerprint messages and logs for content-based dedup.
 function stripProtocolPrefix(text: string): string {
-  return text.replace(/^\s*(workout|rehab)\s*:\s*/i, '').trim();
+  return text.replace(/^\s*(workout|rehab|recovery)\s*:\s*/i, '').trim();
 }
+
+function fingerprint(text: string | null | undefined): string {
+  return stripProtocolPrefix(text ?? '').toLowerCase().replace(/\s+/g, ' ');
+}
+
+// Within this many milliseconds, a message and a log with matching
+// content fingerprints are treated as the same event. SMS arrival and
+// the worker's activity_log insert can drift by up to a few seconds,
+// and timezones / clock skew adds a bit more — 5 minutes is a forgiving
+// upper bound that won't conflate genuinely separate events.
+const DEDUP_WINDOW_MS = 5 * 60 * 1000;
 
 function logToEntry(l: ActivityLog): TimelineEntry {
   return {
@@ -63,21 +75,46 @@ export function buildTimeline(
   logs: ActivityLog[],
   msgs: TwilioMessage[],
 ): TimelineEntry[] {
-  // Dedup: when an activity_log was derived from an inbound SMS (linked
-  // via source_sid), the SMS itself is redundant — show the canonical
-  // log row only. Without this, an athlete texting "Workout: leg day..."
-  // produces two rows (the inbound message AND the parsed log entry).
+  // Two-tier dedup. (1) When the worker linked an activity_log to its
+  // source SMS via source_sid, drop that SMS — the log is canonical.
+  // (2) Some legacy / synced rows have no source_sid; for those, fall
+  // back to a content-fingerprint match within DEDUP_WINDOW_MS so the
+  // user doesn't see the same workout text twice (once tagged WORKOUT,
+  // once tagged INBOUND).
   const sourcedSids = new Set<string>();
+  const logFingerprints = new Map<string, ActivityLog[]>();
   const entries: TimelineEntry[] = [];
+
   for (const l of logs) {
     if (l.hidden) continue;
     if (l.source_sid) sourcedSids.add(l.source_sid);
+    const fp = fingerprint(l.description);
+    if (fp) {
+      const arr = logFingerprints.get(fp) ?? [];
+      arr.push(l);
+      logFingerprints.set(fp, arr);
+    }
     entries.push(logToEntry(l));
   }
+
   for (const m of msgs) {
     if (sourcedSids.has(m.sid)) continue;
+    // Content-fingerprint fallback for unsouced rows.
+    const fp = fingerprint(m.body);
+    if (fp) {
+      const candidates = logFingerprints.get(fp);
+      if (candidates) {
+        const mTime = new Date(m.date_sent).getTime();
+        const sameEvent = candidates.some((l) => {
+          const lTime = new Date(l.logged_at).getTime();
+          return Math.abs(mTime - lTime) <= DEDUP_WINDOW_MS;
+        });
+        if (sameEvent) continue;
+      }
+    }
     entries.push(msgToEntry(m));
   }
+
   entries.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
   return entries;
 }

@@ -117,6 +117,59 @@ describe('buildTimeline', () => {
     expect(out.map((e) => e.id).sort()).toEqual(['log:7', 'msg:SM_other']);
   });
 
+  it('dedupes by content fingerprint + time when source_sid is missing', () => {
+    // Legacy rows: the activity_log has no source_sid (e.g. came from
+    // a sync from the old reflect DB), but the inbound SMS has the
+    // same body and a near-identical timestamp.
+    const logs = [
+      log({
+        id: 11,
+        kind: 'workout',
+        description: 'Lift: Push 10 min warm up 3x8 incline dumbell',
+        logged_at: '2026-04-10T17:00:00Z',
+        source_sid: null,
+      }),
+    ];
+    const msgs = [
+      msg({
+        sid: 'SM_unsourced',
+        category: 'workout',
+        body: 'Lift: Push 10 min warm up 3x8 incline dumbell',
+        date_sent: '2026-04-10T17:00:30Z', // 30 sec later
+      }),
+      msg({
+        sid: 'SM_other',
+        category: 'chat',
+        body: 'thanks coach',
+        date_sent: '2026-04-10T18:00:00Z',
+      }),
+    ];
+    const out = buildTimeline(logs, msgs);
+    expect(out.map((e) => e.id).sort()).toEqual(['log:11', 'msg:SM_other']);
+  });
+
+  it('does NOT dedupe when fingerprints match but timestamps are far apart', () => {
+    const logs = [
+      log({
+        id: 12,
+        kind: 'workout',
+        description: 'leg day',
+        logged_at: '2026-04-10T08:00:00Z',
+        source_sid: null,
+      }),
+    ];
+    const msgs = [
+      msg({
+        sid: 'SM_far',
+        category: 'workout',
+        body: 'Workout: leg day',
+        date_sent: '2026-04-15T08:00:00Z', // 5 days later — different event
+      }),
+    ];
+    const out = buildTimeline(logs, msgs);
+    expect(out.map((e) => e.id).sort()).toEqual(['log:12', 'msg:SM_far']);
+  });
+
   it('strips the "Workout:" / "Rehab:" SMS protocol prefix from log bodies', () => {
     const out = buildTimeline(
       [
