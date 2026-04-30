@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react';
 import { BodyHeatmap } from '@/components/v3/body-heatmap';
 import { Pill } from '@/components/v3/pill';
-import { regionLabel } from '@/lib/injury-aliases';
+import { HEATMAP_PALETTE, regionLabel } from '@/lib/injury-aliases';
 import type { Gender } from '@reflect-live/shared';
 
 export type HeatmapTab = 'injury' | 'activity' | 'rehab';
@@ -110,37 +110,26 @@ export function HeatmapTabs({
             scale={0.85}
             className="w-full"
           />
-          {/* Density legend — relative to this athlete's max in the
-              current view. Discrete circles in the saturated brand
-              palette so the colors are legible at this size; the body
-              silhouette itself uses softer tints, but legends
-              conventionally read brighter than the data they describe.
-              Tab-aware label so the viewer knows what's being counted. */}
+          {/* Density legend — same palette as the silhouette regions
+              (HEATMAP_PALETTE in injury-aliases.ts) so the swatches and
+              the body fills cannot drift. Tab-aware label so the viewer
+              knows what's being counted. */}
           <div className="flex items-center gap-3 flex-wrap text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
             <span>{tab === 'injury' ? 'Flags' : 'Sessions'}</span>
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                className="size-3.5 rounded-full"
-                style={{ background: 'var(--paper-2)', boxShadow: 'inset 0 0 0 1px var(--border)' }}
-              />
-              None
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full" style={{ background: 'var(--green)' }} />
-              Low
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full" style={{ background: '#E0A030' }} />
-              Mid
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full" style={{ background: 'var(--amber)' }} />
-              High
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full" style={{ background: 'var(--red)' }} />
-              Hot
-            </span>
+            {(['None', 'Low', 'Mid', 'High', 'Hot'] as const).map((label, i) => (
+              <span key={label} className="inline-flex items-center gap-1.5">
+                <span
+                  className="size-3.5 rounded-full"
+                  style={{
+                    background: HEATMAP_PALETTE[i],
+                    // Subtle ring on 'None' only so the empty-state circle
+                    // doesn't disappear into the card background.
+                    boxShadow: i === 0 ? 'inset 0 0 0 1px var(--border)' : undefined,
+                  }}
+                />
+                {label}
+              </span>
+            ))}
           </div>
         </div>
         <div className="min-w-0">

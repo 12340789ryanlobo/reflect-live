@@ -169,16 +169,33 @@ export function parseInjuryRegions(rawText: string | null | undefined): string[]
 }
 
 /**
+ * Heatmap density palette — five tiers from "empty" to "hot" relative
+ * to the current view's max count. Slightly more saturated than the
+ * project's *-soft tokens so the colors read at small sizes (legend
+ * swatches as well as the silhouette regions).
+ *
+ * Ordered: [None, Low, Mid, High, Hot]. Both regionColor() and the
+ * heatmap-tabs legend read from this single array so they cannot drift.
+ */
+export const HEATMAP_PALETTE: readonly [string, string, string, string, string] = [
+  'var(--paper-2)', // None  — empty
+  '#BCDFC9',        // Low   — warmer pale green
+  '#FBDFA0',        // Mid   — warm pale amber
+  '#F2BC73',        // High  — saturated warm amber
+  '#EAA29D',        // Hot   — saturated pink-red
+] as const;
+
+/**
  * Heatmap density color: relative-max ratio, so a small team's lone hot
- * region still reads as red. Returns a tailwind-friendly soft palette.
+ * region still reads as red. Returns one of HEATMAP_PALETTE.
  */
 export function regionColor(count: number, maxCount: number): string {
-  if (maxCount === 0 || count === 0) return 'var(--paper-2)'; // empty
+  if (maxCount === 0 || count === 0) return HEATMAP_PALETTE[0];
   const ratio = Math.min(count / maxCount, 1);
-  if (ratio < 0.25) return 'var(--green-soft)';
-  if (ratio < 0.5) return '#FFF1D6'; // light amber, between paper-2 and amber-soft
-  if (ratio < 0.75) return 'var(--amber-soft)';
-  return 'var(--red-soft)';
+  if (ratio < 0.25) return HEATMAP_PALETTE[1];
+  if (ratio < 0.5) return HEATMAP_PALETTE[2];
+  if (ratio < 0.75) return HEATMAP_PALETTE[3];
+  return HEATMAP_PALETTE[4];
 }
 
 export function regionLabel(region: string): string {
