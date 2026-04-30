@@ -48,6 +48,7 @@ export async function callJsonPrompt(prompt: string, cfg: LlmConfig): Promise<Js
       model: cfg.model,
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
+      max_tokens: 1024,
     };
     if (!cfg.model.startsWith('gpt-5')) body.temperature = 0.3;
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -80,6 +81,11 @@ export async function callJsonPrompt(prompt: string, cfg: LlmConfig): Promise<Js
         model: cfg.model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.3,
+        // OpenRouter routes free models across multiple providers; some
+        // (e.g. Venice) cap responses at 16k tokens but OpenRouter's
+        // default max_tokens is the *model's* full context window —
+        // which the provider then rejects with a 400. Cap explicitly.
+        max_tokens: 1024,
       }),
     });
     if (!r.ok) throw new Error(`openrouter ${r.status}: ${await r.text()}`);
