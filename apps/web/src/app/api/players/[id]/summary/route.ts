@@ -114,11 +114,15 @@ export async function POST(
   });
 
   // Write-through cache. Best-effort; don't block the response on a failure.
-  await sb.from('llm_cache').upsert({
-    cache_key: cacheKey,
-    response: result,
-    generated_by: result.generated_by,
-  }, { onConflict: 'cache_key' });
+  // Skip caching fallback responses (those carrying a result.error from a
+  // failed LLM call) so the next click retries the LLM once it recovers.
+  if (!result.error) {
+    await sb.from('llm_cache').upsert({
+      cache_key: cacheKey,
+      response: result,
+      generated_by: result.generated_by,
+    }, { onConflict: 'cache_key' });
+  }
 
   return NextResponse.json(result);
 }

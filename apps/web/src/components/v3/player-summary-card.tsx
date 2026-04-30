@@ -105,8 +105,16 @@ export function PlayerSummaryCard({ playerId }: Props) {
                 Confidence: {result.confidence}
               </Pill>
               {result.from_cache && <Pill tone="mute">Cached</Pill>}
-              {result.error && <Pill tone="amber">Fallback ({result.error.slice(0, 40)})</Pill>}
+              {result.error && <Pill tone="amber">Fallback</Pill>}
             </div>
+            {result.error && (
+              <details className="rounded-md border bg-[color:var(--paper)] px-3 py-2" style={{ borderColor: 'var(--border)' }}>
+                <summary className="cursor-pointer text-[11.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+                  Why no LLM? (click to expand)
+                </summary>
+                <pre className="mt-2 mono text-[11px] text-[color:var(--ink-soft)] whitespace-pre-wrap break-all">{result.error}</pre>
+              </details>
+            )}
 
             <p className="text-[14px] leading-relaxed text-[color:var(--ink)]">{result.summary}</p>
 
