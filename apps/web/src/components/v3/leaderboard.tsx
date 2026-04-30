@@ -57,7 +57,7 @@ export function Leaderboard({
             return (
               <li key={row.player_id}>
                 <Link
-                  href={`/dashboard/player/${row.player_id}`}
+                  href={`/dashboard/players/${row.player_id}`}
                   className={cn(
                     'flex items-center gap-3 border-b px-6 py-3 transition hover:bg-[color:var(--card-hover)] last:border-b-0',
                     isMe && 'bg-[color:var(--blue-soft)]/40',

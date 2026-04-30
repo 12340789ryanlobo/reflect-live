@@ -112,7 +112,7 @@ export function NeedsAttention({ teamId }: { teamId: number }) {
           {flagged.slice(0, 8).map(({ player, readiness, lastInbound, reason }) => (
             <li key={player.id}>
               <Link
-                href={`/dashboard/player/${player.id}`}
+                href={`/dashboard/players/${player.id}`}
                 className="flex items-center gap-3 border-b px-6 py-3 transition hover:bg-[color:var(--card-hover)] last:border-b-0"
                 style={{ borderColor: 'var(--border)' }}
               >

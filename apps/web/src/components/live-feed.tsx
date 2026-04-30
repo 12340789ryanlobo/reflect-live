@@ -149,7 +149,7 @@ export function LiveFeed({ teamId }: { teamId: number }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   {player ? (
-                    <Link href={`/dashboard/player/${player.id}`} className="text-[14px] font-semibold text-[color:var(--ink)] hover:text-[color:var(--blue)] transition">
+                    <Link href={`/dashboard/players/${player.id}`} className="text-[14px] font-semibold text-[color:var(--ink)] hover:text-[color:var(--blue)] transition">
                       {senderLabel}
                     </Link>
                   ) : (

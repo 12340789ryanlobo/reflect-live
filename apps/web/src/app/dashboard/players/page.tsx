@@ -173,7 +173,7 @@ export default function PlayersPage() {
                         key={p.id}
                         className="border-b cursor-pointer transition hover:bg-[color:var(--card-hover)]"
                         style={{ borderColor: 'var(--border)' }}
-                        onClick={() => router.push(`/dashboard/player/${p.id}`)}
+                        onClick={() => router.push(`/dashboard/players/${p.id}`)}
                       >
                         <Td>
                           <div className="flex items-center gap-2.5">

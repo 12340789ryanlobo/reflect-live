@@ -264,7 +264,7 @@ export default function HeatmapPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link
-                            href={`/dashboard/player/${r.player_id}`}
+                            href={`/dashboard/players/${r.player_id}`}
                             className="text-[14px] font-semibold text-[color:var(--ink)] hover:underline"
                           >
                             {r.player?.name ?? '—'}
@@ -323,7 +323,7 @@ export default function HeatmapPage() {
                 <li key={r.id} className="px-6 py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <Link href={`/dashboard/player/${r.player_id}`} className="text-[14px] font-semibold text-[color:var(--ink)] hover:underline">
+                      <Link href={`/dashboard/players/${r.player_id}`} className="text-[14px] font-semibold text-[color:var(--ink)] hover:underline">
                         {r.player?.name ?? '—'}
                       </Link>
                       <p className="text-[13px] text-[color:var(--ink-soft)]">{r.description}</p>

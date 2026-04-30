@@ -132,7 +132,7 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
                 <CommandItem
                   key={p.id}
                   value={`${p.name} ${p.group ?? ''} ${p.phone_e164}`}
-                  onSelect={() => go(`/dashboard/player/${p.id}`)}
+                  onSelect={() => go(`/dashboard/players/${p.id}`)}
                 >
                   <UserIcon className="opacity-70" />
                   <span>{p.name}</span>

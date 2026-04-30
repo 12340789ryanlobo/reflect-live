@@ -275,7 +275,7 @@ export default function SessionDetailPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
-                          href={`/dashboard/player/${f.player_id}`}
+                          href={`/dashboard/players/${f.player_id}`}
                           className="text-[14px] font-semibold text-[color:var(--ink)] hover:underline"
                         >
                           {f.player?.name ?? '—'}
@@ -551,7 +551,7 @@ function ResponseMatrix({ questions, deliveries, responses, questionStats }: Mat
                     style={{ borderColor: 'var(--border)' }}
                   >
                     <Link
-                      href={`/dashboard/player/${d.player_id}`}
+                      href={`/dashboard/players/${d.player_id}`}
                       title={d.player?.name ?? ''}
                       className="block text-[13px] font-semibold text-[color:var(--ink)] hover:underline truncate"
                     >
