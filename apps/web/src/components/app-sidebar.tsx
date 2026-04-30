@@ -126,6 +126,15 @@ function NavGroupBlock({ group }: { group: NavGroup }) {
   const pathname = usePathname();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+
+  // Longest-prefix wins: only the most specific matching entry lights up.
+  // Without this, /dashboard/captain/follow-ups highlights both "Dashboard"
+  // (prefix /dashboard/captain) and "Follow-ups" (exact match).
+  const candidateBases = group.items
+    .map((i) => i.href.split('#')[0])
+    .filter((href) => pathname === href || pathname.startsWith(href + '/'));
+  const winningBase = candidateBases.sort((a, b) => b.length - a.length)[0] ?? null;
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -134,9 +143,7 @@ function NavGroupBlock({ group }: { group: NavGroup }) {
           {group.items.map((item) => {
             const Icon = item.icon;
             const parentBase = item.href.split('#')[0];
-            const active =
-              pathname === item.href ||
-              (item.href !== '/dashboard' && pathname.startsWith(parentBase));
+            const active = parentBase === winningBase;
             // Auto-expand the submenu when the user is on the parent or
             // on any of its children. The list-of-templates page lives
             // under a sibling route, so we treat any child being active
