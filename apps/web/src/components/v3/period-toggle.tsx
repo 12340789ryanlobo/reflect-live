@@ -26,7 +26,7 @@ export function PeriodToggle({
 }: Props) {
   return (
     <div
-      className={`inline-flex rounded-md border ${className}`}
+      className={`inline-flex rounded-md border overflow-hidden ${className}`}
       style={{ borderColor: 'var(--border)' }}
       role="radiogroup"
       aria-label="Time window"
