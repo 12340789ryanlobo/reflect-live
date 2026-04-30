@@ -1,44 +1,14 @@
 'use client';
 import { use, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { PageHeader, useDashboard } from '@/components/dashboard-shell';
-import { StatCell } from '@/components/v3/stat-cell';
-import { Pill } from '@/components/v3/pill';
-import { ReadinessBar } from '@/components/v3/readiness-bar';
-import { BodyHeatmap } from '@/components/v3/body-heatmap';
-import { PlayerSummaryCard } from '@/components/v3/player-summary-card';
-import { PeriodToggle } from '@/components/v3/period-toggle';
-import { type Period, periodLabel, periodSinceIso } from '@/lib/period';
-import { regionLabel } from '@/lib/injury-aliases';
+import { AthleteHero, type ActionVerb } from '@/components/v3/athlete-hero';
+import { HeatmapTabs, type InjurySideRow } from '@/components/v3/heatmap-tabs';
+import { UnifiedTimeline } from '@/components/v3/unified-timeline';
+import { type Period, periodSinceIso } from '@/lib/period';
+import { parseInjuryRegions } from '@/lib/injury-aliases';
 import { useSupabase } from '@/lib/supabase-browser';
-import type { Player, TwilioMessage, ActivityLog, Category } from '@reflect-live/shared';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  prettyCategory,
-  prettyDate,
-  prettyDateTime,
-  prettyDirection,
-  prettyPhone,
-  relativeTime,
-} from '@/lib/format';
-
-function initials(name: string): string {
-  return name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
-}
-function clockHM(ts: string): string {
-  const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-function hoursSince(iso: string | null): number | null {
-  if (!iso) return null;
-  return (Date.now() - new Date(iso).getTime()) / 3600000;
-}
-
-const CAT_PILL_TONE: Record<Category, 'green' | 'amber' | 'blue' | 'mute'> = {
-  workout: 'green',
-  rehab: 'amber',
-  survey: 'blue',
-  chat: 'mute',
-};
+import type { Player, TwilioMessage, ActivityLog } from '@reflect-live/shared';
 
 interface InjuryRow {
   id: number;
@@ -49,11 +19,24 @@ interface InjuryRow {
   resolved_at: string | null;
 }
 
+function countRegions(rows: ActivityLog[], kind: 'workout' | 'rehab'): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.kind !== kind) continue;
+    for (const region of parseInjuryRegions(r.description)) {
+      if (region === 'other') continue;
+      counts[region] = (counts[region] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
 export default function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const playerId = Number(id);
   const sb = useSupabase();
-  const { team } = useDashboard();
+  const router = useRouter();
+  const { team, prefs } = useDashboard();
   const [player, setPlayer] = useState<Player | null>(null);
   const [msgs, setMsgs] = useState<TwilioMessage[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -61,6 +44,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [period, setPeriod] = useState<Period>(30);
 
   useEffect(() => {
+    let alive = true;
     (async () => {
       const since = periodSinceIso(period);
 
@@ -89,14 +73,16 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         since ? logQ.gte('logged_at', since) : logQ,
         since ? injQ.gte('reported_at', since) : injQ,
       ]);
+      if (!alive) return;
       setPlayer(p as Player);
       setMsgs((m ?? []) as TwilioMessage[]);
       setLogs((l ?? []) as ActivityLog[]);
       setInjuries((inj ?? []) as InjuryRow[]);
     })();
+    return () => { alive = false; };
   }, [sb, playerId, period]);
 
-  const injuryCounts: Record<string, number> = useMemo(() => {
+  const injuryCounts = useMemo<Record<string, number>>(() => {
     const c: Record<string, number> = {};
     for (const r of injuries) {
       if (r.resolved_at) continue;
@@ -105,12 +91,24 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     return c;
   }, [injuries]);
 
-  const activeInjuries = injuries.filter((r) => !r.resolved_at);
+  const activityCounts = useMemo(() => countRegions(logs, 'workout'), [logs]);
+  const rehabCounts = useMemo(() => countRegions(logs, 'rehab'), [logs]);
+
+  const injurySideRows = useMemo<InjurySideRow[]>(
+    () =>
+      injuries
+        .filter((r) => !r.resolved_at)
+        .map((r) => ({
+          id: r.id,
+          regions: r.regions,
+          severity: r.severity,
+          description: r.description,
+          reportedAt: r.reported_at,
+        })),
+    [injuries],
+  );
 
   const derived = useMemo(() => {
-    const inboundCount = msgs.filter((m) => m.direction === 'inbound').length;
-    const workoutCount = msgs.filter((m) => m.category === 'workout').length;
-    const rehabCount = msgs.filter((m) => m.category === 'rehab').length;
     const surveyReadings = msgs
       .filter((m) => m.category === 'survey' && m.body)
       .map((m) => {
@@ -123,13 +121,13 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       : null;
     const lastInbound = msgs.find((m) => m.direction === 'inbound')?.date_sent ?? null;
     const flags = surveyReadings.filter((n) => n <= 4).length;
-    return { inboundCount, workoutCount, rehabCount, surveyReadings, avgReadiness, lastInbound, flags };
+    return { avgReadiness, responses: surveyReadings.length, flags, lastInbound };
   }, [msgs]);
 
   if (!player) {
     return (
       <>
-        <PageHeader eyebrow="Athlete card" title="Loading…" />
+        <PageHeader eyebrow="Athlete" title="Loading…" />
         <main className="flex flex-1 p-6">
           <p className="text-[13px] text-[color:var(--ink-mute)]">— loading athlete —</p>
         </main>
@@ -137,253 +135,57 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     );
   }
 
-  const hrs = hoursSince(derived.lastInbound);
-  const statusTone: 'green' | 'amber' | 'mute' =
-    hrs == null ? 'mute' : hrs < 24 ? 'green' : hrs < 72 ? 'amber' : 'mute';
-  const statusText =
-    hrs == null ? 'quiet' : hrs < 1 ? 'live' : hrs < 24 ? 'on wire' : hrs < 72 ? 'watch' : 'quiet';
+  // Athletes get self-affordances when viewing themselves; coaches/captains/admins always get coach-affordances.
+  const viewerIsSelf =
+    prefs.role === 'athlete' &&
+    !prefs.is_platform_admin &&
+    prefs.impersonate_player_id === player.id;
+  // Phone is always visible: when viewer is the athlete it's their own
+  // number; when viewer is a coach/captain/admin they have legit access.
+  const showPhone = true;
+
+  function onAction(verb: ActionVerb) {
+    switch (verb) {
+      case 'text':
+        if (player) window.location.href = `sms:${player.phone_e164}`;
+        return;
+      case 'log_session':
+        router.push('/dashboard/sessions');
+        return;
+      case 'mark_injury_resolved':
+        router.push('/dashboard/heatmap');
+        return;
+      case 'self_report':
+      case 'log_workout':
+      case 'report_injury':
+        // TODO route — implementation lands in D3 follow-up.
+        alert(`Coming soon: ${verb.replace('_', ' ')}`);
+        return;
+    }
+  }
 
   return (
     <>
-      <PageHeader
-        eyebrow="Profile"
-        title={player.name}
-        subtitle={`${player.group ?? 'No group'} · ${prettyPhone(player.phone_e164)} · ${periodLabel(period).toLowerCase()}`}
-        actions={<PeriodToggle value={period} onChange={setPeriod} />}
-      />
-
+      <PageHeader eyebrow="Athlete" title={player.name} />
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
-        {/* Hero row */}
-        <section className="reveal reveal-1 grid gap-6 lg:grid-cols-12">
-          {/* Identity card */}
-          <div className="rounded-2xl bg-[color:var(--card)] border p-6 lg:col-span-8" style={{ borderColor: 'var(--border)' }}>
-            <div className="grid gap-6 md:grid-cols-[auto_1fr]">
-              {/* Avatar block */}
-              <div className="flex flex-col items-center gap-2">
-                <div className="grid size-28 place-items-center rounded-md border bg-[color:var(--paper)] text-2xl font-bold" style={{ borderColor: 'var(--border)' }}>
-                  {initials(player.name)}
-                </div>
-                <div className="text-[11px] font-semibold uppercase tracking-widest text-[color:var(--ink-dim)]">
-                  ID · {String(player.id).padStart(4, '0')}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <h2 className="text-3xl font-bold text-[color:var(--ink)]">{player.name}</h2>
-                <dl className="grid grid-cols-2 gap-y-3 gap-x-6">
-                  <Row label="Group" value={player.group ?? '—'} />
-                  <Row label="Phone" value={prettyPhone(player.phone_e164)} mono />
-                  <Row
-                    label="Status"
-                    value={<Pill tone={statusTone}>{statusText}</Pill>}
-                  />
-                  <Row
-                    label="Last on wire"
-                    value={derived.lastInbound ? relativeTime(derived.lastInbound) : '—'}
-                    mono
-                  />
-                </dl>
-                <div className="grid grid-cols-2 gap-0 border-t pt-4 md:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
-                  <div className="pr-4">
-                    <StatCell label="Inbound" value={derived.inboundCount} sub="last 50" tone="blue" />
-                  </div>
-                  <div className="px-4">
-                    <StatCell label="Workouts" value={derived.workoutCount} tone={derived.workoutCount ? 'green' : 'default'} />
-                  </div>
-                  <div className="px-4">
-                    <StatCell label="Rehabs" value={derived.rehabCount} tone={derived.rehabCount ? 'amber' : 'default'} />
-                  </div>
-                  <div className="pl-4">
-                    <StatCell
-                      label="Responses"
-                      value={derived.surveyReadings.length}
-                      tone={derived.flags > 0 ? 'red' : 'default'}
-                      sub={derived.flags > 0 ? `${derived.flags} flag${derived.flags === 1 ? '' : 's'}` : undefined}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Readiness card */}
-          <div className="rounded-2xl bg-[color:var(--card)] border p-6 lg:col-span-4 flex flex-col justify-center" style={{ borderColor: 'var(--border)' }}>
-            <ReadinessBar
-              value={derived.avgReadiness}
-              responses={derived.surveyReadings.length}
-              flagged={derived.flags}
-              size="md"
-            />
-          </div>
-        </section>
-
-        {/* AI summary */}
-        <PlayerSummaryCard playerId={player.id} />
-
-        {/* Injury heatmap */}
-        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold text-[color:var(--ink)]">Injury map</h2>
-            <span className="text-[12px] text-[color:var(--ink-mute)]">
-              {activeInjuries.length} active · {injuries.length - activeInjuries.length} resolved
-            </span>
-          </header>
-          <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
-            <div>
-              <BodyHeatmap
-                counts={injuryCounts}
-                gender={(player.gender ?? team.default_gender ?? 'male')}
-                scale={0.6}
-                className="w-full"
-              />
-            </div>
-            <div className="min-w-0">
-              {activeInjuries.length === 0 ? (
-                <p className="text-[13px] text-[color:var(--ink-mute)] py-8 text-center">
-                  No active injuries — clean bill of health.
-                </p>
-              ) : (
-                <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                  {activeInjuries.slice(0, 10).map((r) => (
-                    <li key={r.id} className="py-3 first:pt-0 last:pb-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        {r.regions.map((reg) => (
-                          <Pill key={reg} tone="mute">{regionLabel(reg)}</Pill>
-                        ))}
-                        {r.severity && (
-                          <Pill tone={r.severity >= 4 ? 'red' : r.severity >= 3 ? 'amber' : 'green'}>
-                            sev {r.severity}
-                          </Pill>
-                        )}
-                      </div>
-                      <p className="text-[13px] text-[color:var(--ink-soft)]">{r.description}</p>
-                      <p
-                        className="mt-1 mono text-[11px] text-[color:var(--ink-mute)] tabular"
-                        title={prettyDateTime(r.reported_at)}
-                      >
-                        {relativeTime(r.reported_at)}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* Messages */}
-        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold text-[color:var(--ink)]">Messages</h2>
-            <span className="text-[12px] text-[color:var(--ink-mute)]">
-              {msgs.length} {periodLabel(period).toLowerCase()}
-            </span>
-          </header>
-          {msgs.length === 0 ? (
-            <div className="px-6 py-10 text-center">
-              <p className="text-[13px] text-[color:var(--ink-mute)]">— no messages yet —</p>
-            </div>
-          ) : (
-            <ScrollArea className="h-[440px] border-t" style={{ borderColor: 'var(--border)' }}>
-              <ul>
-                {msgs.map((m) => (
-                  <li
-                    key={m.sid}
-                    className="border-b px-5 py-3"
-                    style={{ borderColor: 'var(--border)' }}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="shrink-0 w-[84px] text-right">
-                        <div className="mono text-[0.68rem] tabular text-[color:var(--blue)]">
-                          {clockHM(m.date_sent)}
-                        </div>
-                        <div
-                          className="mono text-[0.6rem] tabular mt-0.5 text-[color:var(--ink-dim)]"
-                          title={prettyDateTime(m.date_sent)}
-                        >
-                          {relativeTime(m.date_sent)}
-                        </div>
-                      </div>
-                      <div className="shrink-0 w-px self-stretch bg-[color:var(--border)]" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Pill tone={CAT_PILL_TONE[m.category] ?? 'mute'}>
-                            {prettyCategory(m.category)}
-                          </Pill>
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-dim)]">
-                            {prettyDirection(m.direction)}
-                          </span>
-                        </div>
-                        {m.body && (
-                          <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
-                            {m.body}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </ScrollArea>
-          )}
-        </section>
-
-        {/* Activity log */}
-        <section className="reveal reveal-3 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold text-[color:var(--ink)]">Activity log</h2>
-            <span className="text-[12px] text-[color:var(--ink-mute)]">{logs.length} entries · {periodLabel(period).toLowerCase()}</span>
-          </header>
-          {logs.length === 0 ? (
-            <div className="px-6 py-10 text-center">
-              <p className="text-[13px] text-[color:var(--ink-mute)]">— no historical activity for this athlete —</p>
-            </div>
-          ) : (
-            <ul className="border-t" style={{ borderColor: 'var(--border)' }}>
-              {logs.map((l) => (
-                <li
-                  key={l.id}
-                  className="flex items-start gap-4 border-b px-5 py-3 last:border-0"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <div className="shrink-0 w-[84px] text-right">
-                    <div
-                      className="mono text-[0.7rem] tabular text-[color:var(--ink-soft)]"
-                      title={prettyDateTime(l.logged_at)}
-                    >
-                      {prettyDate(l.logged_at)}
-                    </div>
-                  </div>
-                  <div className="shrink-0 w-px self-stretch bg-[color:var(--border)]" />
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1">
-                      <Pill tone={l.kind === 'workout' ? 'green' : 'amber'}>
-                        {prettyCategory(l.kind)}
-                      </Pill>
-                    </div>
-                    <div className="text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
-                      {l.description}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <AthleteHero
+          player={player}
+          derived={derived}
+          period={period}
+          onPeriodChange={setPeriod}
+          viewerIsSelf={viewerIsSelf}
+          showPhone={showPhone}
+          onAction={onAction}
+        />
+        <HeatmapTabs
+          injuryCounts={injuryCounts}
+          activityCounts={activityCounts}
+          rehabCounts={rehabCounts}
+          injuryRows={injurySideRows}
+          gender={(player.gender ?? team.default_gender ?? 'male')}
+        />
+        <UnifiedTimeline logs={logs} messages={msgs} period={period} />
       </main>
     </>
-  );
-}
-
-function Row({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
-  return (
-    <div>
-      <dt className="text-[11.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
-        {label}
-      </dt>
-      <dd className={`mt-1 text-[color:var(--ink)] ${mono ? 'mono text-[13px]' : 'text-[14px]'}`}>
-        {value}
-      </dd>
-    </div>
   );
 }
