@@ -13,21 +13,16 @@
 //    silhouette, so we paint it directly:
 //    knee → knees, ankle → ankles, foot → feet
 //
-// 3. JOINTS WITHOUT LIBRARY SHAPES — return [] so we don't paint a
-//    misleading muscle. The region still tracks in the side-list
-//    categories when there's data, just doesn't appear on the body:
-//    elbow, wrist
+// 3. JOINTS / TENDONS WITHOUT LIBRARY SHAPES — return [] so we don't
+//    paint a misleading muscle. The region still tracks in the
+//    side-list categories on the injury tab when there's data, just
+//    doesn't appear on the body silhouette:
+//    elbow, wrist (joints), achilles (tendon)
 //
 // 4. JOINTS conflated with their dominant surrounding muscle — common
 //    athlete vocab (e.g. "shoulder pain" usually means deltoid +
 //    rotator-cuff area, not the joint capsule). Acceptable approximation:
 //    shoulder → deltoids, hip → gluteal, groin → adductors
-//
-// 5. TENDON — achilles is anatomically the tail of the posterior calf
-//    chain (gastroc + soleus → tendon → heel). Painting calves is
-//    accurate; painting ankle would suggest joint pathology when the
-//    issue is muscle/tendon:
-//    achilles → calves
 //
 // Reverse (slug → regions): used when a user clicks a muscle on the
 // chart, so the side-panel filter expands to every canonical region
@@ -87,11 +82,14 @@ export function regionToMuscles(region: string, view: View = 'front'): MuscleSlu
     case 'shin':        return ['tibialis'];
     case 'ankle':       return ['ankles'];
     case 'foot':        return ['feet'];
-    // Achilles is the tendon connecting gastroc + soleus to the heel —
-    // anatomically part of the posterior calf chain. Painting calves
-    // (rather than ankles) reflects that an Achilles strain is a
-    // muscle/tendon issue, not a joint one.
-    case 'achilles':    return ['calves'];
+    // Achilles is a tendon connecting gastroc + soleus to the heel.
+    // No separate slug exists for it on the silhouette, and painting
+    // calves was misleading — calf is the muscle, achilles is the
+    // tendon below; conflating them in the hover tooltip ('Calf
+    // (Achilles)') confused readers. Treat like elbow / wrist:
+    // returns [] for body painting, still tracked in the side-list
+    // categories on the injury tab when reported.
+    case 'achilles':    return [];
     case 'chest':       return ['chest'];
     // abs is the front core; obliques is its own canonical region now.
     // The library has separate `abs` and `obliques` slugs and only
