@@ -1,21 +1,37 @@
 // apps/web/src/lib/region-to-muscle.ts
 //
-// Bridge our 22 canonical injury regions (BODY_REGIONS in
-// `injury-aliases.ts`) to react-muscle-highlighter's 23 muscle slugs.
+// Bridge our canonical body regions (BODY_REGIONS in injury-aliases.ts)
+// to react-muscle-highlighter's muscle slugs. Each region falls into
+// one of four anatomical categories:
 //
-// Forward (region → slugs): used to render counts on the body chart. A
-// single region can light up multiple slugs (e.g. `abs` paints both the
-// `abs` and `obliques` shapes; `neck` paints `neck` + the back-only
-// `trapezius`).
+// 1. MUSCLE GROUPS — paint a 1:1 or composite slug set:
+//    hand, forearm, bicep, tricep, upper_arm (catch-all = bicep+tricep),
+//    upper_back, mid_back, lower_back, neck, hamstring, quad, calf,
+//    shin, chest, abs, obliques
+//
+// 2. JOINTS WITH LIBRARY SHAPES — the library renders an actual joint
+//    silhouette, so we paint it directly:
+//    knee → knees, ankle → ankles, foot → feet
+//
+// 3. JOINTS WITHOUT LIBRARY SHAPES — return [] so we don't paint a
+//    misleading muscle. The region still tracks in the side-list
+//    categories when there's data, just doesn't appear on the body:
+//    elbow, wrist
+//
+// 4. JOINTS conflated with their dominant surrounding muscle — common
+//    athlete vocab (e.g. "shoulder pain" usually means deltoid +
+//    rotator-cuff area, not the joint capsule). Acceptable approximation:
+//    shoulder → deltoids, hip → gluteal, groin → adductors
+//
+// 5. TENDON — achilles is anatomically the tail of the posterior calf
+//    chain (gastroc + soleus → tendon → heel). Painting calves is
+//    accurate; painting ankle would suggest joint pathology when the
+//    issue is muscle/tendon:
+//    achilles → calves
 //
 // Reverse (slug → regions): used when a user clicks a muscle on the
-// chart, so the side-panel filter expands to *every* canonical region
-// that maps there. Without this, clicking 'calves' would show zero
-// reports because the team's calf injuries were tagged 'ankle' or
-// 'achilles' or 'shin'.
-//
-// upper_arm and elbow are view-dependent (front shows biceps, back shows
-// triceps). Resolved by `regionToMuscles(region, side)`.
+// chart, so the side-panel filter expands to every canonical region
+// that maps there.
 
 import type { Slug } from 'react-muscle-highlighter';
 
@@ -32,7 +48,11 @@ export type View = 'front' | 'back';
 export function regionToMuscles(region: string, view: View = 'front'): MuscleSlug[] {
   switch (region) {
     case 'hand':        return ['hands'];
-    case 'wrist':       return ['forearm'];   // no wrist slug; closest muscle
+    // Wrist is a JOINT — no library slug exists for it, and painting
+    // forearm for a wrist injury is anatomically misleading (forearm
+    // is the muscle, wrist is the joint distal to it). Same treatment
+    // as elbow: still a valid injury-report region, just doesn't paint.
+    case 'wrist':       return [];
     case 'forearm':     return ['forearm'];
     // upper_arm is the catch-all when the description doesn't specify
     // which muscle ('arm soreness', 'upper arm pain'). bicep / tricep
@@ -67,7 +87,11 @@ export function regionToMuscles(region: string, view: View = 'front'): MuscleSlu
     case 'shin':        return ['tibialis'];
     case 'ankle':       return ['ankles'];
     case 'foot':        return ['feet'];
-    case 'achilles':    return ['calves'];      // no achilles slug; nearest
+    // Achilles is the tendon connecting gastroc + soleus to the heel —
+    // anatomically part of the posterior calf chain. Painting calves
+    // (rather than ankles) reflects that an Achilles strain is a
+    // muscle/tendon issue, not a joint one.
+    case 'achilles':    return ['calves'];
     case 'chest':       return ['chest'];
     // abs is the front core; obliques is its own canonical region now.
     // The library has separate `abs` and `obliques` slugs and only
