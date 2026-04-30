@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { Pill } from '@/components/v3/pill';
@@ -41,6 +42,18 @@ function clockHM(ts: string): string {
 
 export default function AthletePage() {
   const { prefs, team, refresh } = useDashboard();
+  const router = useRouter();
+
+  // Canonical URL for an athlete viewing their own data is
+  // /dashboard/players/[their-player-id]. Redirect there as soon as we
+  // know which player they are. Admins without an impersonation set fall
+  // through to the picker below.
+  useEffect(() => {
+    if (prefs.impersonate_player_id) {
+      router.replace(`/dashboard/players/${prefs.impersonate_player_id}`);
+    }
+  }, [prefs.impersonate_player_id, router]);
+
   const sb = useSupabase();
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [me, setMe] = useState<Player | null>(null);
