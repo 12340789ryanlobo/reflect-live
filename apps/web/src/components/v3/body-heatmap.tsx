@@ -14,6 +14,13 @@ import {
   muscleToRegions,
   type View,
 } from '@/lib/region-to-muscle';
+
+// Lower = more anatomically specific. Used to pick which region to
+// surface as the primary tooltip name when several regions all map to
+// the same muscle slug (e.g. biceps slug ← bicep, upper_arm, elbow).
+function regionSpecificity(region: string): number {
+  return regionToMuscles(region, 'front').length + regionToMuscles(region, 'back').length;
+}
 import { regionLabel } from '@/lib/injury-aliases';
 import type { Gender } from '@reflect-live/shared';
 
@@ -181,11 +188,18 @@ export function BodyHeatmap({
       if (hover) setHover(null);
       return;
     }
-    const labels = regions.map(regionLabel).join(' / ');
-    const total = regions.reduce((sum, r) => sum + (counts[r] ?? 0), 0);
+    // Sort by anatomical specificity so the most-specific region (e.g.
+    // 'bicep' over 'upper_arm') reads as the primary label, with the
+    // broader regions it also rolls up into shown in parens — matches
+    // how those regions appear in the side-list categories on the right.
+    const sorted = regions.slice().sort((a, b) => regionSpecificity(a) - regionSpecificity(b));
+    const primary = regionLabel(sorted[0]);
+    const others = sorted.slice(1).map(regionLabel);
+    const labelText = others.length > 0 ? `${primary} (${others.join(', ')})` : primary;
+    const total = sorted.reduce((sum, r) => sum + (counts[r] ?? 0), 0);
     const display = total > 0
-      ? `${labels} · ${total} session${total === 1 ? '' : 's'}`
-      : labels;
+      ? `${labelText} · ${total} session${total === 1 ? '' : 's'}`
+      : labelText;
     const rect = e.currentTarget.getBoundingClientRect();
     setHover({
       label: display,
