@@ -7,16 +7,13 @@ import { ReadinessBar } from '@/components/v3/readiness-bar';
 import { TrendChart, type TrendDay } from '@/components/v3/trend-chart';
 import { NeedsAttention } from '@/components/v3/needs-attention';
 import { Pill } from '@/components/v3/pill';
+import { PeriodToggle } from '@/components/v3/period-toggle';
+import { type Period, periodLabel, periodSinceIso } from '@/lib/period';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Location, WeatherSnapshot, ActivityLog, Player } from '@reflect-live/shared';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { prettyDate, relativeTime } from '@/lib/format';
 
-const DAY_OPTIONS = [
-  { value: '1', label: '24 hours' },
-  { value: '7', label: '7 days' },
-  { value: '30', label: '30 days' },
-];
+const PERIOD_OPTIONS: readonly Period[] = [1, 7, 14, 30, 'all'] as const;
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -37,7 +34,7 @@ interface ActivityWithPlayer extends ActivityLog {
 export default function Dashboard() {
   const { prefs, team } = useDashboard();
   const sb = useSupabase();
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState<Period>(7);
   const [counts, setCounts] = useState<Counts>({
     messages: 0, activePlayers: 0, rosterSize: 0, responseRate: 0,
     avgReadiness: null, flags: 0, surveyCount: 0,
@@ -49,18 +46,18 @@ export default function Dashboard() {
   // Stats + trend
   useEffect(() => {
     (async () => {
-      const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
+      const since = periodSinceIso(days);
       const groupFilter = prefs.group_filter;
       const pq = sb.from('players').select('id,phone_e164').eq('team_id', prefs.team_id);
       if (groupFilter) pq.eq('group', groupFilter);
       const { data: players } = await pq;
       const rosterSize = players?.length ?? 0;
       const phoneSet = new Set((players ?? []).map((p: { phone_e164: string }) => p.phone_e164));
-      const { data: msgs } = await sb
+      const msgQ = sb
         .from('twilio_messages')
         .select('from_number,direction,category,body,player_id,date_sent')
-        .eq('team_id', prefs.team_id)
-        .gte('date_sent', since);
+        .eq('team_id', prefs.team_id);
+      const { data: msgs } = await (since ? msgQ.gte('date_sent', since) : msgQ);
       const allMsgs = (msgs ?? []) as Array<{
         from_number: string | null; direction: string; category: string;
         body: string | null; player_id: number | null; date_sent: string;
@@ -145,22 +142,15 @@ export default function Dashboard() {
     })();
   }, [sb, prefs.team_id]);
 
-  const daysShort = DAY_OPTIONS.find((o) => Number(o.value) === days)?.label ?? `${days}d`;
+  const periodSubtitle = periodLabel(days).toLowerCase();
 
   return (
     <>
       <PageHeader
         eyebrow="Today"
         title="Dashboard"
-        subtitle={`${team.name} · last ${daysShort.toLowerCase()}`}
-        actions={
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="w-[160px] h-9 text-[13px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {DAY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>Last {o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        }
+        subtitle={`${team.name} · ${periodSubtitle}`}
+        actions={<PeriodToggle value={days} onChange={setDays} options={PERIOD_OPTIONS} />}
       />
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
         {/* Hero stats strip */}
@@ -170,7 +160,7 @@ export default function Dashboard() {
           </div>
           <div className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
             <div className="grid grid-cols-1 sm:grid-cols-3 divide-x" style={{ borderColor: 'var(--border)' }}>
-              <div className="p-6"><StatCell label="Messages" value={counts.messages} sub={daysShort.toLowerCase()} tone="blue" /></div>
+              <div className="p-6"><StatCell label="Messages" value={counts.messages} sub={periodSubtitle} tone="blue" /></div>
               <div className="p-6"><StatCell label="Active" value={`${counts.activePlayers}/${counts.rosterSize}`} sub={`${counts.responseRate}% response rate`} /></div>
               <div className="p-6"><StatCell label="Flags" value={counts.flags} sub="readiness ≤ 4" tone={counts.flags > 0 ? 'red' : 'default'} /></div>
             </div>

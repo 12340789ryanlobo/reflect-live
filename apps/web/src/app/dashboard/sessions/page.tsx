@@ -11,6 +11,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
+import { PeriodToggle } from '@/components/v3/period-toggle';
+import { type Period, periodSinceIso, periodLabel } from '@/lib/period';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Pill } from '@/components/v3/pill';
 import { Input } from '@/components/ui/input';
@@ -135,6 +137,7 @@ export default function SessionsPage() {
   // re-prefill it whenever they change the type or scheduled-for so the
   // suggestion stays in sync. Once they type anything, we stop touching it.
   const [labelEdited, setLabelEdited] = useState(false);
+  const [period, setPeriod] = useState<Period>('all');
   const canCreate = role === 'coach' || role === 'captain' || role === 'admin';
 
   const load = useCallback(async () => {
@@ -144,13 +147,15 @@ export default function SessionsPage() {
     // every row on the team. At ~3-5 sessions/week that's a season's
     // worth in the limit; the deliveries/flags scope keeps the join
     // cheap regardless of how big sessions get.
+    const since = periodSinceIso(period);
+    const sessionQ = sb.from('sessions')
+      .select('id,type,label,template_id,created_at,deleted_at')
+      .eq('team_id', prefs.team_id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(500);
     const [{ data: ss }, { data: tpls }, { data: pendingSends }] = await Promise.all([
-      sb.from('sessions')
-        .select('id,type,label,template_id,created_at,deleted_at')
-        .eq('team_id', prefs.team_id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(500),
+      since ? sessionQ.gte('created_at', since) : sessionQ,
       sb.from('question_templates')
         .select('id,name,session_type')
         .eq('team_id', prefs.team_id)
@@ -213,7 +218,7 @@ export default function SessionsPage() {
     })));
 
     setLoading(false);
-  }, [sb, prefs.team_id]);
+  }, [sb, prefs.team_id, period]);
 
   async function cancelSend(sendId: number) {
     if (!confirm('Cancel this send? It will not go out at the scheduled time.')) return;
@@ -314,9 +319,11 @@ export default function SessionsPage() {
       <PageHeader
         eyebrow="Survey engine"
         title="Sessions"
-        subtitle={`${stats.total} session${stats.total === 1 ? '' : 's'} — ${stats.practice} practice · ${stats.match} competition · ${stats.lifting} lifting`}
+        subtitle={`${stats.total} session${stats.total === 1 ? '' : 's'} — ${stats.practice} practice · ${stats.match} competition · ${stats.lifting} lifting · ${periodLabel(period).toLowerCase()}`}
         actions={
-          canCreate ? (
+          <div className="flex items-center gap-3">
+            <PeriodToggle value={period} onChange={setPeriod} />
+            {canCreate ? (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">New session</Button>
@@ -393,7 +400,8 @@ export default function SessionsPage() {
                 </div>
               </DialogContent>
             </Dialog>
-          ) : null
+            ) : null}
+          </div>
         }
       />
 

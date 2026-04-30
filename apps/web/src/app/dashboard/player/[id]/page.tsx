@@ -6,6 +6,8 @@ import { Pill } from '@/components/v3/pill';
 import { ReadinessBar } from '@/components/v3/readiness-bar';
 import { BodyHeatmap } from '@/components/v3/body-heatmap';
 import { PlayerSummaryCard } from '@/components/v3/player-summary-card';
+import { PeriodToggle } from '@/components/v3/period-toggle';
+import { type Period, periodLabel, periodSinceIso } from '@/lib/period';
 import { regionLabel } from '@/lib/injury-aliases';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog, Category } from '@reflect-live/shared';
@@ -56,36 +58,43 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [msgs, setMsgs] = useState<TwilioMessage[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [injuries, setInjuries] = useState<InjuryRow[]>([]);
+  const [period, setPeriod] = useState<Period>(30);
 
   useEffect(() => {
     (async () => {
+      const since = periodSinceIso(period);
+
+      const msgQ = sb
+        .from('twilio_messages')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('date_sent', { ascending: false })
+        .limit(200);
+      const logQ = sb
+        .from('activity_logs')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('logged_at', { ascending: false })
+        .limit(200);
+      const injQ = sb
+        .from('injury_reports')
+        .select('id,regions,severity,description,reported_at,resolved_at')
+        .eq('player_id', playerId)
+        .order('reported_at', { ascending: false })
+        .limit(200);
+
       const [{ data: p }, { data: m }, { data: l }, { data: inj }] = await Promise.all([
         sb.from('players').select('*').eq('id', playerId).single(),
-        sb
-          .from('twilio_messages')
-          .select('*')
-          .eq('player_id', playerId)
-          .order('date_sent', { ascending: false })
-          .limit(50),
-        sb
-          .from('activity_logs')
-          .select('*')
-          .eq('player_id', playerId)
-          .order('logged_at', { ascending: false })
-          .limit(30),
-        sb
-          .from('injury_reports')
-          .select('id,regions,severity,description,reported_at,resolved_at')
-          .eq('player_id', playerId)
-          .order('reported_at', { ascending: false })
-          .limit(50),
+        since ? msgQ.gte('date_sent', since) : msgQ,
+        since ? logQ.gte('logged_at', since) : logQ,
+        since ? injQ.gte('reported_at', since) : injQ,
       ]);
       setPlayer(p as Player);
       setMsgs((m ?? []) as TwilioMessage[]);
       setLogs((l ?? []) as ActivityLog[]);
       setInjuries((inj ?? []) as InjuryRow[]);
     })();
-  }, [sb, playerId]);
+  }, [sb, playerId, period]);
 
   const injuryCounts: Record<string, number> = useMemo(() => {
     const c: Record<string, number> = {};
@@ -139,7 +148,8 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       <PageHeader
         eyebrow="Profile"
         title={player.name}
-        subtitle={`${player.group ?? 'No group'} · ${prettyPhone(player.phone_e164)}`}
+        subtitle={`${player.group ?? 'No group'} · ${prettyPhone(player.phone_e164)} · ${periodLabel(period).toLowerCase()}`}
+        actions={<PeriodToggle value={period} onChange={setPeriod} />}
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
@@ -266,7 +276,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2 className="text-base font-bold text-[color:var(--ink)]">Messages</h2>
             <span className="text-[12px] text-[color:var(--ink-mute)]">
-              {msgs.length} total · last 50 shown
+              {msgs.length} {periodLabel(period).toLowerCase()}
             </span>
           </header>
           {msgs.length === 0 ? (
@@ -322,7 +332,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         <section className="reveal reveal-3 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
           <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2 className="text-base font-bold text-[color:var(--ink)]">Activity log</h2>
-            <span className="text-[12px] text-[color:var(--ink-mute)]">{logs.length} entries</span>
+            <span className="text-[12px] text-[color:var(--ink-mute)]">{logs.length} entries · {periodLabel(period).toLowerCase()}</span>
           </header>
           {logs.length === 0 ? (
             <div className="px-6 py-10 text-center">
