@@ -175,11 +175,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         return;
       }
       // Athletes are locked to their own surfaces — anything else bounces
-      // to their canonical player page (security fix from A1).
-      // Canonical landing for an athlete is /dashboard/players/[their-id]
-      // when impersonate is set; otherwise the /dashboard/athlete picker
-      // handles the admin-debug case.
-      if (role === 'athlete' && !isAthletePath && !isSettings) {
+      // to their canonical player page (security fix from A1). Allowed:
+      //   /dashboard/athlete*           — picker fallback
+      //   /dashboard/players/[their-id] — canonical own-player URL
+      //   /dashboard/settings           — personal settings
+      //   /dashboard/fitness            — team activity / leaderboard
+      //                                   (peer accountability)
+      const isFitnessPath = pathname === '/dashboard/fitness';
+      if (role === 'athlete' && !isAthletePath && !isSettings && !isFitnessPath) {
         const ownPlayerPath = result.prefs?.impersonate_player_id
           ? `/dashboard/players/${result.prefs.impersonate_player_id}`
           : null;
@@ -310,6 +313,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           hasLinkedAthlete={Boolean(prefs.impersonate_player_id)}
           captainCanViewSessions={team.captain_can_view_sessions === true}
           pendingRequestCount={pendingRequestCount}
+          athleteOwnPlayerId={role === 'athlete' ? prefs.impersonate_player_id ?? null : null}
         />
         <SidebarInset>
           {pendingMems.length > 0 && (

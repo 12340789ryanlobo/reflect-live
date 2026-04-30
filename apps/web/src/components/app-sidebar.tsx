@@ -88,9 +88,13 @@ const COACH_NAV: NavItem[] = [
   { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
 ];
 
-const ATHLETE_NAV: NavItem[] = [
+// The 'My view' href is dynamic — when the athlete has a linked player
+// it's rewritten to /dashboard/players/[id] (the canonical landing) so
+// the longest-prefix highlight matches. dashboard-shell passes
+// athleteOwnPlayerId through to AppSidebar.
+const ATHLETE_NAV_BASE: NavItem[] = [
   { href: '/dashboard/athlete', label: 'My view', icon: UserIcon },
-  { href: '/dashboard/athlete#messages', label: 'My messages', icon: MessageSquareText },
+  { href: '/dashboard/fitness', label: 'Team activity', icon: Dumbbell },
 ];
 
 const CAPTAIN_NAV: NavItem[] = [
@@ -203,6 +207,7 @@ export function AppSidebar({
   hasLinkedAthlete,
   captainCanViewSessions = false,
   pendingRequestCount = 0,
+  athleteOwnPlayerId = null,
 }: {
   role: UserRole;
   teamName?: string;
@@ -211,6 +216,10 @@ export function AppSidebar({
   hasLinkedAthlete?: boolean;
   captainCanViewSessions?: boolean;
   pendingRequestCount?: number;
+  /** When this user is an athlete linked to a roster player, the
+   *  'My view' nav entry rewrites to that canonical /dashboard/players
+   *  URL so the longest-prefix highlighter recognises the active page. */
+  athleteOwnPlayerId?: number | null;
 }) {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
@@ -238,7 +247,14 @@ export function AppSidebar({
       : CAPTAIN_NAV.filter((i) => i.href !== '/dashboard/sessions');
     groups.push({ label: 'Captain', items: applyRequestsRule(base) });
   }
-  if (role === 'athlete') groups.push({ label: 'Your view', items: ATHLETE_NAV });
+  if (role === 'athlete') {
+    const items = ATHLETE_NAV_BASE.map((i) =>
+      i.href === '/dashboard/athlete' && athleteOwnPlayerId
+        ? { ...i, href: `/dashboard/players/${athleteOwnPlayerId}` }
+        : i,
+    );
+    groups.push({ label: 'Your view', items });
+  }
   if (hasLinkedAthlete && role !== 'athlete') {
     groups.push({
       label: 'Also you',
