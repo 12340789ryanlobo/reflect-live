@@ -34,16 +34,20 @@ export function regionToMuscles(region: string, view: View = 'front'): MuscleSlu
     case 'hand':        return ['hands'];
     case 'wrist':       return ['forearm'];   // no wrist slug; closest muscle
     case 'forearm':     return ['forearm'];
-    // upper_arm + elbow paint both biceps and triceps on every view —
-    // the lateral triceps head is visible from the front too. They're
-    // the catch-all bucket when the description doesn't specify which
-    // muscle ("arm soreness", "upper arm pain"). bicep / tricep are
-    // the focused buckets used when the description names the muscle
-    // explicitly (curl → bicep, tricep extension → tricep).
-    case 'elbow':       return ['biceps', 'triceps'];
+    // upper_arm is the catch-all when the description doesn't specify
+    // which muscle ('arm soreness', 'upper arm pain'). bicep / tricep
+    // are the focused buckets used when the description names the
+    // muscle explicitly (curl → bicep, tricep extension → tricep).
     case 'upper_arm':   return ['biceps', 'triceps'];
     case 'bicep':       return ['biceps'];
     case 'tricep':      return ['triceps'];
+    // Elbow is a JOINT — there's no elbow shape on the silhouette and
+    // mapping it to biceps + triceps was anatomically misleading
+    // (those are upper-arm muscles, not the elbow). Returning [] keeps
+    // 'elbow' as a valid injury-report region — it'll show up in the
+    // side-list categories when there's data — without painting any
+    // muscle on the body map.
+    case 'elbow':       return [];
     case 'shoulder':    return ['deltoids'];
     // upper_back paints trapezius on both views — the upper trap wraps
     // around to the front (neck/shoulder area).
