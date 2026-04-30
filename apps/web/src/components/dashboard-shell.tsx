@@ -87,6 +87,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
     const activeMem = state.active.find((m) => m.team_id === defaultTeamId);
     const membershipRole = (activeMem?.role ?? 'athlete') as UserRole;
+    const membershipPlayerId = activeMem?.player_id ?? null;
 
     // Pending request count for the active team — used to surface the
     // "Requests" sidebar entry only when something needs attention.
@@ -110,6 +111,10 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           role: membershipRole,
           watchlist: [],
           group_filter: null,
+          // Pre-fill the per-user player link from membership so a
+          // freshly-approved athlete doesn't land on the empty
+          // "Pick an athlete to simulate" picker. (B1 fix.)
+          impersonate_player_id: membershipPlayerId,
         })
         .select('*')
         .maybeSingle();
@@ -130,14 +135,24 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     const isAdmin = p.is_platform_admin === true || p.role === 'admin';
     const effectiveRole: UserRole = isAdmin ? ((p.role ?? membershipRole) as UserRole) : membershipRole;
 
-    if (!isAdmin && p.role !== membershipRole) {
+    // Heal stale prefs for non-admins:
+    //   role          → must match team_memberships (A1)
+    //   impersonate   → must match team_memberships.player_id (B1).
+    //   This keeps athletes pointed at their own player and prevents
+    //   coaches/captains from accidentally impersonating someone else.
+    const needsRoleHeal = !isAdmin && p.role !== membershipRole;
+    const needsLinkHeal = !isAdmin && p.impersonate_player_id !== membershipPlayerId;
+    if (needsRoleHeal || needsLinkHeal) {
+      const patch: Record<string, unknown> = {};
+      if (needsRoleHeal) patch.role = membershipRole;
+      if (needsLinkHeal) patch.impersonate_player_id = membershipPlayerId;
       const { data: healed } = await sb
         .from('user_preferences')
-        .update({ role: membershipRole, impersonate_player_id: null })
+        .update(patch)
         .eq('clerk_user_id', p.clerk_user_id)
         .select('*')
         .maybeSingle();
-      const healedPrefs = (healed ?? { ...p, role: membershipRole, impersonate_player_id: null }) as UserPreferences;
+      const healedPrefs = (healed ?? { ...p, ...patch }) as UserPreferences;
       setPrefs(healedPrefs);
       return { state, prefs: healedPrefs, team: teamData as Team, effectiveRole };
     }

@@ -207,6 +207,15 @@ export async function PATCH(
     .single();
   if (error) return NextResponse.json({ error: 'update_failed', detail: error.message }, { status: 500 });
 
+  // Pre-link the user_preferences.impersonate_player_id so a freshly-approved
+  // athlete lands on their own /dashboard/athlete view immediately, instead of
+  // the empty "Pick an athlete to simulate" picker. (B1 fix — keeps the
+  // per-user "linked athlete" field in sync with the per-team membership.)
+  await sb
+    .from('user_preferences')
+    .update({ impersonate_player_id: playerId })
+    .eq('clerk_user_id', clerkUserId);
+
   const approveBody = `${teamName} approved your request. Open your dashboard at ${baseUrl}/dashboard`;
   const sms = request.requested_phone
     ? await sendDecisionSms({ sb, teamId, toPhone: request.requested_phone, body: approveBody })

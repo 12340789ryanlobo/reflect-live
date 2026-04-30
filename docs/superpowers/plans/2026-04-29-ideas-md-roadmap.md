@@ -43,18 +43,26 @@ This doc is the roadmap. Each item below is sized to be turned into its own impl
 
 ### B1 — What is the `users` page doing? Why "linked athlete"?
 
-**Plan:** 30-min spike.
-1. Read `apps/web/src/app/dashboard/users/` (if it exists) and `app-sidebar.tsx` to find the entry.
-2. Read `user_preferences.impersonate_player_id` usage.
-3. Decide: keep + document, fold into request/approve flow, or delete.
+**Findings (2026-04-29):**
 
-**Done when:** there's a one-paragraph note in this doc that says exactly what users + linked-athlete do, or those columns/pages are removed.
+- The page lives at `/dashboard/admin/users` (not `/dashboard/users`) and is platform-admin-only. It surfaces every Clerk user with a `user_preferences` row and lets admin (a) change `role` and (b) set `impersonate_player_id` (re-labelled to "Roster link (player)").
+- `impersonate_player_id` is one column doing **three jobs**: athletes use it to know "which player am I" on `/dashboard/athlete`; coaches/captains who are also on roster use it for the "Also you" sidebar entry; admins use it to view-as-any-athlete.
+- Hidden bug discovered during audit: approval set `team_memberships.player_id` but **never** `user_preferences.impersonate_player_id`. A freshly-approved athlete logged in to "Pick an athlete to simulate" — that's why the field felt magical and unintuitive.
+
+**Decision:** keep the page (it's useful as fallback). Fix the bug + relabel + self-heal.
+
+**Shipped:**
+1. `dashboard-shell.tsx` — first-creation prefs row now sets `impersonate_player_id = membership.player_id`. Existing rows get healed when membership and prefs disagree (extends A1 self-heal).
+2. `POST /api/teams/[id]/requests/[clerkUserId]` (approve branch) — also writes `impersonate_player_id` on the approvee's user_preferences so they land directly on their athlete view.
+3. `/dashboard/admin/users` — re-labelled column to "Roster link (player)" and rewrote the intro paragraph to frame the page as a fallback tool, not a routine assignment surface.
 
 ---
 
 ### B2 — Admin "new athlete / user assignment" journey
 
-Possibly redundant now that we have `team_memberships` + the request/approve flow. Audit, then either fold or delete.
+**Findings:** the routine path is automatic now — athlete self-requests via `/onboarding`, coach approves via `/dashboard/requests`, both `team_memberships.player_id` and (after this audit) `user_preferences.impersonate_player_id` get written on approval. The admin/users page is the **fallback** for legacy accounts and edge cases.
+
+**Decision:** keep as fallback, no separate journey to build. Folded into B1's writeup.
 
 ---
 

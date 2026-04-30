@@ -93,16 +93,18 @@ export default function AdminUsersPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Roles & links"
+        eyebrow="Platform admin"
         title="Users"
         subtitle={`${rows.length} users · ${playersByTeam.size} teams`}
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
         <p className="text-[13px] text-[color:var(--ink-mute)] leading-relaxed">
-          Roles take effect immediately. Users can&rsquo;t change their own role. Linking a user
-          to a roster player gives them a personal athlete view — useful when a coach or admin
-          is also on the roster.
+          Fallback for when the normal flows aren&rsquo;t enough. Routine assignment is
+          automatic: athletes self-request via <span className="mono">/onboarding</span>,
+          coaches approve via <span className="mono">/dashboard/requests</span>, and the
+          per-user roster link is set on approval. Use this page to fix legacy accounts,
+          re-link someone whose phone changed, or escalate / demote a user&rsquo;s role.
         </p>
 
         <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
@@ -121,7 +123,7 @@ export default function AdminUsersPage() {
                     <Th>Email</Th>
                     <Th>Name</Th>
                     <Th>Role</Th>
-                    <Th>Linked athlete</Th>
+                    <Th>Roster link (player)</Th>
                     <Th>Joined</Th>
                   </tr>
                 </thead>
