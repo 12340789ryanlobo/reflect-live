@@ -5,6 +5,9 @@ import {
   generateCacheKey,
   type ResponseRow,
   type FlagRow,
+  type ActivityLogRow,
+  type InjuryRow,
+  type TwilioMessageRow,
 } from './player-summary';
 
 function r(partial: Partial<ResponseRow>): ResponseRow {
@@ -31,7 +34,7 @@ function f(partial: Partial<FlagRow>): FlagRow {
 describe('rulesBasedSummary', () => {
   it('handles zero sessions cleanly', () => {
     const s = rulesBasedSummary({ playerName: 'Alice', responses: [], flags: [], days: 14 });
-    expect(s.summary).toMatch(/no check-in data/i);
+    expect(s.summary).toMatch(/no check-in or activity data/i);
     expect(s.observations).toContain('No recent responses recorded');
     expect(s.generated_by).toBe('rules');
     expect(s.confidence).toBe('low');
@@ -64,6 +67,99 @@ describe('rulesBasedSummary', () => {
     const flags = [f({ severity: 'high', flag_type: 'load_spike' })];
     const s = rulesBasedSummary({ playerName: 'Dee', responses, flags, days: 14 });
     expect(s.observations.some((o) => /high-priority/i.test(o))).toBe(true);
+  });
+});
+
+describe('rulesBasedSummary with extended sources', () => {
+  function log(partial: Partial<ActivityLogRow>): ActivityLogRow {
+    return {
+      kind: 'workout',
+      description: 'lifted',
+      logged_at: '2026-04-29T00:00:00Z',
+      hidden: false,
+      ...partial,
+    };
+  }
+
+  function inj(partial: Partial<InjuryRow>): InjuryRow {
+    return {
+      regions: ['shoulder'],
+      severity: 6,
+      description: 'pain after sets',
+      reported_at: '2026-04-28T00:00:00Z',
+      resolved_at: null,
+      ...partial,
+    };
+  }
+
+  function msg(partial: Partial<TwilioMessageRow>): TwilioMessageRow {
+    return {
+      direction: 'inbound',
+      category: 'survey',
+      body: '7 feeling solid',
+      date_sent: '2026-04-29T00:00:00Z',
+      ...partial,
+    };
+  }
+
+  it('uses SMS readiness when no session readings exist', () => {
+    const messages = [
+      msg({ body: '8 great' }),
+      msg({ body: '6 ok' }),
+      msg({ body: '7 fine' }),
+    ];
+    const s = rulesBasedSummary({
+      playerName: 'Greta',
+      responses: [],
+      flags: [],
+      days: 14,
+      messages,
+    });
+    expect(s.summary).toMatch(/3 check-in/i);
+    expect(s.observations.some((o) => /good readiness/i.test(o))).toBe(true);
+  });
+
+  it('flags open injury concerns with body regions', () => {
+    const s = rulesBasedSummary({
+      playerName: 'Hank',
+      responses: [],
+      flags: [],
+      days: 14,
+      injuries: [inj({ regions: ['shoulder', 'lower_back'] })],
+    });
+    expect(s.observations.some((o) => /open injury/i.test(o) && /shoulder/i.test(o))).toBe(true);
+    expect(s.recommendations.some((r) => /trainer/i.test(r))).toBe(true);
+  });
+
+  it('counts workouts and rehabs from activity logs', () => {
+    const activityLogs = [
+      log({ kind: 'workout', description: 'pull day' }),
+      log({ kind: 'workout', description: 'leg day' }),
+      log({ kind: 'rehab', description: 'shoulder mobility' }),
+      log({ kind: 'workout', hidden: true }),
+    ];
+    const s = rulesBasedSummary({
+      playerName: 'Iris',
+      responses: [],
+      flags: [],
+      days: 14,
+      activityLogs,
+    });
+    expect(s.summary).toMatch(/2 workouts/);
+    expect(s.summary).toMatch(/1 rehab/);
+  });
+
+  it('flags absence of workouts when athlete is checking in but not logging', () => {
+    const messages = [msg({ body: '7' }), msg({ body: '8' }), msg({ body: '6' })];
+    const s = rulesBasedSummary({
+      playerName: 'Jay',
+      responses: [],
+      flags: [],
+      days: 14,
+      messages,
+    });
+    expect(s.observations.some((o) => /no workouts logged/i.test(o))).toBe(true);
+    expect(s.recommendations.some((r) => /workout logging/i.test(r))).toBe(true);
   });
 });
 
@@ -111,7 +207,7 @@ describe('generateCacheKey', () => {
 describe('rulesBasedSummary with "all" period', () => {
   it('phrases the empty-data summary without a "last N days" clause', () => {
     const s = rulesBasedSummary({ playerName: 'Eve', responses: [], flags: [], days: 'all' });
-    expect(s.summary).toMatch(/no check-in data on record/i);
+    expect(s.summary).toMatch(/no check-in or activity data on record/i);
     expect(s.summary).not.toMatch(/last \d+ days/i);
   });
 

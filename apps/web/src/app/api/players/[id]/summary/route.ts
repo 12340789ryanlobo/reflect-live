@@ -18,6 +18,9 @@ import {
   hashSummaryInputs,
   type ResponseRow,
   type FlagRow,
+  type ActivityLogRow,
+  type InjuryRow,
+  type TwilioMessageRow,
   type SummaryResult,
 } from '@/lib/player-summary';
 import { parsePeriod, periodSinceIso } from '@/lib/period';
@@ -84,16 +87,46 @@ export async function POST(
     .eq('player_id', playerId)
     .order('created_at', { ascending: false })
     .limit(50);
+  const logQ = sb
+    .from('activity_logs')
+    .select('kind, description, logged_at, hidden')
+    .eq('player_id', playerId)
+    .order('logged_at', { ascending: false })
+    .limit(200);
+  const injQ = sb
+    .from('injury_reports')
+    .select('regions, severity, description, reported_at, resolved_at')
+    .eq('player_id', playerId)
+    .order('reported_at', { ascending: false })
+    .limit(50);
+  const msgQ = sb
+    .from('twilio_messages')
+    .select('direction, category, body, date_sent')
+    .eq('player_id', playerId)
+    .order('date_sent', { ascending: false })
+    .limit(200);
 
-  const [{ data: respRows }, { data: flagRows }] = await Promise.all([
+  const [
+    { data: respRows },
+    { data: flagRows },
+    { data: logRows },
+    { data: injRows },
+    { data: msgRows },
+  ] = await Promise.all([
     sinceIso ? responseQ.gte('created_at', sinceIso) : responseQ,
     sinceIso ? flagQ.gte('created_at', sinceIso) : flagQ,
+    sinceIso ? logQ.gte('logged_at', sinceIso) : logQ,
+    sinceIso ? injQ.gte('reported_at', sinceIso) : injQ,
+    sinceIso ? msgQ.gte('date_sent', sinceIso) : msgQ,
   ]);
 
   const responses = (respRows ?? []) as ResponseRow[];
   const flags = (flagRows ?? []) as FlagRow[];
+  const activityLogs = (logRows ?? []) as ActivityLogRow[];
+  const injuries = (injRows ?? []) as InjuryRow[];
+  const messages = (msgRows ?? []) as TwilioMessageRow[];
 
-  const dataHash = hashSummaryInputs(responses, flags);
+  const dataHash = hashSummaryInputs(responses, flags, activityLogs, injuries, messages);
   const cacheKey = generateCacheKey(playerId, days, dataHash);
   const throttleKey = `player:${playerId}:days:${days}`;
 
@@ -140,11 +173,13 @@ export async function POST(
   }
 
   const result = await generatePlayerSummary({
-    playerId,
     playerName: player.name,
     responses,
     flags,
     days,
+    activityLogs,
+    injuries,
+    messages,
   });
 
   // Write-through cache, both keys. Skip on fallback so the next click

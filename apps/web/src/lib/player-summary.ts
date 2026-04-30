@@ -1,12 +1,13 @@
-// Player summary builder. Pulls the last-N-day responses + flags for a
-// player, formats a data-summary block, and asks the LLM for a structured
-// {summary, observations, recommendations, confidence} object. Falls back
-// to a deterministic rules-based summary when the LLM is disabled or
-// errors out.
+// Player summary builder. Pulls the everything-the-hero-shows for a
+// player — session responses, session flags, SMS surveys/chat, activity
+// logs (workouts + rehabs), and injury reports — formats a compact data
+// block, and asks the LLM for a structured object. Falls back to a
+// deterministic rules-based summary when the LLM is disabled or errors.
 //
-// Mirrors reflect/app/llm.py's prompt verbatim where possible — same
-// rules-first tone, same JSON shape — so the two systems produce
-// comparable output during the Phase-6 transition.
+// Why all five sources: the team's primary check-in flow is SMS via
+// Twilio, not the newer sessions tables. Feeding only `responses` left
+// the LLM blind to actual readiness numbers, workout volume, and active
+// injuries — exactly the data the page already shows the coach.
 
 import { createHash } from 'node:crypto';
 import { callJsonPrompt, getLlmConfig } from './llm-client';
@@ -29,6 +30,28 @@ export interface FlagRow {
   created_at: string;
 }
 
+export interface ActivityLogRow {
+  kind: 'workout' | 'rehab';
+  description: string;
+  logged_at: string;
+  hidden?: boolean;
+}
+
+export interface InjuryRow {
+  regions: string[];
+  severity: number | null;
+  description: string;
+  reported_at: string;
+  resolved_at: string | null;
+}
+
+export interface TwilioMessageRow {
+  direction: string;
+  category: string;
+  body: string | null;
+  date_sent: string;
+}
+
 export interface SummaryResult {
   summary: string;
   observations: string[];
@@ -40,15 +63,37 @@ export interface SummaryResult {
   error?: string;
 }
 
+export interface SummaryInputs {
+  playerName: string;
+  responses: ResponseRow[];
+  flags: FlagRow[];
+  days: Period;
+  activityLogs?: ActivityLogRow[];
+  injuries?: InjuryRow[];
+  messages?: TwilioMessageRow[];
+}
+
 export function generateCacheKey(playerId: number, days: Period, dataHash: string): string {
   const raw = `player:${playerId}:days:${periodKey(days)}:data:${dataHash}`;
   return createHash('sha256').update(raw).digest('hex').slice(0, 32);
 }
 
-export function hashSummaryInputs(responses: ResponseRow[], flags: FlagRow[]): string {
+export function hashSummaryInputs(
+  responses: ResponseRow[],
+  flags: FlagRow[],
+  activityLogs: ActivityLogRow[] = [],
+  injuries: InjuryRow[] = [],
+  messages: TwilioMessageRow[] = [],
+): string {
   const obj = {
     responses: responses.slice(0, 20).map((r) => ({ q: r.question_id, a: r.answer_num })),
     flags: flags.slice(0, 10).map((f) => ({ t: f.flag_type, s: f.severity })),
+    logs: activityLogs.slice(0, 30).map((l) => ({ k: l.kind, d: l.description, t: l.logged_at })),
+    injuries: injuries.slice(0, 20).map((i) => ({ r: i.regions, s: i.severity, x: i.resolved_at })),
+    msgs: messages
+      .filter((m) => m.direction === 'inbound')
+      .slice(0, 30)
+      .map((m) => ({ c: m.category, b: m.body?.slice(0, 60), t: m.date_sent })),
   };
   return createHash('md5').update(JSON.stringify(obj)).digest('hex').slice(0, 16);
 }
@@ -62,53 +107,100 @@ function uniq<T>(xs: T[]): T[] {
   return Array.from(new Set(xs));
 }
 
-function buildPrompt(args: {
-  playerName: string;
-  responses: ResponseRow[];
-  flags: FlagRow[];
-  days: Period;
-}): string {
-  const { playerName, responses, flags, days } = args;
+// Mirror the hero's own parser: first 1-2 digits of an inbound survey
+// body, clamped to 1-10. Same logic that drives the readiness bar so the
+// LLM and the visible average can never disagree.
+function smsReadiness(messages: TwilioMessageRow[]): number[] {
+  const out: number[] = [];
+  for (const m of messages) {
+    if (m.direction !== 'inbound' || m.category !== 'survey' || !m.body) continue;
+    const match = /^(\d{1,2})/.exec(m.body.trim());
+    if (!match) continue;
+    const n = Number(match[1]);
+    if (n >= 1 && n <= 10) out.push(n);
+  }
+  return out;
+}
+
+function buildPrompt(args: Required<Omit<SummaryInputs, 'days'>> & { days: Period }): string {
+  const { playerName, responses, flags, days, activityLogs, injuries, messages } = args;
 
   const numFor = (q: string) =>
     responses.filter((r) => r.question_id === q && r.answer_num != null).map((r) => r.answer_num as number);
   const rawFor = (q: string) =>
     responses.filter((r) => r.question_id === q && r.answer_raw).map((r) => r.answer_raw as string);
 
-  const readiness = numFor('q1_readiness');
+  const sessionReadiness = numFor('q1_readiness');
   const energy = numFor('q4_team_energy');
   const effort = numFor('q5_team_effort');
-  const tennis = numFor('q4_individual_tennis');
-  const injuries = responses.filter((r) => r.question_id === 'q2_injury' && r.answer_num === 1);
+  const sessionInjuries = responses.filter((r) => r.question_id === 'q2_injury' && r.answer_num === 1);
   const injuryLocations = rawFor('q3_injury_location');
   const focusAreas = uniq([...rawFor('q7_next_focus'), ...rawFor('q7_match_focus')]);
   const matchReflections = rawFor('q5_match_reflection');
-
   const sessionCount = uniq(responses.map((r) => r.session_id)).length;
+
+  const smsReadings = smsReadiness(messages);
+  const visibleLogs = activityLogs.filter((l) => !l.hidden);
+  const workouts = visibleLogs.filter((l) => l.kind === 'workout');
+  const rehabs = visibleLogs.filter((l) => l.kind === 'rehab');
+  const recentWorkouts = workouts
+    .slice()
+    .sort((a, b) => b.logged_at.localeCompare(a.logged_at))
+    .slice(0, 8)
+    .map((l) => `${l.logged_at.slice(0, 10)}: ${l.description.slice(0, 100)}`);
+  const recentRehabs = rehabs
+    .slice()
+    .sort((a, b) => b.logged_at.localeCompare(a.logged_at))
+    .slice(0, 5)
+    .map((l) => `${l.logged_at.slice(0, 10)}: ${l.description.slice(0, 100)}`);
+
+  const openInjuries = injuries.filter((i) => !i.resolved_at);
+  const openInjuryLines = openInjuries.slice(0, 8).map((i) => {
+    const sev = i.severity != null ? `severity ${i.severity}/10` : 'severity unknown';
+    const reportedDay = i.reported_at.slice(0, 10);
+    const desc = i.description ? ` — ${i.description.slice(0, 100)}` : '';
+    return `${reportedDay} [${i.regions.join(', ') || 'unspecified'}] ${sev}${desc}`;
+  });
+  const resolvedInPeriod = injuries.filter((i) => i.resolved_at).length;
+
+  const inbound = messages.filter((m) => m.direction === 'inbound');
+  const lastInbound = inbound[0]?.date_sent ?? null;
+  const chatSnippets = inbound
+    .filter((m) => m.category === 'chat' && m.body)
+    .slice(0, 4)
+    .map((m) => `${m.date_sent.slice(0, 10)}: ${m.body!.slice(0, 100)}`);
 
   const dataSummary = `
 Player: ${playerName}
 Period: ${periodLabel(days)}
-Total Responses: ${sessionCount} sessions
 
-Readiness scores (1-10): ${readiness.length ? JSON.stringify(readiness.slice(-10)) : 'No data'}
-Avg readiness: ${avg(readiness)}
+== CHECK-INS ==
+SMS survey readiness (1-10), most recent first: ${smsReadings.length ? JSON.stringify(smsReadings.slice(0, 10)) : 'No data'}
+Avg SMS readiness: ${avg(smsReadings)}
+Inbound SMS count: ${inbound.length}
+Last inbound: ${lastInbound ?? 'never'}
+${chatSnippets.length ? `Recent chat snippets: ${JSON.stringify(chatSnippets)}` : ''}
 
-Energy scores: ${energy.length ? JSON.stringify(energy.slice(-10)) : 'No data'}
-Avg energy: ${avg(energy)}
-
-Effort scores: ${effort.length ? JSON.stringify(effort.slice(-10)) : 'No data'}
-Avg effort: ${avg(effort)}
-
-Individual tennis level: ${tennis.length ? JSON.stringify(tennis.slice(-10)) : 'No data'}
-Avg tennis level: ${avg(tennis)}
-
-Injury reports: ${injuries.length}
-Injury locations mentioned: ${injuryLocations.length ? JSON.stringify(injuryLocations.slice(0, 5)) : 'None'}
-
-Recent focus areas: ${focusAreas.length ? JSON.stringify(focusAreas.slice(0, 3)) : 'None mentioned'}
+Session check-ins (legacy tables): ${sessionCount}
+${sessionReadiness.length ? `Session readiness scores: ${JSON.stringify(sessionReadiness.slice(-10))} (avg ${avg(sessionReadiness)})` : ''}
+${energy.length ? `Energy scores: ${JSON.stringify(energy.slice(-10))} (avg ${avg(energy)})` : ''}
+${effort.length ? `Effort scores: ${JSON.stringify(effort.slice(-10))} (avg ${avg(effort)})` : ''}
+${focusAreas.length ? `Recent focus areas: ${JSON.stringify(focusAreas.slice(0, 3))}` : ''}
 ${matchReflections.length ? `Match reflections: ${JSON.stringify(matchReflections.slice(0, 3))}` : ''}
 
+== ACTIVITY ==
+Workouts logged: ${workouts.length}
+Rehabs logged: ${rehabs.length}
+${recentWorkouts.length ? `Recent workouts:\n${recentWorkouts.map((w) => `  - ${w}`).join('\n')}` : 'No workouts logged this period.'}
+${recentRehabs.length ? `Recent rehabs:\n${recentRehabs.map((r) => `  - ${r}`).join('\n')}` : ''}
+
+== INJURIES ==
+Open injuries: ${openInjuries.length}${openInjuries.length ? `\n${openInjuryLines.map((l) => `  - ${l}`).join('\n')}` : ''}
+Injuries resolved this period: ${resolvedInPeriod}
+${sessionInjuries.length ? `Session-reported injury flags: ${sessionInjuries.length}` : ''}
+${injuryLocations.length ? `Session injury locations: ${JSON.stringify(injuryLocations.slice(0, 5))}` : ''}
+
+== FLAGS ==
 Flags triggered: ${flags.length}
 Flag types: ${JSON.stringify(flags.slice(0, 5).map((f) => f.flag_type))}
 `;
@@ -117,13 +209,14 @@ Flag types: ${JSON.stringify(flags.slice(0, 5).map((f) => f.flag_type))}
 Based ONLY on the data below, produce a blunt, actionable assessment of this player.
 
 RULES:
-1. Lead with the most important finding. If the player is hurt, say that first.
+1. Lead with the most important finding. Open injuries beat low readiness; both beat workout volume.
 2. Every observation MUST cite a specific number from the data.
-3. Compare recent performance (last 3-5 sessions) vs earlier sessions. State direction and magnitude.
-4. If readiness avg < 5: flag as "Load management required."
-5. If injuries > 0: state body regions and say "Trainer evaluation needed."
-6. No hedging language ("consider", "might want to"). Say what needs to happen.
-7. If data is insufficient (< 3 sessions), say "Insufficient data for trend analysis" and keep it brief.
+3. Compare recent activity (last 3-5 entries) vs earlier. State direction and magnitude.
+4. If avg SMS readiness < 5: flag as "Load management required."
+5. If any open injury exists: state body regions and say "Trainer evaluation needed."
+6. If workouts logged is zero in the period AND inbound SMS exists: note disengagement from logging.
+7. No hedging language ("consider", "might want to"). Say what needs to happen.
+8. If data is insufficient (< 3 inbound SMS AND < 3 workouts AND no injuries), say "Insufficient data for trend analysis" and keep it brief.
 
 DATA:
 ${dataSummary}
@@ -137,27 +230,50 @@ Respond in JSON:
 }`;
 }
 
-function extractCitations(responses: ResponseRow[]): string[] {
-  const dates = uniq(responses.map((r) => (r.created_at ? r.created_at.slice(0, 10) : ''))).filter(Boolean);
+function extractCitations(
+  responses: ResponseRow[],
+  activityLogs: ActivityLogRow[],
+  injuries: InjuryRow[],
+): string[] {
+  const dates = uniq([
+    ...responses.map((r) => (r.created_at ? r.created_at.slice(0, 10) : '')),
+    ...activityLogs.map((l) => l.logged_at.slice(0, 10)),
+    ...injuries.map((i) => i.reported_at.slice(0, 10)),
+  ]).filter(Boolean);
   return dates.slice(0, 5);
 }
 
-export function rulesBasedSummary(args: {
-  playerName: string;
-  responses: ResponseRow[];
-  flags: FlagRow[];
-  days: Period;
-}): SummaryResult {
-  const { playerName, responses, flags, days } = args;
+export function rulesBasedSummary(args: SummaryInputs): SummaryResult {
+  const {
+    playerName,
+    responses,
+    flags,
+    days,
+    activityLogs = [],
+    injuries = [],
+    messages = [],
+  } = args;
 
-  const readiness = responses
+  const sessionReadiness = responses
     .filter((r) => r.question_id === 'q1_readiness' && r.answer_num != null)
     .map((r) => r.answer_num as number);
   const energy = responses
     .filter((r) => r.question_id === 'q4_team_energy' && r.answer_num != null)
     .map((r) => r.answer_num as number);
-  const injuries = responses.filter((r) => r.question_id === 'q2_injury' && r.answer_num === 1).length;
+  const sessionInjuries = responses.filter((r) => r.question_id === 'q2_injury' && r.answer_num === 1).length;
   const sessions = uniq(responses.map((r) => r.session_id)).length;
+
+  const smsReadings = smsReadiness(messages);
+  const visibleLogs = activityLogs.filter((l) => !l.hidden);
+  const workouts = visibleLogs.filter((l) => l.kind === 'workout').length;
+  const rehabs = visibleLogs.filter((l) => l.kind === 'rehab').length;
+  const openInjuries = injuries.filter((i) => !i.resolved_at);
+
+  // SMS is the team's primary check-in stream — prefer it when available,
+  // fall back to session readings only when there's no SMS data at all.
+  const readiness = smsReadings.length ? smsReadings : sessionReadiness;
+  const checkinCount = smsReadings.length || sessions;
+  const totalInjurySignals = openInjuries.length + sessionInjuries;
 
   const avgReadiness = readiness.length ? readiness.reduce((a, b) => a + b, 0) / readiness.length : null;
   const avgEnergy = energy.length ? energy.reduce((a, b) => a + b, 0) / energy.length : null;
@@ -166,56 +282,80 @@ export function rulesBasedSummary(args: {
   const observations: string[] = [];
   const recommendations: string[] = [];
 
-  if (sessions === 0) {
+  const noActivity = checkinCount === 0 && workouts === 0 && rehabs === 0 && openInjuries.length === 0;
+
+  if (noActivity) {
     summary =
       days === 'all'
-        ? `No check-in data on record for ${playerName}.`
-        : `No check-in data available for ${playerName} ${periodPhrase(days)}.`;
+        ? `No check-in or activity data on record for ${playerName}.`
+        : `No check-in or activity data available for ${playerName} ${periodPhrase(days)}.`;
     observations.push('No recent responses recorded');
     recommendations.push('Consider following up to ensure player is completing check-ins');
   } else {
-    const parts = [`${playerName} completed ${sessions} check-in(s) ${periodPhrase(days)}.`];
+    const parts: string[] = [];
+    if (checkinCount > 0) parts.push(`${playerName} completed ${checkinCount} check-in(s) ${periodPhrase(days)}.`);
+    else parts.push(`${playerName} has no check-ins ${periodPhrase(days)}.`);
+    if (workouts > 0 || rehabs > 0) {
+      const bits: string[] = [];
+      if (workouts > 0) bits.push(`${workouts} workout${workouts === 1 ? '' : 's'}`);
+      if (rehabs > 0) bits.push(`${rehabs} rehab${rehabs === 1 ? '' : 's'}`);
+      parts.push(`Logged ${bits.join(' and ')}.`);
+    }
     if (avgReadiness != null) parts.push(`Average readiness: ${avgReadiness.toFixed(1)}/10.`);
-    if (injuries > 0) parts.push(`Reported ${injuries} injury concern(s).`);
+    if (totalInjurySignals > 0) parts.push(`${openInjuries.length} open injury concern(s).`);
     summary = parts.join(' ');
 
     if (avgReadiness != null && avgReadiness < 5) observations.push(`Below-average readiness (${avgReadiness.toFixed(1)}/10)`);
     else if (avgReadiness != null && avgReadiness >= 7) observations.push(`Good readiness levels (${avgReadiness.toFixed(1)}/10)`);
     if (avgEnergy != null && avgEnergy < 5) observations.push(`Low energy reports (${avgEnergy.toFixed(1)}/10)`);
-    if (injuries > 0) observations.push(`${injuries} injury concern(s) reported`);
+    if (openInjuries.length > 0) {
+      const regions = uniq(openInjuries.flatMap((i) => i.regions)).slice(0, 3);
+      observations.push(`${openInjuries.length} open injury concern(s)${regions.length ? ` (${regions.join(', ')})` : ''}`);
+    } else if (sessionInjuries > 0) {
+      observations.push(`${sessionInjuries} session-reported injury flag(s)`);
+    }
+    if (workouts === 0 && checkinCount > 0) observations.push('No workouts logged this period');
     const highFlags = flags.filter((f) => f.severity === 'high');
     if (highFlags.length > 0) observations.push(`${highFlags.length} high-priority alert(s)`);
     if (observations.length === 0) observations.push('No significant concerns noted');
 
-    if (injuries > 0) recommendations.push('Check in with trainer about reported injuries');
+    if (totalInjurySignals > 0) recommendations.push('Check in with trainer about reported injuries');
     if (avgReadiness != null && avgReadiness < 5) recommendations.push('Monitor readiness; recovery focus may help');
     if (highFlags.length > 0) recommendations.push('Review high-priority flags for follow-up');
+    if (workouts === 0 && checkinCount > 0 && totalInjurySignals === 0) {
+      recommendations.push('Encourage workout logging to track training volume');
+    }
     if (recommendations.length === 0) recommendations.push('Continue regular monitoring');
   }
 
+  const signalStrength = checkinCount + workouts + rehabs + openInjuries.length;
   return {
     summary,
     observations,
     recommendations,
-    citations: extractCitations(responses),
+    citations: extractCitations(responses, activityLogs, injuries),
     generated_by: 'rules',
-    confidence: sessions >= 3 ? 'high' : 'low',
+    confidence: signalStrength >= 3 ? 'high' : signalStrength > 0 ? 'medium' : 'low',
     from_cache: false,
   };
 }
 
-export async function generatePlayerSummary(args: {
-  playerId: number;
-  playerName: string;
-  responses: ResponseRow[];
-  flags: FlagRow[];
-  days: Period;
-}): Promise<SummaryResult> {
+export async function generatePlayerSummary(args: SummaryInputs): Promise<SummaryResult> {
   const cfg = getLlmConfig();
   if (!cfg.enabled || !cfg.apiKey) return rulesBasedSummary(args);
 
+  const filled = {
+    playerName: args.playerName,
+    responses: args.responses,
+    flags: args.flags,
+    days: args.days,
+    activityLogs: args.activityLogs ?? [],
+    injuries: args.injuries ?? [],
+    messages: args.messages ?? [],
+  };
+
   try {
-    const parsed = await callJsonPrompt(buildPrompt(args), cfg);
+    const parsed = await callJsonPrompt(buildPrompt(filled), cfg);
     const summary = typeof parsed.summary === 'string' ? parsed.summary : '';
     const observations = Array.isArray(parsed.observations) ? parsed.observations.filter((x): x is string => typeof x === 'string') : [];
     const recommendations = Array.isArray(parsed.recommendations) ? parsed.recommendations.filter((x): x is string => typeof x === 'string') : [];
@@ -225,7 +365,7 @@ export async function generatePlayerSummary(args: {
       summary,
       observations: observations.slice(0, 4),
       recommendations: recommendations.slice(0, 3),
-      citations: extractCitations(args.responses),
+      citations: extractCitations(filled.responses, filled.activityLogs, filled.injuries),
       generated_by: 'llm',
       confidence,
       from_cache: false,
