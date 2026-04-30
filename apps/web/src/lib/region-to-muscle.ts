@@ -35,9 +35,15 @@ export function regionToMuscles(region: string, view: View = 'front'): MuscleSlu
     case 'wrist':       return ['forearm'];   // no wrist slug; closest muscle
     case 'forearm':     return ['forearm'];
     // upper_arm + elbow paint both biceps and triceps on every view —
-    // the lateral triceps head is visible from the front too.
+    // the lateral triceps head is visible from the front too. They're
+    // the catch-all bucket when the description doesn't specify which
+    // muscle ("arm soreness", "upper arm pain"). bicep / tricep are
+    // the focused buckets used when the description names the muscle
+    // explicitly (curl → bicep, tricep extension → tricep).
     case 'elbow':       return ['biceps', 'triceps'];
     case 'upper_arm':   return ['biceps', 'triceps'];
+    case 'bicep':       return ['biceps'];
+    case 'tricep':      return ['triceps'];
     case 'shoulder':    return ['deltoids'];
     // upper_back paints trapezius on both views — the upper trap wraps
     // around to the front (neck/shoulder area).
@@ -82,7 +88,8 @@ export function regionToMuscle(region: string, view: View = 'front'): MuscleSlug
  * chart.
  */
 const ALL_REGIONS = [
-  'hand', 'wrist', 'forearm', 'elbow', 'upper_arm', 'shoulder',
+  'hand', 'wrist', 'forearm', 'elbow',
+  'upper_arm', 'bicep', 'tricep', 'shoulder',
   'upper_back', 'mid_back', 'lower_back', 'neck',
   'hip', 'groin', 'hamstring', 'quad', 'knee', 'calf',
   'shin', 'ankle', 'foot', 'achilles', 'chest', 'abs',

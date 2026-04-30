@@ -5,7 +5,13 @@
 // its alias list.
 
 export const BODY_REGIONS = [
-  'hand', 'wrist', 'forearm', 'elbow', 'upper_arm', 'shoulder',
+  'hand', 'wrist', 'forearm', 'elbow',
+  // upper_arm stays for ambiguous "arm pain" / "upper arm soreness"
+  // reports. bicep + tricep are the more specific buckets — the
+  // `react-muscle-highlighter` library has separate slugs for each, so
+  // splitting gives a more accurate heatmap when descriptions name the
+  // specific muscle (curl → bicep, tricep extension → tricep).
+  'upper_arm', 'bicep', 'tricep', 'shoulder',
   'upper_back', 'mid_back', 'lower_back', 'neck',
   'hip', 'groin', 'hamstring', 'quad', 'knee', 'calf',
   'shin', 'ankle', 'foot', 'achilles', 'chest', 'abs',
@@ -21,9 +27,11 @@ const REGION_ALIASES: Record<string, BodyRegion> = {
   wrists: 'wrist',
   // Forearm
   forearms: 'forearm', 'lower arm': 'forearm',
-  // Upper arm
+  // Upper arm (catch-all when the description doesn't specify front vs back)
   'upper arm': 'upper_arm', 'upper arms': 'upper_arm',
-  bicep: 'upper_arm', biceps: 'upper_arm', tricep: 'upper_arm', triceps: 'upper_arm',
+  // Specific upper-arm muscles
+  bicep: 'bicep', biceps: 'bicep',
+  tricep: 'tricep', triceps: 'tricep',
   // Elbow
   elbows: 'elbow', 'tennis elbow': 'elbow',
   // Shoulder
@@ -127,11 +135,13 @@ const WORKOUT_ALIASES: Record<string, BodyRegion> = {
   'pull-up': 'upper_back', 'pull-ups': 'upper_back',
   'chin up': 'upper_back', 'chin ups': 'upper_back',
   chinup: 'upper_back', chinups: 'upper_back',
-  // Arm curls / extensions
-  curl: 'upper_arm', curls: 'upper_arm',
-  'bicep curl': 'upper_arm', 'bicep curls': 'upper_arm',
-  'tricep extension': 'upper_arm', 'tricep extensions': 'upper_arm',
-  skullcrusher: 'upper_arm', skullcrushers: 'upper_arm',
+  // Arm curls / extensions — specific muscle attribution
+  curl: 'bicep', curls: 'bicep',
+  'bicep curl': 'bicep', 'bicep curls': 'bicep',
+  'tricep extension': 'tricep', 'tricep extensions': 'tricep',
+  'tricep pushdown': 'tricep', 'tricep pushdowns': 'tricep',
+  'tricep kickback': 'tricep', 'tricep kickbacks': 'tricep',
+  skullcrusher: 'tricep', skullcrushers: 'tricep',
   // Leg curls / extensions (override generic 'curl' / 'extension'
   // because phrases are longer and consumed first)
   'leg curl': 'hamstring', 'leg curls': 'hamstring',
