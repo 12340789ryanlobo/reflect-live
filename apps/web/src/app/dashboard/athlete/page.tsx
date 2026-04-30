@@ -311,6 +311,7 @@ export default function AthletePage() {
               value={derived.avgReadiness}
               responses={derived.surveyReadings.length}
               size="md"
+              title="Readiness"
             />
           </div>
         </section>

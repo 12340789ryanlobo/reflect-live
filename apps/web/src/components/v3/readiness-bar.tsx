@@ -11,6 +11,7 @@ export function ReadinessBar({
   responses,
   flagged,
   size = 'md',
+  title = 'Team readiness',
   className,
 }: {
   value: number | null;
@@ -18,6 +19,7 @@ export function ReadinessBar({
   responses?: number;
   flagged?: number;
   size?: 'sm' | 'md' | 'lg';
+  title?: string;
   className?: string;
 }) {
   const tone =
@@ -32,6 +34,7 @@ export function ReadinessBar({
   const fillPct = value == null ? 0 : Math.min(100, (value / max) * 100);
   const valueSize = size === 'sm' ? 'text-3xl' : size === 'lg' ? 'text-6xl' : 'text-5xl';
   const barHeight = size === 'sm' ? 6 : size === 'lg' ? 12 : 10;
+  const hasData = value != null;
 
   return (
     <div className={cn('flex flex-col gap-3', className)}>
@@ -41,10 +44,10 @@ export function ReadinessBar({
             className="text-[11.5px] font-semibold uppercase tracking-[0.5px]"
             style={{ color: tone.color }}
           >
-            Team readiness
+            {title}
           </div>
           <div className={cn('font-bold tabular leading-none mt-2', valueSize)} style={{ color: tone.color }}>
-            {value != null ? value.toFixed(1) : '—'}
+            {hasData ? value!.toFixed(1) : '—'}
             <span className="text-base text-[color:var(--ink-mute)] font-medium ml-1">/ {max}</span>
           </div>
         </div>
@@ -69,11 +72,20 @@ export function ReadinessBar({
         />
       </div>
 
-      <div className="flex justify-between text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
-        <span>0</span>
-        <span>{tone.label}</span>
-        <span>{responses != null ? `${responses} responses` : ''}</span>
-        <span>{max}</span>
+      {/* Caption row. With data: tone label + response count. Without data: a
+          single muted line — the big "—/10" above already conveys "nothing
+          here yet", so no need for "0 No data 0 responses 10" clutter. */}
+      <div className="text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+        {hasData ? (
+          <div className="flex items-center justify-between gap-3">
+            <span style={{ color: tone.color }}>{tone.label}</span>
+            {responses != null && responses > 0 && (
+              <span>{responses} response{responses === 1 ? '' : 's'}</span>
+            )}
+          </div>
+        ) : (
+          <span>Awaiting check-ins</span>
+        )}
       </div>
     </div>
   );

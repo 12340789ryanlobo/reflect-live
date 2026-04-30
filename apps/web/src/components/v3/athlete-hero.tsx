@@ -194,6 +194,7 @@ export function AthleteHero({
             responses={derived.responses}
             flagged={derived.flags}
             size="md"
+            title="Readiness"
           />
           <PeriodToggle value={period} onChange={onPeriodChange} />
         </div>
