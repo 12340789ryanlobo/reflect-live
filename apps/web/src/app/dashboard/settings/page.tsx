@@ -520,44 +520,34 @@ export default function SettingsPage() {
             <header className="mb-3">
               <h2 className="text-base font-bold text-[color:var(--ink)]">Captain permissions</h2>
               <p className="mt-1 text-[13px] text-[color:var(--ink-mute)]">
-                Choose which coach surfaces captains on this team can use.
+                Sessions &amp; Templates are coach-only by default. Turn this on to let captains see them in the sidebar and edit templates.
               </p>
             </header>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[13px] font-semibold text-[color:var(--ink)]">
-                  Sessions &amp; Templates
-                </div>
-                <div className="mt-1 text-[12.5px] text-[color:var(--ink-mute)]">
-                  When on, captains see Sessions in their sidebar and can edit
-                  templates. Off by default.
-                </div>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={team.captain_can_view_sessions === true}
-                disabled={captainPermsSaving}
-                onClick={() => saveCaptainCanViewSessions(!team.captain_can_view_sessions)}
-                className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition disabled:opacity-50"
-                style={{
-                  borderColor: team.captain_can_view_sessions ? 'var(--blue)' : 'var(--border)',
-                  background: team.captain_can_view_sessions
-                    ? 'var(--blue)'
-                    : 'var(--card-hover)',
-                }}
-              >
-                <span
-                  className="size-4 rounded-full bg-white shadow transition-transform"
-                  style={{
-                    transform: team.captain_can_view_sessions ? 'translateX(22px)' : 'translateX(4px)',
-                  }}
-                />
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {([false, true] as const).map((v) => {
+                const active = (team.captain_can_view_sessions === true) === v;
+                return (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    onClick={() => !active && saveCaptainCanViewSessions(v)}
+                    disabled={captainPermsSaving || active}
+                    className={
+                      'rounded-xl border px-4 py-2 text-[13px] font-semibold transition ' +
+                      (active
+                        ? 'bg-[color:var(--blue-soft)] text-[color:var(--blue)]'
+                        : 'bg-[color:var(--card)] text-[color:var(--ink-soft)] hover:bg-[color:var(--card-hover)]')
+                    }
+                    style={{ borderColor: active ? 'var(--blue)' : 'var(--border)' }}
+                  >
+                    {v ? 'Visible to captains' : 'Coach only'}
+                  </button>
+                );
+              })}
+              {captainPermsStatus && (
+                <span className="ml-2 text-[12.5px] text-[color:var(--ink-mute)]">{captainPermsStatus}</span>
+              )}
             </div>
-            {captainPermsStatus && (
-              <div className="mt-3 text-[12.5px] text-[color:var(--ink-mute)]">{captainPermsStatus}</div>
-            )}
           </section>
         )}
 
