@@ -41,6 +41,10 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [msgs, setMsgs] = useState<TwilioMessage[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [injuries, setInjuries] = useState<InjuryRow[]>([]);
+  // Most recent inbound message ever — drives "Last on wire" + the status
+  // pill. Kept independent of `period` so narrowing the window doesn't
+  // make the timestamp disappear.
+  const [lastInboundEver, setLastInboundEver] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>(30);
 
   useEffect(() => {
@@ -82,6 +86,26 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     return () => { alive = false; };
   }, [sb, playerId, period]);
 
+  // Independent of `period` — fetches the player's most recent inbound
+  // message ever. Drives "Last on wire" + the status pill so neither
+  // disappears when the user narrows the time window.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await sb
+        .from('twilio_messages')
+        .select('date_sent')
+        .eq('player_id', playerId)
+        .eq('direction', 'inbound')
+        .order('date_sent', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ date_sent: string }>();
+      if (!alive) return;
+      setLastInboundEver(data?.date_sent ?? null);
+    })();
+    return () => { alive = false; };
+  }, [sb, playerId]);
+
   const injuryCounts = useMemo<Record<string, number>>(() => {
     const c: Record<string, number> = {};
     for (const r of injuries) {
@@ -119,10 +143,12 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     const avgReadiness = surveyReadings.length
       ? Math.round((surveyReadings.reduce((a, b) => a + b, 0) / surveyReadings.length) * 10) / 10
       : null;
-    const lastInbound = msgs.find((m) => m.direction === 'inbound')?.date_sent ?? null;
     const flags = surveyReadings.filter((n) => n <= 4).length;
-    return { avgReadiness, responses: surveyReadings.length, flags, lastInbound };
-  }, [msgs]);
+    // lastInbound is intentionally NOT period-scoped — it comes from
+    // lastInboundEver so the "Last on wire" timestamp + status pill
+    // persist when the user narrows the window.
+    return { avgReadiness, responses: surveyReadings.length, flags, lastInbound: lastInboundEver };
+  }, [msgs, lastInboundEver]);
 
   if (!player) {
     return (
