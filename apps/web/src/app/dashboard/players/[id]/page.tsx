@@ -6,7 +6,7 @@ import { AthleteHero, type ActionVerb } from '@/components/v3/athlete-hero';
 import { HeatmapTabs, type InjurySideRow } from '@/components/v3/heatmap-tabs';
 import { UnifiedTimeline } from '@/components/v3/unified-timeline';
 import { type Period, periodSinceIso } from '@/lib/period';
-import { parseInjuryRegions } from '@/lib/injury-aliases';
+import { parseAllRegions } from '@/lib/injury-aliases';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog } from '@reflect-live/shared';
 
@@ -23,8 +23,10 @@ function countRegions(rows: ActivityLog[], kind: 'workout' | 'rehab'): Record<st
   const counts: Record<string, number> = {};
   for (const r of rows) {
     if (r.kind !== kind) continue;
-    for (const region of parseInjuryRegions(r.description)) {
-      if (region === 'other') continue;
+    // parseAllRegions returns every body region referenced in the
+    // description (a workout typically hits several). Each region the
+    // log mentions counts as one session for that region.
+    for (const region of parseAllRegions(r.description)) {
       counts[region] = (counts[region] ?? 0) + 1;
     }
   }
