@@ -76,7 +76,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       // useDashboard are for active members).
       setPrefs(null);
       setTeam(null);
-      return { state, prefs: null, team: null };
+      return { state, prefs: null, team: null, effectiveRole: 'athlete' as UserRole };
     }
 
     // Active state: pick the default team.
@@ -84,28 +84,54 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     const { data: teamData } = await sb.from('teams').select('*').eq('id', defaultTeamId).single();
     setTeam(teamData as Team);
 
+    const activeMem = state.active.find((m) => m.team_id === defaultTeamId);
+    const membershipRole = (activeMem?.role ?? 'athlete') as UserRole;
+
     // Make sure user_preferences exists and points at the active team
     // for backward compat (the old prefs.team_id is still consulted by
     // some routes during the transition). Insert if missing.
     if (!prefRow) {
-      const activeMem = state.active.find((m) => m.team_id === defaultTeamId);
       const { data: created } = await sb
         .from('user_preferences')
         .upsert({
           team_id: defaultTeamId,
-          role: activeMem?.role ?? 'athlete',
+          role: membershipRole,
           watchlist: [],
           group_filter: null,
         })
         .select('*')
         .maybeSingle();
-      setPrefs(created as UserPreferences);
-      return { state, prefs: created as UserPreferences, team: teamData as Team };
+      const createdPrefs = created as UserPreferences;
+      setPrefs(createdPrefs);
+      return { state, prefs: createdPrefs, team: teamData as Team, effectiveRole: membershipRole };
     }
 
     const p = prefRow as UserPreferences;
+
+    // Authoritative role: team_memberships.role is the source of truth for
+    // non-admins. Platform admins (and users whose role is admin) keep
+    // unrestricted control of their view (so the role-switcher and
+    // "view as athlete" flow keep working). For everyone else, force
+    // the prefs.role to match the membership role and self-heal a stale
+    // row if it drifted (e.g. legacy prefs created before membership
+    // existed and got `role='coach'` from the schema default).
+    const isAdmin = p.is_platform_admin === true || p.role === 'admin';
+    const effectiveRole: UserRole = isAdmin ? ((p.role ?? membershipRole) as UserRole) : membershipRole;
+
+    if (!isAdmin && p.role !== membershipRole) {
+      const { data: healed } = await sb
+        .from('user_preferences')
+        .update({ role: membershipRole, impersonate_player_id: null })
+        .eq('clerk_user_id', p.clerk_user_id)
+        .select('*')
+        .maybeSingle();
+      const healedPrefs = (healed ?? { ...p, role: membershipRole, impersonate_player_id: null }) as UserPreferences;
+      setPrefs(healedPrefs);
+      return { state, prefs: healedPrefs, team: teamData as Team, effectiveRole };
+    }
+
     setPrefs(p);
-    return { state, prefs: p, team: teamData as Team };
+    return { state, prefs: p, team: teamData as Team, effectiveRole };
   }, [sb, router]);
 
   useEffect(() => {
@@ -113,7 +139,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     (async () => {
       const result = await fetchAll();
       if (!alive || !result) return;
-      const role = (result.prefs?.role ?? 'coach') as UserRole;
+      const role = result.effectiveRole;
       const isAdminPath = pathname.startsWith('/dashboard/admin');
       const isAthletePath = pathname.startsWith('/dashboard/athlete');
       const isCaptainPath = pathname.startsWith('/dashboard/captain');
@@ -150,9 +176,20 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     return () => { sb.removeChannel(channel); };
   }, [sb, fetchAll]);
 
-  const role: UserRole = (prefs?.role as UserRole) ?? 'coach';
   const state = resolveMembershipState(memberships);
   const pendingMems = state.kind === 'no_memberships' ? [] : state.pending;
+
+  // Re-derive the same effective role as fetchAll so renders post-realtime
+  // also respect membership authority. team_memberships is the floor;
+  // platform admins / role='admin' may override.
+  const activeMem = state.kind === 'active'
+    ? state.active.find((m) => m.team_id === state.defaultTeamId)
+    : undefined;
+  const membershipRole = (activeMem?.role ?? 'athlete') as UserRole;
+  const isAdminUser = prefs?.is_platform_admin === true || prefs?.role === 'admin';
+  const role: UserRole = isAdminUser
+    ? ((prefs?.role as UserRole) ?? membershipRole)
+    : membershipRole;
 
   // Loading skeleton (same as before)
   if (loading) {

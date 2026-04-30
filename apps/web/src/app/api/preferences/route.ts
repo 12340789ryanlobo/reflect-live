@@ -10,7 +10,11 @@ function serviceClient() {
   );
 }
 
-async function computeInitialRole(userEmail: string | undefined): Promise<'admin' | 'coach'> {
+async function computeInitialRole(
+  userId: string,
+  userEmail: string | undefined,
+  teamId: number,
+): Promise<'admin' | 'coach' | 'captain' | 'athlete'> {
   // BOOTSTRAP_ADMIN_EMAIL can be a single email or a comma-separated list.
   const adminEmails = (process.env.BOOTSTRAP_ADMIN_EMAIL ?? '')
     .split(',')
@@ -20,6 +24,18 @@ async function computeInitialRole(userEmail: string | undefined): Promise<'admin
   const sb = serviceClient();
   const { count } = await sb.from('user_preferences').select('clerk_user_id', { count: 'exact', head: true });
   if ((count ?? 0) === 0) return 'admin'; // first user becomes admin
+  // team_memberships is the authoritative role for this user on this team.
+  // Without this branch, athletes hitting POST /api/preferences before
+  // dashboard-shell's fetchAll runs ended up with role='coach' (the schema
+  // default) and then saw the coach view.
+  const { data: mem } = await sb
+    .from('team_memberships')
+    .select('role')
+    .eq('clerk_user_id', userId)
+    .eq('team_id', teamId)
+    .eq('status', 'active')
+    .maybeSingle<{ role: 'athlete' | 'captain' | 'coach' }>();
+  if (mem?.role) return mem.role;
   return 'coach';
 }
 
@@ -73,7 +89,7 @@ export async function POST(req: Request) {
     effectiveRole = existing.role ?? 'coach';
   }
   if (!existing) {
-    effectiveRole = await computeInitialRole(email);
+    effectiveRole = await computeInitialRole(userId, email, team_id);
   }
 
   const payload: Record<string, unknown> = {
