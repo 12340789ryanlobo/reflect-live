@@ -146,7 +146,44 @@ export function AthleteHero({
 
   return (
     <section className="reveal reveal-1 grid gap-6 lg:grid-cols-12">
-      {/* Readiness + AI sentence (dominant) */}
+      {/* Identity caption — left */}
+      <div
+        className="rounded-2xl bg-[color:var(--card)] border p-6 lg:col-span-4 flex flex-col gap-3"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className="grid size-12 place-items-center rounded-md border bg-[color:var(--paper)] text-[14px] font-bold"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            {player.name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <div className="text-[18px] font-bold text-[color:var(--ink)] truncate">{player.name}</div>
+            <div className="text-[12px] text-[color:var(--ink-mute)]">
+              {player.group ?? 'No group'} · ID {String(player.id).padStart(4, '0')}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between text-[12px]">
+          <span className="text-[color:var(--ink-mute)]">Status</span>
+          <Pill tone={status.tone}>{status.text}</Pill>
+        </div>
+        <div className="flex items-center justify-between text-[12px]">
+          <span className="text-[color:var(--ink-mute)]">Last on wire</span>
+          <span className="mono tabular text-[color:var(--ink-soft)]">
+            {derived.lastInbound ? relativeTime(derived.lastInbound) : '—'}
+          </span>
+        </div>
+        {showPhone && (
+          <div className="flex items-center justify-between text-[12px]">
+            <span className="text-[color:var(--ink-mute)]">Phone</span>
+            <span className="mono tabular text-[color:var(--ink-soft)]">{prettyPhone(player.phone_e164)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Readiness + AI sentence (dominant) — right */}
       <div
         className="rounded-2xl bg-[color:var(--card)] border p-6 lg:col-span-8 flex flex-col gap-5"
         style={{ borderColor: 'var(--border)' }}
@@ -215,43 +252,6 @@ export function AthleteHero({
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Identity caption */}
-      <div
-        className="rounded-2xl bg-[color:var(--card)] border p-6 lg:col-span-4 flex flex-col gap-3"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="grid size-12 place-items-center rounded-md border bg-[color:var(--paper)] text-[14px] font-bold"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            {player.name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <div className="text-[18px] font-bold text-[color:var(--ink)] truncate">{player.name}</div>
-            <div className="text-[12px] text-[color:var(--ink-mute)]">
-              {player.group ?? 'No group'} · ID {String(player.id).padStart(4, '0')}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between text-[12px]">
-          <span className="text-[color:var(--ink-mute)]">Status</span>
-          <Pill tone={status.tone}>{status.text}</Pill>
-        </div>
-        <div className="flex items-center justify-between text-[12px]">
-          <span className="text-[color:var(--ink-mute)]">Last on wire</span>
-          <span className="mono tabular text-[color:var(--ink-soft)]">
-            {derived.lastInbound ? relativeTime(derived.lastInbound) : '—'}
-          </span>
-        </div>
-        {showPhone && (
-          <div className="flex items-center justify-between text-[12px]">
-            <span className="text-[color:var(--ink-mute)]">Phone</span>
-            <span className="mono tabular text-[color:var(--ink-soft)]">{prettyPhone(player.phone_e164)}</span>
-          </div>
-        )}
       </div>
     </section>
   );
