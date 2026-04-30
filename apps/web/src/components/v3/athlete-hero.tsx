@@ -18,6 +18,12 @@ interface Derived {
   avgReadiness: number | null;
   responses: number;
   flags: number;
+  /** Workout activity_logs in the current period — gives the athlete
+   *  a personal counter mirroring the team-wide loggers stat on
+   *  /dashboard/fitness. */
+  workouts: number;
+  /** Rehab activity_logs in the current period. */
+  rehabs: number;
   lastInbound: string | null;
 }
 
@@ -237,6 +243,32 @@ export function AthleteHero({
               </>
             )}
           </div>
+        </div>
+
+        {/* Period totals — personal counters mirroring the team
+            'Active loggers' / 'Workouts' stats on /dashboard/fitness. */}
+        <div
+          className="flex items-center gap-6 flex-wrap border-t pt-3 text-[12px] text-[color:var(--ink-mute)] tabular"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <span>
+            <span className="font-bold text-[color:var(--ink)] text-[16px] mr-1.5">{derived.workouts}</span>
+            workout{derived.workouts === 1 ? '' : 's'}
+          </span>
+          <span>
+            <span className="font-bold text-[color:var(--ink)] text-[16px] mr-1.5">{derived.rehabs}</span>
+            rehab{derived.rehabs === 1 ? '' : 's'}
+          </span>
+          <span>
+            <span className="font-bold text-[color:var(--ink)] text-[16px] mr-1.5">{derived.responses}</span>
+            survey{derived.responses === 1 ? '' : 's'}
+          </span>
+          {derived.flags > 0 && (
+            <span style={{ color: 'var(--red)' }}>
+              <span className="font-bold text-[16px] mr-1.5">{derived.flags}</span>
+              flag{derived.flags === 1 ? '' : 's'}
+            </span>
+          )}
         </div>
 
         {/* Inline action row */}

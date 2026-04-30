@@ -166,11 +166,23 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       ? Math.round((surveyReadings.reduce((a, b) => a + b, 0) / surveyReadings.length) * 10) / 10
       : null;
     const flags = surveyReadings.filter((n) => n <= 4).length;
+    // Per-period activity totals — drives the personal counters in the
+    // hero. Logs already de-duplicate on source_sid (worker insert), so
+    // a workout text logged once via SMS counts once here.
+    const workouts = logs.filter((l) => l.kind === 'workout' && !l.hidden).length;
+    const rehabs = logs.filter((l) => l.kind === 'rehab' && !l.hidden).length;
     // lastInbound is intentionally NOT period-scoped — it comes from
     // lastInboundEver so the "Last on wire" timestamp + status pill
     // persist when the user narrows the window.
-    return { avgReadiness, responses: surveyReadings.length, flags, lastInbound: lastInboundEver };
-  }, [msgs, lastInboundEver]);
+    return {
+      avgReadiness,
+      responses: surveyReadings.length,
+      flags,
+      workouts,
+      rehabs,
+      lastInbound: lastInboundEver,
+    };
+  }, [msgs, logs, lastInboundEver]);
 
   if (!player) {
     return (

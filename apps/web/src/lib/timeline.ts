@@ -45,11 +45,14 @@ function fingerprint(text: string | null | undefined): string {
 }
 
 // Within this many milliseconds, a message and a log with matching
-// content fingerprints are treated as the same event. SMS arrival and
-// the worker's activity_log insert can drift by up to a few seconds,
-// and timezones / clock skew adds a bit more — 5 minutes is a forgiving
-// upper bound that won't conflate genuinely separate events.
-const DEDUP_WINDOW_MS = 5 * 60 * 1000;
+// content fingerprints are treated as the same event. The worker's
+// activity_log insert can drift far behind the SMS arrival when a
+// sync runs in batch mode (legacy import, post-outage backfill), so
+// 5 minutes was missing real dups. 24 hours is a safer upper bound:
+// repeating the EXACT same multi-line workout description verbatim
+// within a single calendar day is practically zero false-positive
+// risk, and accidentally crediting it as one event is also harmless.
+const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function logToEntry(l: ActivityLog): TimelineEntry {
   const body = stripProtocolPrefix(l.description ?? '');
