@@ -76,6 +76,8 @@ export default function SettingsPage() {
   const [genderStatus, setGenderStatus] = useState<string | null>(null);
   const [meGenderSaving, setMeGenderSaving] = useState(false);
   const [meGenderStatus, setMeGenderStatus] = useState<string | null>(null);
+  const [captainPermsSaving, setCaptainPermsSaving] = useState(false);
+  const [captainPermsStatus, setCaptainPermsStatus] = useState<string | null>(null);
 
   async function refresh() {
     const { data: pref } = await sb.from('user_preferences').select('*').maybeSingle();
@@ -202,6 +204,27 @@ export default function SettingsPage() {
       setGenderStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
     }
     setGenderSaving(false);
+  }
+
+  async function saveCaptainCanViewSessions(next: boolean) {
+    if (!team) return;
+    setCaptainPermsSaving(true);
+    setCaptainPermsStatus(null);
+    const res = await fetch(`/api/teams/${team.id}/settings`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ captain_can_view_sessions: next }),
+    });
+    if (res.ok) {
+      setCaptainPermsStatus('Saved.');
+      await refresh();
+      await refreshShell();
+      setTimeout(() => setCaptainPermsStatus(null), 2000);
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setCaptainPermsStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    }
+    setCaptainPermsSaving(false);
   }
 
   async function saveMyGender(next: 'male' | 'female' | null) {
@@ -485,6 +508,56 @@ export default function SettingsPage() {
                 <span className="ml-2 text-[12.5px] text-[color:var(--ink-mute)]">{genderStatus}</span>
               )}
             </div>
+          </section>
+        )}
+
+        {/* Captain permissions */}
+        {canConfigureScoring && team && (
+          <section
+            className="rounded-2xl bg-[color:var(--card)] border p-6"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <header className="mb-3">
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Captain permissions</h2>
+              <p className="mt-1 text-[13px] text-[color:var(--ink-mute)]">
+                Choose which coach surfaces captains on this team can use.
+              </p>
+            </header>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[13px] font-semibold text-[color:var(--ink)]">
+                  Sessions &amp; Templates
+                </div>
+                <div className="mt-1 text-[12.5px] text-[color:var(--ink-mute)]">
+                  When on, captains see Sessions in their sidebar and can edit
+                  templates. Off by default.
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={team.captain_can_view_sessions === true}
+                disabled={captainPermsSaving}
+                onClick={() => saveCaptainCanViewSessions(!team.captain_can_view_sessions)}
+                className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition disabled:opacity-50"
+                style={{
+                  borderColor: team.captain_can_view_sessions ? 'var(--blue)' : 'var(--border)',
+                  background: team.captain_can_view_sessions
+                    ? 'var(--blue)'
+                    : 'var(--card-hover)',
+                }}
+              >
+                <span
+                  className="size-4 rounded-full bg-white shadow transition-transform"
+                  style={{
+                    transform: team.captain_can_view_sessions ? 'translateX(22px)' : 'translateX(4px)',
+                  }}
+                />
+              </button>
+            </div>
+            {captainPermsStatus && (
+              <div className="mt-3 text-[12.5px] text-[color:var(--ink-mute)]">{captainPermsStatus}</div>
+            )}
           </section>
         )}
 

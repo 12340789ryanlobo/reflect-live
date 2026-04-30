@@ -154,10 +154,18 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         return;
       }
       // Captains land on /dashboard/captain when they hit the coach root,
-      // but their sidebar entries (live, heatmap, sessions, events,
-      // requests, etc.) are real pages they're allowed to see — don't
-      // sweep them back to /dashboard/captain.
+      // but their sidebar entries (live, heatmap, events, requests, etc.)
+      // are real pages they're allowed to see — don't sweep them back to
+      // /dashboard/captain.
       if (role === 'captain' && pathname === '/dashboard') {
+        router.replace('/dashboard/captain');
+        return;
+      }
+      // Sessions + Templates are coach-only by default; captains see them
+      // only when their team has captain_can_view_sessions=true.
+      const captainCanViewSessions = result.team?.captain_can_view_sessions === true;
+      if (role === 'captain' && !captainCanViewSessions &&
+          (pathname.startsWith('/dashboard/sessions') || pathname.startsWith('/dashboard/templates'))) {
         router.replace('/dashboard/captain');
         return;
       }
@@ -261,6 +269,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           teamId={team.id}
           isPlatformAdmin={prefs.is_platform_admin === true}
           hasLinkedAthlete={Boolean(prefs.impersonate_player_id)}
+          captainCanViewSessions={team.captain_can_view_sessions === true}
         />
         <SidebarInset>
           {pendingMems.length > 0 && (

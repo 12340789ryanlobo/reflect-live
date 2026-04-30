@@ -191,19 +191,28 @@ export function AppSidebar({
   teamId,
   isPlatformAdmin = false,
   hasLinkedAthlete,
+  captainCanViewSessions = false,
 }: {
   role: UserRole;
   teamName?: string;
   teamId?: number;
   isPlatformAdmin?: boolean;
   hasLinkedAthlete?: boolean;
+  captainCanViewSessions?: boolean;
 }) {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const groups: NavGroup[] = [];
 
   if (role === 'coach' || role === 'admin') groups.push({ label: 'Team', items: COACH_NAV });
-  if (role === 'captain') groups.push({ label: 'Captain', items: CAPTAIN_NAV });
+  if (role === 'captain') {
+    // Sessions/Templates are coach-only by default; coach can opt in per
+    // team via /dashboard/settings.
+    const items = captainCanViewSessions
+      ? CAPTAIN_NAV
+      : CAPTAIN_NAV.filter((i) => i.href !== '/dashboard/sessions');
+    groups.push({ label: 'Captain', items });
+  }
   if (role === 'athlete') groups.push({ label: 'Your view', items: ATHLETE_NAV });
   if (hasLinkedAthlete && role !== 'athlete') {
     groups.push({

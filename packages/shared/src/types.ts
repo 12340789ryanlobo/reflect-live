@@ -22,6 +22,8 @@ export interface Team {
   team_code: string | null;       // shareable join code
   creation_status: TeamCreationStatus;
   activity_visibility: ActivityVisibility;
+  // Captain permissions (migration 0019):
+  captain_can_view_sessions: boolean;
 }
 
 export interface Player {
