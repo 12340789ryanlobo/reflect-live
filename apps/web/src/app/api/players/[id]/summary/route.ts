@@ -4,9 +4,10 @@
 // Auth:
 //   - Caller must be active member of the player's team, OR
 //   - Caller is a platform admin.
-// Cache:
-//   - Keyed on (player_id, days, hash(responses+flags)) — repeat calls
-//     within the cache TTL re-use the stored response.
+// Cache (two layers):
+//   - exact: (player_id, days, hash(responses+flags)) — same inputs.
+//   - throttle: (player_id, days) within LLM_CACHE_TTL_HOURS (default 24h).
+//   - ?force=1 bypasses both.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
@@ -94,15 +95,48 @@ export async function POST(
 
   const dataHash = hashSummaryInputs(responses, flags);
   const cacheKey = generateCacheKey(playerId, days, dataHash);
+  const throttleKey = `player:${playerId}:days:${days}`;
 
-  // Cache lookup.
-  const { data: cached } = await sb
-    .from('llm_cache')
-    .select('response')
-    .eq('cache_key', cacheKey)
-    .maybeSingle<{ response: SummaryResult }>();
-  if (cached?.response) {
-    return NextResponse.json({ ...cached.response, from_cache: true });
+  const force = url.searchParams.get('force') === '1';
+  const parsedTtl = Number(process.env.LLM_CACHE_TTL_HOURS);
+  const ttlHours = Number.isFinite(parsedTtl) && parsedTtl >= 0 ? parsedTtl : 24;
+  const ttlMs = ttlHours * 3600 * 1000;
+
+  // Lookup unless force-regen.
+  if (!force) {
+    // (1) Exact key match — same inputs, free.
+    const { data: exact } = await sb
+      .from('llm_cache')
+      .select('response, created_at')
+      .eq('cache_key', cacheKey)
+      .maybeSingle<{ response: SummaryResult; created_at: string }>();
+    if (exact?.response) {
+      return NextResponse.json({
+        ...exact.response,
+        from_cache: true,
+        cached_at: exact.created_at,
+      });
+    }
+
+    // (2) TTL throttle — most-recent (player, period) within window.
+    if (ttlMs > 0) {
+      const ttlCutoffIso = new Date(Date.now() - ttlMs).toISOString();
+      const { data: throttled } = await sb
+        .from('llm_cache')
+        .select('response, created_at')
+        .eq('throttle_key', throttleKey)
+        .gte('created_at', ttlCutoffIso)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ response: SummaryResult; created_at: string }>();
+      if (throttled?.response) {
+        return NextResponse.json({
+          ...throttled.response,
+          from_cache: true,
+          cached_at: throttled.created_at,
+        });
+      }
+    }
   }
 
   const result = await generatePlayerSummary({
@@ -113,15 +147,18 @@ export async function POST(
     days,
   });
 
-  // Write-through cache. Best-effort; don't block the response on a failure.
-  // Skip caching fallback responses (those carrying a result.error from a
-  // failed LLM call) so the next click retries the LLM once it recovers.
+  // Write-through cache, both keys. Skip on fallback so the next click
+  // retries the LLM once it recovers.
   if (!result.error) {
-    await sb.from('llm_cache').upsert({
-      cache_key: cacheKey,
-      response: result,
-      generated_by: result.generated_by,
-    }, { onConflict: 'cache_key' });
+    await sb.from('llm_cache').upsert(
+      {
+        cache_key: cacheKey,
+        throttle_key: throttleKey,
+        response: result,
+        generated_by: result.generated_by,
+      },
+      { onConflict: 'cache_key' },
+    );
   }
 
   return NextResponse.json(result);
