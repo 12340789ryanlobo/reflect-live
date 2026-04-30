@@ -31,18 +31,45 @@ const CHIPS: Array<{ key: Chip; label: string }> = [
   { key: 'survey', label: 'Survey' },
 ];
 
-// Treat as noise on the "Important" view: Clerk verification SMS, the
-// worker's onboarding/help template, the worker's "Workout logged!" /
-// "Rehab logged!" confirmation echoes (the real activity_log row is
-// already shown), and bare "test"/"testing" probes. Keep the regex list
-// narrow — false positives here mean real messages get hidden.
+// Body-content patterns that match worker-generated SMS scaffolding
+// (verification codes, onboarding templates, survey-question prompts,
+// account-setup links, auto-replies). Hidden from the "Important" view
+// because they're not athlete signal.
+//
+// Bias: keep each pattern narrow. False positives here hide real
+// messages. If a pattern starts catching legit chat, narrow it.
+const NOISE_BODY_PATTERNS: RegExp[] = [
+  // Clerk OTP / 2FA codes
+  /verification code/i,
+  // Worker text-to-SMS help template
+  /^to log a workout/i,
+  /^to log rehab/i,
+  // Worker confirmation echoes (canonical row is already shown)
+  /^workout logged!/i,
+  /^rehab logged!/i,
+  // Reflect (legacy) account-setup invitation + link
+  /set up your reflect account/i,
+  /setup-password\?token=/i,
+  // Auto thank-you replies the worker sends after a check-in
+  /^thanks for checking in/i,
+  // Survey-question prompts — recognised by the "Reply: 0 = no, 1 = yes"
+  // / "Reply 1-10" / "(1 = very poorly, 10 = very well)" instruction tail.
+  /\breply\s*[:\-]?\s*(?:0\s*=|1\s*=|1\s*[-–]\s*10)/i,
+  /\(\s*\d+\s*=\s*\w+\s*,\s*\d+\s*=\s*\w+\s*\)/i,
+  // Body-readiness ask
+  /provide your body readiness score/i,
+];
+
+// Bare-probe replies (single-word chat that's almost always noise).
+const NOISE_BARE_PROBE = /^(test|testing|hi|hey|hello|ok|okay|yes|no|y|n)[.!?]?$/i;
+
 function isNoise(e: TimelineEntry): boolean {
-  const body = e.body.toLowerCase().trim();
+  const body = e.body.trim();
   if (!body) return true;
-  if (/verification code/.test(body)) return true;
-  if (body.startsWith('to log a workout') || body.startsWith('to log rehab')) return true;
-  if (body.startsWith('workout logged!') || body.startsWith('rehab logged!')) return true;
-  if ((e.kind === 'inbound' || e.kind === 'outbound') && /^(test|testing|hi|hey|hello|ok|okay|yes|no|y|n)[.!?]?$/.test(body)) return true;
+  for (const re of NOISE_BODY_PATTERNS) {
+    if (re.test(body)) return true;
+  }
+  if ((e.kind === 'inbound' || e.kind === 'outbound') && NOISE_BARE_PROBE.test(body)) return true;
   return false;
 }
 
