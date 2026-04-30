@@ -6,7 +6,7 @@
 // intensity. Front and back are shown simultaneously.
 
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Body, { type ExtendedBodyPart, type Slug } from 'react-muscle-highlighter';
 import {
   regionCountsToMuscleCounts,
@@ -16,6 +16,12 @@ import {
 } from '@/lib/region-to-muscle';
 import { regionLabel } from '@/lib/injury-aliases';
 import type { Gender } from '@reflect-live/shared';
+
+interface HoverState {
+  label: string;
+  x: number;
+  y: number;
+}
 
 // 5-step soft palette aligned with v3 tokens. Index 0 = light, 4 = warm-coral.
 const PALETTE = ['#DCEAF5', '#C2E8DD', '#F4D8A6', '#E89B6F', '#D85447'];
@@ -156,8 +162,63 @@ export function BodyHeatmap({
     onMuscleClick(muscleToRegions(slug));
   }
 
+  // Hover-tooltip state. The library renders each muscle <path> with
+  // id={bodyPart.slug}, so we resolve the hovered slug via event
+  // delegation on the wrapper, look up the canonical regions it maps
+  // to, and show "Region Name · N session(s)".
+  const [hover, setHover] = useState<HoverState | null>(null);
+
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.target as Element | null;
+    const path = target?.closest('path');
+    const slug = path?.id;
+    if (!slug) {
+      if (hover) setHover(null);
+      return;
+    }
+    const regions = muscleToRegions(slug as Slug);
+    if (regions.length === 0) {
+      if (hover) setHover(null);
+      return;
+    }
+    const labels = regions.map(regionLabel).join(' / ');
+    const total = regions.reduce((sum, r) => sum + (counts[r] ?? 0), 0);
+    const display = total > 0
+      ? `${labels} · ${total} session${total === 1 ? '' : 's'}`
+      : labels;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHover({
+      label: display,
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  }
+
+  function handleMouseLeave() {
+    setHover(null);
+  }
+
   return (
-    <div className={className}>
+    <div
+      className={`relative ${className ?? ''}`}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {hover && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute z-10 rounded-md border bg-[color:var(--paper)] px-2 py-1 text-[11.5px] font-semibold text-[color:var(--ink)] shadow-sm whitespace-nowrap"
+          style={{
+            borderColor: 'var(--border)',
+            // 12px offset from cursor so the pointer doesn't sit on top
+            // of the label and prevent further mousemove tracking.
+            left: hover.x + 12,
+            top: hover.y + 12,
+          }}
+        >
+          {hover.label}
+        </div>
+      )}
       <div className="flex items-start justify-center gap-2">
         <div className="flex flex-col items-center gap-1.5">
           <Body
