@@ -40,6 +40,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const [memberships, setMemberships] = useState<TeamMembership[]>([]);
   const [teamNames, setTeamNames] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
 
   const fetchAll = useCallback(async () => {
     // Pull prefs + memberships in parallel; memberships are authoritative
@@ -86,6 +87,17 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
     const activeMem = state.active.find((m) => m.team_id === defaultTeamId);
     const membershipRole = (activeMem?.role ?? 'athlete') as UserRole;
+
+    // Pending request count for the active team — used to surface the
+    // "Requests" sidebar entry only when something needs attention.
+    // RLS hides other teams' memberships from non-managers, so this
+    // safely returns 0 for athletes.
+    const { count: pendingCount } = await sb
+      .from('team_memberships')
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', defaultTeamId)
+      .eq('status', 'requested');
+    setPendingRequestCount(pendingCount ?? 0);
 
     // Make sure user_preferences exists and points at the active team
     // for backward compat (the old prefs.team_id is still consulted by
@@ -270,6 +282,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           isPlatformAdmin={prefs.is_platform_admin === true}
           hasLinkedAthlete={Boolean(prefs.impersonate_player_id)}
           captainCanViewSessions={team.captain_can_view_sessions === true}
+          pendingRequestCount={pendingRequestCount}
         />
         <SidebarInset>
           {pendingMems.length > 0 && (

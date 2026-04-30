@@ -64,6 +64,7 @@ type NavItem = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   children?: NavChild[];
+  badge?: number;
 };
 
 type NavGroup = {
@@ -158,6 +159,15 @@ function NavGroupBlock({ group }: { group: NavGroup }) {
                   <Link href={item.href}>
                     <Icon className="size-4" />
                     <span>{item.label}</span>
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span
+                        className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10.5px] font-bold text-white"
+                        style={{ background: 'var(--red)' }}
+                        aria-label={`${item.badge} pending`}
+                      >
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
                 {item.children && expanded && (
@@ -192,6 +202,7 @@ export function AppSidebar({
   isPlatformAdmin = false,
   hasLinkedAthlete,
   captainCanViewSessions = false,
+  pendingRequestCount = 0,
 }: {
   role: UserRole;
   teamName?: string;
@@ -199,19 +210,33 @@ export function AppSidebar({
   isPlatformAdmin?: boolean;
   hasLinkedAthlete?: boolean;
   captainCanViewSessions?: boolean;
+  pendingRequestCount?: number;
 }) {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const groups: NavGroup[] = [];
 
-  if (role === 'coach' || role === 'admin') groups.push({ label: 'Team', items: COACH_NAV });
+  // Requests is a manager-only entry. Hide when nothing is pending —
+  // there are usually 0, so it doesn't deserve permanent real-estate.
+  // When > 0, surface it with a count badge so it pops in the sidebar.
+  function applyRequestsRule(items: NavItem[]): NavItem[] {
+    return items
+      .filter((i) => i.href !== '/dashboard/requests' || pendingRequestCount > 0)
+      .map((i) =>
+        i.href === '/dashboard/requests' ? { ...i, badge: pendingRequestCount } : i,
+      );
+  }
+
+  if (role === 'coach' || role === 'admin') {
+    groups.push({ label: 'Team', items: applyRequestsRule(COACH_NAV) });
+  }
   if (role === 'captain') {
     // Sessions/Templates are coach-only by default; coach can opt in per
     // team via /dashboard/settings.
-    const items = captainCanViewSessions
+    const base = captainCanViewSessions
       ? CAPTAIN_NAV
       : CAPTAIN_NAV.filter((i) => i.href !== '/dashboard/sessions');
-    groups.push({ label: 'Captain', items });
+    groups.push({ label: 'Captain', items: applyRequestsRule(base) });
   }
   if (role === 'athlete') groups.push({ label: 'Your view', items: ATHLETE_NAV });
   if (hasLinkedAthlete && role !== 'athlete') {
