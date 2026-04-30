@@ -15,7 +15,7 @@ import {
 import type { ActivityLog, TwilioMessage } from '@reflect-live/shared';
 import { prettyDateTime, relativeTime } from '@/lib/format';
 
-type Chip = 'all' | 'activity' | 'messages' | 'survey';
+type Chip = 'important' | 'all' | 'activity' | 'messages' | 'survey';
 
 interface Props {
   logs: ActivityLog[];
@@ -24,11 +24,36 @@ interface Props {
 }
 
 const CHIPS: Array<{ key: Chip; label: string }> = [
+  { key: 'important', label: 'Important' },
   { key: 'all', label: 'All' },
   { key: 'activity', label: 'Activity' },
   { key: 'messages', label: 'Messages' },
   { key: 'survey', label: 'Survey' },
 ];
+
+// Treat as noise on the "Important" view: Clerk verification SMS, the
+// system onboarding template the worker sends to a new number, and very
+// short single-word chat replies that are usually tests. Keep the regex
+// list narrow — false positives here mean real messages get hidden.
+function isNoise(e: TimelineEntry): boolean {
+  const body = e.body.toLowerCase().trim();
+  if (!body) return true;
+  if (/verification code/.test(body)) return true;
+  if (body.startsWith('to log a workout') || body.startsWith('to log rehab')) return true;
+  if ((e.kind === 'inbound' || e.kind === 'outbound') && body.length < 4) return true;
+  return false;
+}
+
+// A survey row is "flagged" if the body starts with a small number — the
+// athlete reported a low readiness reading. Drives the red side-stripe so
+// these jump out of the feed.
+function flaggedReadiness(e: TimelineEntry): number | null {
+  if (e.kind !== 'survey') return null;
+  const m = /^(\d{1,2})/.exec(e.body.trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n >= 1 && n <= 4 ? n : null;
+}
 
 const KIND_TONE: Record<TimelineKind, 'green' | 'amber' | 'blue' | 'mute'> = {
   workout: 'green',
@@ -47,6 +72,7 @@ const KIND_LABEL: Record<TimelineKind, string> = {
 };
 
 function entryMatchesChip(e: TimelineEntry, chip: Chip): boolean {
+  if (chip === 'important') return !isNoise(e);
   if (chip === 'all') return true;
   if (chip === 'activity') return e.kind === 'workout' || e.kind === 'rehab';
   if (chip === 'messages') return e.kind === 'inbound' || e.kind === 'outbound';
@@ -55,7 +81,7 @@ function entryMatchesChip(e: TimelineEntry, chip: Chip): boolean {
 }
 
 export function UnifiedTimeline({ logs, messages, period }: Props) {
-  const [chip, setChip] = useState<Chip>('all');
+  const [chip, setChip] = useState<Chip>('important');
 
   const all = useMemo(() => buildTimeline(logs, messages), [logs, messages]);
   const filtered = useMemo(
@@ -113,35 +139,53 @@ export function UnifiedTimeline({ logs, messages, period }: Props) {
       ) : (
         <ScrollArea className="h-[440px]">
           <ul>
-            {filtered.map((e) => (
-              <li
-                key={e.id}
-                className="border-b px-5 py-3 last:border-0"
-                style={{ borderColor: 'var(--border)' }}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="shrink-0 w-[88px] text-right">
-                    <div
-                      className="mono text-[11px] tabular text-[color:var(--ink-mute)]"
-                      title={prettyDateTime(e.ts)}
-                    >
-                      {relativeTime(e.ts)}
-                    </div>
-                  </div>
-                  <div className="shrink-0 w-px self-stretch bg-[color:var(--border)]" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Pill tone={KIND_TONE[e.kind]}>{KIND_LABEL[e.kind]}</Pill>
-                    </div>
-                    {e.body && (
-                      <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
-                        {e.body}
+            {filtered.map((e) => {
+              const flag = flaggedReadiness(e);
+              return (
+                <li
+                  key={e.id}
+                  className="border-b px-5 py-3 last:border-0 relative"
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: flag != null
+                      ? 'color-mix(in srgb, var(--red) 4%, transparent)'
+                      : undefined,
+                  }}
+                >
+                  {flag != null && (
+                    <span
+                      aria-hidden
+                      className="absolute left-0 top-0 bottom-0 w-[3px]"
+                      style={{ background: 'var(--red)' }}
+                    />
+                  )}
+                  <div className="flex items-start gap-4">
+                    <div className="shrink-0 w-[88px] text-right">
+                      <div
+                        className="mono text-[11px] tabular text-[color:var(--ink-mute)]"
+                        title={prettyDateTime(e.ts)}
+                      >
+                        {relativeTime(e.ts)}
                       </div>
-                    )}
+                    </div>
+                    <div className="shrink-0 w-px self-stretch bg-[color:var(--border)]" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Pill tone={KIND_TONE[e.kind]}>{KIND_LABEL[e.kind]}</Pill>
+                        {flag != null && (
+                          <Pill tone="red">{flag}/10</Pill>
+                        )}
+                      </div>
+                      {e.body && (
+                        <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
+                          {e.body}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </ScrollArea>
       )}
