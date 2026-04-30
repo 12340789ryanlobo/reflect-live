@@ -142,17 +142,22 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       const role = result.effectiveRole;
       const isAdminPath = pathname.startsWith('/dashboard/admin');
       const isAthletePath = pathname.startsWith('/dashboard/athlete');
-      const isCaptainPath = pathname.startsWith('/dashboard/captain');
       const isSettings = pathname === '/dashboard/settings';
       if (isAdminPath && role !== 'admin') {
         router.replace('/dashboard');
         return;
       }
+      // Athletes are locked to their own surfaces — anything else bounces
+      // to /dashboard/athlete. (Security fix from A1.)
       if (role === 'athlete' && !isAthletePath && !isSettings) {
         router.replace('/dashboard/athlete');
         return;
       }
-      if (role === 'captain' && !isCaptainPath && !isSettings) {
+      // Captains land on /dashboard/captain when they hit the coach root,
+      // but their sidebar entries (live, heatmap, sessions, events,
+      // requests, etc.) are real pages they're allowed to see — don't
+      // sweep them back to /dashboard/captain.
+      if (role === 'captain' && pathname === '/dashboard') {
         router.replace('/dashboard/captain');
         return;
       }
