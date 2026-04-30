@@ -5,7 +5,12 @@
 // list shows the top items for the active tab.
 
 import { useMemo, useState } from 'react';
-import { BodyHeatmap, DENSITY_LEGEND } from '@/components/v3/body-heatmap';
+import {
+  BodyHeatmap,
+  DENSITY_TIERS,
+  densityScale,
+  densityTierRange,
+} from '@/components/v3/body-heatmap';
 import { Pill } from '@/components/v3/pill';
 import { regionLabel } from '@/lib/injury-aliases';
 import type { Gender } from '@reflect-live/shared';
@@ -110,27 +115,40 @@ export function HeatmapTabs({
             scale={0.85}
             className="w-full"
           />
-          {/* Density legend — driven by DENSITY_LEGEND in body-heatmap.tsx
-              so the swatches always match the colors react-muscle-highlighter
-              actually paints onto the silhouette. Tab-aware label below
-              ('Flags' on the injury tab, 'Sessions' on activity/rehab). */}
-          <div className="flex items-center gap-3 flex-wrap text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
-            <span>{tab === 'injury' ? 'Flags' : 'Sessions'}</span>
-            {DENSITY_LEGEND.map((tier, i) => (
-              <span key={tier.label} className="inline-flex items-center gap-1.5">
-                <span
-                  className="size-3.5 rounded-full"
-                  style={{
-                    background: tier.color,
-                    // Subtle ring on 'None' only so the empty-state
-                    // circle doesn't disappear into the card background.
-                    boxShadow: i === 0 ? 'inset 0 0 0 1px var(--border)' : undefined,
-                  }}
-                />
-                {tier.label}
-              </span>
-            ))}
-          </div>
+          {(() => {
+            // Compute the same global max BodyHeatmap uses for intensity,
+            // then label each tier with its actual count range. So 'red'
+            // is captioned as e.g. '5–6' for an athlete whose top region
+            // count is 6 — the viewer can map a body color directly to a
+            // session count (and cross-check against the side list).
+            const max = densityScale(counts);
+            const unit = tab === 'injury' ? 'Flags' : 'Sessions';
+            function rangeLabel(tier: 1 | 2 | 3 | 4 | 5): string {
+              const r = densityTierRange(tier, max);
+              if (!r) return '—';
+              return r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`;
+            }
+            const labels = ['0', rangeLabel(1), rangeLabel(2), rangeLabel(3), rangeLabel(4), rangeLabel(5)];
+            return (
+              <div className="flex items-center gap-3 flex-wrap text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+                <span>{unit}{max > 0 ? ` · 0–${max}` : ''}</span>
+                {DENSITY_TIERS.map((color, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5">
+                    <span
+                      className="size-3.5 rounded-full"
+                      style={{
+                        background: color,
+                        // Subtle ring on the empty tier so the 'None'
+                        // circle doesn't disappear into the card background.
+                        boxShadow: i === 0 ? 'inset 0 0 0 1px var(--border)' : undefined,
+                      }}
+                    />
+                    <span className="tabular">{labels[i]}</span>
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
         </div>
         <div className="min-w-0">
           {tab === 'injury' ? (

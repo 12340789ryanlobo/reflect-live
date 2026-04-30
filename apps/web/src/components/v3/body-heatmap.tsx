@@ -26,19 +26,49 @@ const HIGHLIGHT_STROKE = '#1F5FB0'; // var(--blue)
 const HIGHLIGHT_STROKE_WIDTH = 2.5;
 
 /**
- * Single source of truth for the heatmap density legend. Lets the legend
- * UI stay in lockstep with the colors react-muscle-highlighter actually
- * paints onto the silhouette. Six tiers: empty + the five intensity
- * levels the library renders via Math.ceil((count/max)*5).
+ * Six legend tiers in order: None (empty fill) + five intensity steps
+ * matching the colors react-muscle-highlighter paints. The legend UI
+ * computes its own labels (count ranges relative to the global max) so
+ * we keep this array color-only.
  */
-export const DENSITY_LEGEND: ReadonlyArray<{ label: string; color: string }> = [
-  { label: 'None',     color: DEFAULT_FILL },
-  { label: 'Low',      color: PALETTE[0] },
-  { label: 'Mild',     color: PALETTE[1] },
-  { label: 'Moderate', color: PALETTE[2] },
-  { label: 'High',     color: PALETTE[3] },
-  { label: 'Hot',      color: PALETTE[4] },
+export const DENSITY_TIERS: readonly [string, string, string, string, string, string] = [
+  DEFAULT_FILL,  // 0  — None / empty muscle
+  PALETTE[0],    // 1  — light blue
+  PALETTE[1],    // 2  — mint
+  PALETTE[2],    // 3  — tan
+  PALETTE[3],    // 4  — coral
+  PALETTE[4],    // 5  — red
 ] as const;
+
+/**
+ * Largest single-muscle count across both views, given region counts.
+ * react-muscle-highlighter scales colors by intensity = ceil(c/max * 5),
+ * so the legend (and both views) need to share one max — otherwise the
+ * same region count colors differently on front vs back. This is the
+ * shared scale.
+ */
+export function densityScale(counts: Record<string, number>): number {
+  const front = regionCountsToMuscleCounts(counts, 'front');
+  const back = regionCountsToMuscleCounts(counts, 'back');
+  let m = 0;
+  for (const v of front.values()) if (v > m) m = v;
+  for (const v of back.values()) if (v > m) m = v;
+  return m;
+}
+
+/**
+ * Count range that maps to a given tier (1–5) for the current scale.
+ * Returns `null` when the tier is unreachable (small `max` values can
+ * leave gaps because intensity = ceil(c/max*5)). Use the returned
+ * `[lo, hi]` to render a label like "1", "5–6", or "—".
+ */
+export function densityTierRange(tier: 1 | 2 | 3 | 4 | 5, max: number): [number, number] | null {
+  if (max <= 0) return null;
+  const lo = Math.floor(((tier - 1) * max) / 5) + 1;
+  const hi = Math.floor((tier * max) / 5);
+  if (lo > hi) return null;
+  return [lo, hi];
+}
 
 interface Props {
   counts: Record<string, number>;
@@ -55,9 +85,12 @@ function buildSideData(
   counts: Record<string, number>,
   view: View,
   selectedSlugs: Set<Slug>,
+  globalMax: number,
 ): ExtendedBodyPart[] {
   const muscleCounts = regionCountsToMuscleCounts(counts, view);
-  const max = muscleCounts.size === 0 ? 1 : Math.max(...muscleCounts.values());
+  // Use a SHARED max across both views so the same region count can't
+  // render at different intensities on front vs back.
+  const max = globalMax > 0 ? globalMax : 1;
   const data: ExtendedBodyPart[] = [];
 
   for (const [slug, count] of muscleCounts) {
@@ -105,13 +138,15 @@ export function BodyHeatmap({
     return { frontSelected: front, backSelected: back };
   }, [selectedRegions]);
 
+  const globalMax = useMemo(() => densityScale(counts), [counts]);
+
   const dataFront = useMemo(
-    () => buildSideData(counts, 'front', frontSelected),
-    [counts, frontSelected],
+    () => buildSideData(counts, 'front', frontSelected, globalMax),
+    [counts, frontSelected, globalMax],
   );
   const dataBack = useMemo(
-    () => buildSideData(counts, 'back', backSelected),
-    [counts, backSelected],
+    () => buildSideData(counts, 'back', backSelected, globalMax),
+    [counts, backSelected, globalMax],
   );
 
   function handleClick(part: ExtendedBodyPart) {
