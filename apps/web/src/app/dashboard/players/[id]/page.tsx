@@ -8,6 +8,7 @@ import { UnifiedTimeline } from '@/components/v3/unified-timeline';
 import { type Period, periodSinceIso } from '@/lib/period';
 import { parseAllRegions } from '@/lib/injury-aliases';
 import { regionToMuscles } from '@/lib/region-to-muscle';
+import { computeLeaderboard } from '@/lib/scoring';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog } from '@reflect-live/shared';
 
@@ -62,6 +63,11 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // make the timestamp disappear.
   const [lastInboundEver, setLastInboundEver] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>(30);
+  // Athlete's rank within the team for the configured competition window
+  // (or all-time when team.competition_start_date is null). Independent
+  // of `period` so the rank reflects the season, not the visible window.
+  const [seasonRank, setSeasonRank] = useState<number | null>(null);
+  const [seasonRankTotal, setSeasonRankTotal] = useState<number | null>(null);
   // Region filter driven by clicks on the body heatmap. Empty = no
   // filter; otherwise the heatmap silhouette draws a click-highlight
   // ring on these regions and the timeline narrows to entries that
@@ -107,6 +113,24 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     })();
     return () => { alive = false; };
   }, [sb, playerId, period]);
+
+  // Independent of `period` — competition rank reflects the season the
+  // coach configured (team.competition_start_date), not the visible
+  // window. Falls back to all-time when no season is set.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const sinceISO = team.competition_start_date
+        ? `${team.competition_start_date}T00:00:00Z`
+        : undefined;
+      const rows = await computeLeaderboard(sb, team.id, team.scoring_json, sinceISO);
+      if (!alive) return;
+      const idx = rows.findIndex((r) => r.player_id === playerId);
+      setSeasonRank(idx === -1 ? null : idx + 1);
+      setSeasonRankTotal(rows.length || null);
+    })();
+    return () => { alive = false; };
+  }, [sb, team.id, team.scoring_json, team.competition_start_date, playerId]);
 
   // Independent of `period` — fetches the player's most recent inbound
   // message ever. Drives "Last on wire" + the status pill so neither
@@ -236,6 +260,9 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           viewerIsSelf={viewerIsSelf}
           showPhone={showPhone}
           onAction={onAction}
+          seasonRank={seasonRank}
+          seasonRankTotal={seasonRankTotal}
+          seasonStart={team.competition_start_date ?? null}
         />
         <HeatmapTabs
           injuryCounts={injuryCounts}

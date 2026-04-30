@@ -24,6 +24,9 @@ export interface Team {
   activity_visibility: ActivityVisibility;
   // Captain permissions (migration 0019):
   captain_can_view_sessions: boolean;
+  // Competition / season window (migration 0021). Null = no active
+  // competition; rank computations fall back to all-time.
+  competition_start_date: string | null;
 }
 
 export interface Player {

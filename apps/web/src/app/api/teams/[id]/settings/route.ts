@@ -56,6 +56,19 @@ export async function PATCH(
   if (typeof body.captain_can_view_sessions === 'boolean') {
     patch.captain_can_view_sessions = body.captain_can_view_sessions;
   }
+  if ('competition_start_date' in body) {
+    const v = body.competition_start_date;
+    if (v === null || v === '') {
+      patch.competition_start_date = null;
+    } else if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      patch.competition_start_date = v;
+    } else {
+      return NextResponse.json(
+        { error: 'bad_competition_start_date', detail: 'expected YYYY-MM-DD or null' },
+        { status: 400 },
+      );
+    }
+  }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'no_valid_fields' }, { status: 400 });
   }

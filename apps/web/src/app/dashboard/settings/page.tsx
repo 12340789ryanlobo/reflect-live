@@ -78,6 +78,9 @@ export default function SettingsPage() {
   const [meGenderStatus, setMeGenderStatus] = useState<string | null>(null);
   const [captainPermsSaving, setCaptainPermsSaving] = useState(false);
   const [captainPermsStatus, setCaptainPermsStatus] = useState<string | null>(null);
+  const [seasonStartInput, setSeasonStartInput] = useState<string>('');
+  const [seasonSaving, setSeasonSaving] = useState(false);
+  const [seasonStatus, setSeasonStatus] = useState<string | null>(null);
 
   async function refresh() {
     const { data: pref } = await sb.from('user_preferences').select('*').maybeSingle();
@@ -107,6 +110,7 @@ export default function SettingsPage() {
       setWorkoutScore(String(sc.workout_score ?? 1.0));
       setRehabScore(String(sc.rehab_score ?? 0.5));
     }
+    setSeasonStartInput((teamData as Team)?.competition_start_date ?? '');
     setState(ws as WorkerState | null);
     setStats({ players: pCount ?? 0, messages: mCount ?? 0, activity: aCount ?? 0 });
     const players = (ps ?? []) as Player[];
@@ -225,6 +229,27 @@ export default function SettingsPage() {
       setCaptainPermsStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
     }
     setCaptainPermsSaving(false);
+  }
+
+  async function saveSeasonStart(next: string | null) {
+    if (!team) return;
+    setSeasonSaving(true);
+    setSeasonStatus(null);
+    const res = await fetch(`/api/teams/${team.id}/settings`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ competition_start_date: next }),
+    });
+    if (res.ok) {
+      setSeasonStatus('Saved.');
+      await refresh();
+      await refreshShell();
+      setTimeout(() => setSeasonStatus(null), 2000);
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setSeasonStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    }
+    setSeasonSaving(false);
   }
 
   async function saveMyGender(next: 'male' | 'female' | null) {
@@ -548,6 +573,63 @@ export default function SettingsPage() {
                 <span className="ml-2 text-[12.5px] text-[color:var(--ink-mute)]">{captainPermsStatus}</span>
               )}
             </div>
+          </section>
+        )}
+
+        {/* Season / competition start — drives the per-athlete rank in
+            the C1 hero and the team leaderboards. Null = no active
+            competition (rank falls back to all-time). */}
+        {canConfigureScoring && team && (
+          <section
+            className="rounded-2xl bg-[color:var(--card)] border p-6"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <header className="mb-3">
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Season start</h2>
+              <p className="mt-1 text-[13px] text-[color:var(--ink-mute)]">
+                The date athlete rankings count from. Change it to start a fresh
+                competition; clear it to fall back to all-time.
+              </p>
+            </header>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Input
+                type="date"
+                value={seasonStartInput}
+                onChange={(e) => setSeasonStartInput(e.target.value)}
+                className="w-[180px]"
+              />
+              <Button
+                onClick={() => saveSeasonStart(seasonStartInput || null)}
+                disabled={
+                  seasonSaving ||
+                  (seasonStartInput || null) === (team.competition_start_date ?? null)
+                }
+                className="rounded-xl font-semibold"
+                style={{ background: 'var(--blue)' }}
+              >
+                {seasonSaving ? 'Saving…' : 'Save'}
+              </Button>
+              {team.competition_start_date && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSeasonStartInput('');
+                    void saveSeasonStart(null);
+                  }}
+                  disabled={seasonSaving}
+                >
+                  Clear
+                </Button>
+              )}
+              {seasonStatus && (
+                <span className="ml-2 text-[12.5px] text-[color:var(--ink-mute)]">{seasonStatus}</span>
+              )}
+            </div>
+            {team.competition_start_date && (
+              <p className="mt-3 text-[12.5px] text-[color:var(--ink-mute)]">
+                Currently counting from <span className="font-semibold text-[color:var(--ink)]">{team.competition_start_date}</span>.
+              </p>
+            )}
           </section>
         )}
 

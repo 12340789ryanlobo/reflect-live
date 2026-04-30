@@ -51,6 +51,17 @@ interface Props {
   viewerIsSelf: boolean;
   showPhone: boolean;
   onAction: (verb: ActionVerb) => void;
+  /** Athlete's place on the team leaderboard for the configured
+   *  competition window — 1-indexed. Null when the athlete has no
+   *  scored activity (or no roster mates). */
+  seasonRank?: number | null;
+  /** Total ranked athletes for the same window. Lets the hero render
+   *  '#3 / 18' rather than just '#3'. */
+  seasonRankTotal?: number | null;
+  /** ISO date the season counts from (team.competition_start_date),
+   *  or null for all-time ranking. Drives the small caption below the
+   *  rank pill. */
+  seasonStart?: string | null;
 }
 
 function statusFor(hours: number | null): { tone: 'green' | 'amber' | 'mute'; text: string } {
@@ -74,6 +85,9 @@ export function AthleteHero({
   viewerIsSelf,
   showPhone,
   onAction,
+  seasonRank = null,
+  seasonRankTotal = null,
+  seasonStart = null,
 }: Props) {
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -186,6 +200,33 @@ export function AthleteHero({
             <span className="text-[color:var(--ink-mute)]">Phone</span>
             <span className="mono tabular text-[color:var(--ink-soft)]">{prettyPhone(player.phone_e164)}</span>
           </div>
+        )}
+        {/* Competition rank — visible to everyone viewing the page so
+            athletes can see where they sit and use it as motivation. */}
+        <div
+          className="flex items-center justify-between text-[12px] border-t pt-3"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <span className="text-[color:var(--ink-mute)]">
+            {seasonStart ? 'Season rank' : 'Rank'}
+          </span>
+          {seasonRank != null ? (
+            <span className="font-bold text-[color:var(--ink)]">
+              #{seasonRank}
+              {seasonRankTotal != null && (
+                <span className="font-medium text-[color:var(--ink-mute)] ml-1">
+                  / {seasonRankTotal}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="mono tabular text-[color:var(--ink-mute)]">unranked</span>
+          )}
+        </div>
+        {seasonStart && (
+          <p className="text-[10.5px] text-[color:var(--ink-dim)] tabular -mt-2">
+            since {seasonStart}
+          </p>
         )}
       </div>
 
