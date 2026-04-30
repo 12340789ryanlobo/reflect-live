@@ -5,21 +5,26 @@
 // one of four anatomical categories:
 //
 // 1. MUSCLE GROUPS — paint a 1:1 or composite slug set:
-//    hand, forearm, bicep, tricep, upper_back, mid_back, lower_back,
-//    neck, hamstring, quad, calf, shin, chest, abs, obliques
-//    (Note: there is no 'upper_arm' canonical region. 'upper arm' /
-//    'arm' phrases expand to bicep + tricep [+ forearm] via group
-//    aliases in injury-aliases.ts.)
+//    hand, forearm, bicep, tricep, upper_back (paints upper-back +
+//    trapezius), lower_back, neck, hamstring, quad, calf, shin, chest,
+//    abs, obliques.
+//    (No 'upper_arm' canonical region. 'upper arm' / 'arm' phrases
+//    expand to bicep + tricep [+ forearm] via group aliases in
+//    injury-aliases.ts. Each muscle slug is owned by exactly one
+//    region — no cross-region painting — so hover tooltips don't
+//    cross-reference parent regions.)
 //
 // 2. JOINTS WITH LIBRARY SHAPES — the library renders an actual joint
 //    silhouette, so we paint it directly:
 //    knee → knees, ankle → ankles, foot → feet
 //
-// 3. JOINTS / TENDONS WITHOUT LIBRARY SHAPES — return [] so we don't
-//    paint a misleading muscle. The region still tracks in the
-//    side-list categories on the injury tab when there's data, just
-//    doesn't appear on the body silhouette:
-//    elbow, wrist (joints), achilles (tendon)
+// 3. NO LIBRARY SHAPE — return [] so we don't paint a misleading
+//    muscle. The region still tracks in the side-list categories on
+//    the injury tab when there's data, just doesn't appear on the
+//    body silhouette:
+//    elbow, wrist (joints), achilles (tendon),
+//    mid_back (no mid-back slug exists in the library; painting
+//    upper-back would cross-region with the actual upper_back region)
 //
 // 4. JOINTS conflated with their dominant surrounding muscle — common
 //    athlete vocab (e.g. "shoulder pain" usually means deltoid +
@@ -64,15 +69,17 @@ export function regionToMuscles(region: string, view: View = 'front'): MuscleSlu
     // muscle on the body map.
     case 'elbow':       return [];
     case 'shoulder':    return ['deltoids'];
-    // upper_back paints trapezius on both views — the upper trap wraps
-    // around to the front (neck/shoulder area).
+    // upper_back owns the trapezius slug — see comment in the
+    // 'Upper back' aliases section in injury-aliases.ts. Each muscle
+    // slug should be painted by exactly one region so hover tooltips
+    // don't cross-reference 'Upper Back (Neck)'.
     case 'upper_back':  return ['upper-back', 'trapezius'];
-    case 'mid_back':    return ['upper-back'];   // no mid_back slug; nearest
+    // No mid_back slug exists. Same treatment as elbow/wrist/achilles:
+    // mid-back injuries track in the side-list categories when reported,
+    // they just don't paint a misleading shape on the silhouette.
+    case 'mid_back':    return [];
     case 'lower_back':  return ['lower-back'];
-    // neck paints trapezius on both views (text aliases trap/traps/
-    // trapezius collapse to the neck region, and the upper trap is
-    // visible from the front).
-    case 'neck':        return ['neck', 'trapezius'];
+    case 'neck':        return ['neck'];
     case 'hip':         return ['gluteal'];
     case 'groin':       return ['adductors'];
     case 'hamstring':   return ['hamstring'];

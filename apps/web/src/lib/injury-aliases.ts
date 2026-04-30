@@ -36,13 +36,17 @@ const REGION_ALIASES: Record<string, BodyRegion> = {
   // Shoulder
   shoulders: 'shoulder', rotator: 'shoulder', 'rotator cuff': 'shoulder',
   deltoid: 'shoulder',
-  // Upper back
+  // Upper back (includes the trapezius — anatomically a back muscle even
+  // though athletes often describe trap tightness as 'neck pain'. Keeping
+  // trap in upper_back means the trapezius slug is owned by exactly one
+  // region, so hover tooltips don't cross-reference 'Upper Back (Neck)').
   'upper back': 'upper_back', 'upper-back': 'upper_back', thoracic: 'upper_back',
   'shoulder blade': 'upper_back', 'shoulder blades': 'upper_back',
   scapula: 'upper_back', scapulas: 'upper_back', scap: 'upper_back', scaps: 'upper_back',
   rhomboid: 'upper_back', rhomboids: 'upper_back',
   lat: 'upper_back', lats: 'upper_back', latissimus: 'upper_back',
   'latissimus dorsi': 'upper_back',
+  trap: 'upper_back', traps: 'upper_back', trapezius: 'upper_back',
   // Mid back
   'mid back': 'mid_back', 'middle back': 'mid_back',
   'mid-back': 'mid_back', 'middle-back': 'mid_back',
@@ -53,8 +57,8 @@ const REGION_ALIASES: Record<string, BodyRegion> = {
   tailbone: 'lower_back', coccyx: 'lower_back', ql: 'lower_back',
   // Generic spine → mid_back
   spine: 'mid_back', spinal: 'mid_back',
-  // Neck
-  cervical: 'neck', trap: 'neck', traps: 'neck', trapezius: 'neck',
+  // Neck (cervical area only — trap aliases moved to upper_back above)
+  cervical: 'neck',
   // Hip
   hips: 'hip', glute: 'hip', glutes: 'hip', gluteal: 'hip',
   butt: 'hip', buttock: 'hip', piriformis: 'hip',
@@ -144,6 +148,8 @@ const WORKOUT_ALIASES: Record<string, BodyRegion> = {
   'pull-up': 'upper_back', 'pull-ups': 'upper_back',
   'chin up': 'upper_back', 'chin ups': 'upper_back',
   chinup: 'upper_back', chinups: 'upper_back',
+  // Shrugs — trapezius work, lives in upper_back
+  shrug: 'upper_back', shrugs: 'upper_back',
   // Arm curls / extensions — specific muscle attribution
   curl: 'bicep', curls: 'bicep',
   'bicep curl': 'bicep', 'bicep curls': 'bicep',
