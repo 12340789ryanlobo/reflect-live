@@ -32,10 +32,9 @@ interface SummaryResult {
 
 export type ActionVerb =
   | 'text'
-  | 'log_session'
+  | 'log_workout'
   | 'mark_injury_resolved'
   | 'self_report'
-  | 'log_workout'
   | 'report_injury';
 
 interface Props {
@@ -141,7 +140,7 @@ export function AthleteHero({
       ]
     : [
         { verb: 'text', label: 'Text' },
-        { verb: 'log_session', label: 'Log session' },
+        { verb: 'log_workout', label: 'Log workout' },
         { verb: 'mark_injury_resolved', label: 'Mark injury resolved' },
       ];
 

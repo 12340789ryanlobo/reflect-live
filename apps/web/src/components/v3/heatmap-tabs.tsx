@@ -102,12 +102,12 @@ export function HeatmapTabs({
         </div>
       </header>
 
-      <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
+      <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,620px)_minmax(0,420px)]">
         <div>
           <BodyHeatmap
             counts={counts}
             gender={gender}
-            scale={0.6}
+            scale={0.85}
             className="w-full"
           />
         </div>

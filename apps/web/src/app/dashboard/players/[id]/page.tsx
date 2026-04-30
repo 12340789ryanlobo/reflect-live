@@ -149,9 +149,6 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       case 'text':
         if (player) window.location.href = `sms:${player.phone_e164}`;
         return;
-      case 'log_session':
-        router.push('/dashboard/sessions');
-        return;
       case 'mark_injury_resolved':
         router.push('/dashboard/heatmap');
         return;
@@ -159,6 +156,9 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       case 'log_workout':
       case 'report_injury':
         // TODO route — implementation lands in D3 follow-up.
+        // log_workout is shared by both viewers (coach logs on behalf of
+        // athlete; athlete logs for self) and will land with the
+        // "notes for coach" field as part of that work.
         alert(`Coming soon: ${verb.replace('_', ' ')}`);
         return;
     }
