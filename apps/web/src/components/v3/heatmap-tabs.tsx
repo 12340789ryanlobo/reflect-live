@@ -103,13 +103,39 @@ export function HeatmapTabs({
       </header>
 
       <div className="grid gap-6 px-6 py-6 md:grid-cols-[minmax(0,620px)_minmax(0,420px)]">
-        <div>
+        <div className="flex flex-col gap-3">
           <BodyHeatmap
             counts={counts}
             gender={gender}
             scale={0.85}
             className="w-full"
           />
+          {/* Density legend — relative to this athlete's max in the
+              current view. tab-aware label below ('hits' / 'sessions'
+              / 'flags') so the user knows what's being counted. */}
+          <div className="flex items-center gap-3 flex-wrap text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+            <span>{tab === 'injury' ? 'Flags' : 'Sessions'}</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="size-3 rounded-sm border" style={{ background: 'var(--paper-2)', borderColor: 'var(--border)' }} />
+              None
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="size-3 rounded-sm" style={{ background: 'var(--green-soft)' }} />
+              Low
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="size-3 rounded-sm" style={{ background: '#FFF1D6' }} />
+              Mid
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="size-3 rounded-sm" style={{ background: 'var(--amber-soft)' }} />
+              High
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="size-3 rounded-sm" style={{ background: 'var(--red-soft)' }} />
+              Hot
+            </span>
+          </div>
         </div>
         <div className="min-w-0">
           {tab === 'injury' ? (
