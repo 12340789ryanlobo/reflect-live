@@ -19,7 +19,11 @@ export function getLlmConfig(): LlmConfig {
     enabled: (process.env.LLM_ENABLED ?? 'false').toLowerCase() === 'true',
     provider,
     apiKey,
-    model: process.env.LLM_MODEL ?? 'meta-llama/llama-3.3-70b-instruct:free',
+    // Default to Gemini 2.0 Flash on OpenRouter's free tier — currently
+    // less saturated than the Llama one, so fewer upstream 429s. Override
+    // via LLM_MODEL env var (e.g. paid `openai/gpt-4o-mini` once credit is
+    // loaded).
+    model: process.env.LLM_MODEL ?? 'google/gemini-2.0-flash-exp:free',
   };
 }
 
