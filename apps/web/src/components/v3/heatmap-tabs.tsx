@@ -111,29 +111,24 @@ export function HeatmapTabs({
             className="w-full"
           />
           {/* Density legend — relative to this athlete's max in the
-              current view. tab-aware label below ('hits' / 'sessions'
-              / 'flags') so the user knows what's being counted. */}
+              current view. Continuous gradient bar so the soft palette
+              reads at small sizes (the 12px discrete swatches we tried
+              first were too washed out to see). Tab-aware label so the
+              viewer knows what's being counted. */}
           <div className="flex items-center gap-3 flex-wrap text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
             <span>{tab === 'injury' ? 'Flags' : 'Sessions'}</span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-3 rounded-sm border" style={{ background: 'var(--paper-2)', borderColor: 'var(--border)' }} />
-              None
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-3 rounded-sm" style={{ background: 'var(--green-soft)' }} />
-              Low
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-3 rounded-sm" style={{ background: '#FFF1D6' }} />
-              Mid
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-3 rounded-sm" style={{ background: 'var(--amber-soft)' }} />
-              High
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="size-3 rounded-sm" style={{ background: 'var(--red-soft)' }} />
-              Hot
+            <span className="inline-flex items-center gap-2">
+              <span>None</span>
+              <span
+                className="block h-3 w-40 rounded-full border"
+                style={{
+                  background:
+                    'linear-gradient(to right, var(--paper-2) 0%, var(--green-soft) 25%, #FFF1D6 50%, var(--amber-soft) 75%, var(--red-soft) 100%)',
+                  borderColor: 'var(--border)',
+                }}
+                aria-hidden
+              />
+              <span>Hot</span>
             </span>
           </div>
         </div>
