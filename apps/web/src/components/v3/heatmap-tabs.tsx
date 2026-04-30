@@ -5,9 +5,9 @@
 // list shows the top items for the active tab.
 
 import { useMemo, useState } from 'react';
-import { BodyHeatmap } from '@/components/v3/body-heatmap';
+import { BodyHeatmap, DENSITY_LEGEND } from '@/components/v3/body-heatmap';
 import { Pill } from '@/components/v3/pill';
-import { HEATMAP_PALETTE, regionLabel } from '@/lib/injury-aliases';
+import { regionLabel } from '@/lib/injury-aliases';
 import type { Gender } from '@reflect-live/shared';
 
 export type HeatmapTab = 'injury' | 'activity' | 'rehab';
@@ -110,24 +110,24 @@ export function HeatmapTabs({
             scale={0.85}
             className="w-full"
           />
-          {/* Density legend — same palette as the silhouette regions
-              (HEATMAP_PALETTE in injury-aliases.ts) so the swatches and
-              the body fills cannot drift. Tab-aware label so the viewer
-              knows what's being counted. */}
+          {/* Density legend — driven by DENSITY_LEGEND in body-heatmap.tsx
+              so the swatches always match the colors react-muscle-highlighter
+              actually paints onto the silhouette. Tab-aware label below
+              ('Flags' on the injury tab, 'Sessions' on activity/rehab). */}
           <div className="flex items-center gap-3 flex-wrap text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
             <span>{tab === 'injury' ? 'Flags' : 'Sessions'}</span>
-            {(['None', 'Low', 'Mid', 'High', 'Hot'] as const).map((label, i) => (
-              <span key={label} className="inline-flex items-center gap-1.5">
+            {DENSITY_LEGEND.map((tier, i) => (
+              <span key={tier.label} className="inline-flex items-center gap-1.5">
                 <span
                   className="size-3.5 rounded-full"
                   style={{
-                    background: HEATMAP_PALETTE[i],
-                    // Subtle ring on 'None' only so the empty-state circle
-                    // doesn't disappear into the card background.
+                    background: tier.color,
+                    // Subtle ring on 'None' only so the empty-state
+                    // circle doesn't disappear into the card background.
                     boxShadow: i === 0 ? 'inset 0 0 0 1px var(--border)' : undefined,
                   }}
                 />
-                {label}
+                {tier.label}
               </span>
             ))}
           </div>

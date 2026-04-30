@@ -25,6 +25,21 @@ const DEFAULT_BORDER = '#D7D1C2'; // var(--border-2)
 const HIGHLIGHT_STROKE = '#1F5FB0'; // var(--blue)
 const HIGHLIGHT_STROKE_WIDTH = 2.5;
 
+/**
+ * Single source of truth for the heatmap density legend. Lets the legend
+ * UI stay in lockstep with the colors react-muscle-highlighter actually
+ * paints onto the silhouette. Six tiers: empty + the five intensity
+ * levels the library renders via Math.ceil((count/max)*5).
+ */
+export const DENSITY_LEGEND: ReadonlyArray<{ label: string; color: string }> = [
+  { label: 'None',     color: DEFAULT_FILL },
+  { label: 'Low',      color: PALETTE[0] },
+  { label: 'Mild',     color: PALETTE[1] },
+  { label: 'Moderate', color: PALETTE[2] },
+  { label: 'High',     color: PALETTE[3] },
+  { label: 'Hot',      color: PALETTE[4] },
+] as const;
+
 interface Props {
   counts: Record<string, number>;
   gender: Gender;
@@ -150,4 +165,3 @@ export function BodyHeatmap({
   );
 }
 
-export { PALETTE as HEATMAP_PALETTE };

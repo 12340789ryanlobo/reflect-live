@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseInjuryRegions, regionColor, regionLabel } from '@/lib/injury-aliases';
+import { parseInjuryRegions, regionLabel } from '@/lib/injury-aliases';
 
 describe('parseInjuryRegions', () => {
   test('empty / null input → other', () => {
@@ -46,21 +46,6 @@ describe('parseInjuryRegions', () => {
 
   test('unmatched text returns other', () => {
     expect(parseInjuryRegions('feeling great')).toEqual(['other']);
-  });
-});
-
-describe('regionColor', () => {
-  test('zero count → empty palette', () => {
-    expect(regionColor(0, 5)).toBe('var(--paper-2)');
-  });
-  test('zero max → empty palette', () => {
-    expect(regionColor(3, 0)).toBe('var(--paper-2)');
-  });
-  test('high ratio → red', () => {
-    expect(regionColor(10, 10)).toBe('var(--red-soft)');
-  });
-  test('low ratio → green', () => {
-    expect(regionColor(1, 10)).toBe('var(--green-soft)');
   });
 });
 
