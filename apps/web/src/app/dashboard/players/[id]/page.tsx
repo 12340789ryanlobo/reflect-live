@@ -7,8 +7,19 @@ import { HeatmapTabs, type InjurySideRow } from '@/components/v3/heatmap-tabs';
 import { UnifiedTimeline } from '@/components/v3/unified-timeline';
 import { type Period, periodSinceIso } from '@/lib/period';
 import { parseAllRegions } from '@/lib/injury-aliases';
+import { regionToMuscles } from '@/lib/region-to-muscle';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog } from '@reflect-live/shared';
+
+// Joints with no body-map shape (currently elbow + wrist) should not
+// appear in activity / rehab counts. They're still valid for injury
+// reports — pain in the joint is real — but they aren't a "muscle
+// worked" by a workout, and crediting them would surface them in the
+// side list with no corresponding silhouette paint to back them up.
+function paintsAnyMuscle(region: string): boolean {
+  return regionToMuscles(region, 'front').length > 0
+    || regionToMuscles(region, 'back').length > 0;
+}
 
 interface InjuryRow {
   id: number;
@@ -25,8 +36,11 @@ function countRegions(rows: ActivityLog[], kind: 'workout' | 'rehab'): Record<st
     if (r.kind !== kind) continue;
     // parseAllRegions returns every body region referenced in the
     // description (a workout typically hits several). Each region the
-    // log mentions counts as one session for that region.
+    // log mentions counts as one session for that region — except
+    // joint-only regions with no body-map shape (elbow, wrist), which
+    // shouldn't be credited as muscles "worked" by a session.
     for (const region of parseAllRegions(r.description)) {
+      if (!paintsAnyMuscle(region)) continue;
       counts[region] = (counts[region] ?? 0) + 1;
     }
   }
