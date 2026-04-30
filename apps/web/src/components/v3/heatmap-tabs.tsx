@@ -111,29 +111,34 @@ export function HeatmapTabs({
             className="w-full"
           />
           {/* Density legend — relative to this athlete's max in the
-              current view. Discrete circles with an ink outline so the
-              soft palette doesn't blend into the card background.
+              current view. Discrete circles in the saturated brand
+              palette so the colors are legible at this size; the body
+              silhouette itself uses softer tints, but legends
+              conventionally read brighter than the data they describe.
               Tab-aware label so the viewer knows what's being counted. */}
           <div className="flex items-center gap-3 flex-wrap text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
             <span>{tab === 'injury' ? 'Flags' : 'Sessions'}</span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full border" style={{ background: 'var(--paper-2)', borderColor: 'var(--ink)' }} />
+              <span
+                className="size-3.5 rounded-full"
+                style={{ background: 'var(--paper-2)', boxShadow: 'inset 0 0 0 1px var(--border)' }}
+              />
               None
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full border" style={{ background: 'var(--green-soft)', borderColor: 'var(--ink)' }} />
+              <span className="size-3.5 rounded-full" style={{ background: 'var(--green)' }} />
               Low
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full border" style={{ background: '#FFF1D6', borderColor: 'var(--ink)' }} />
+              <span className="size-3.5 rounded-full" style={{ background: '#E0A030' }} />
               Mid
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full border" style={{ background: 'var(--amber-soft)', borderColor: 'var(--ink)' }} />
+              <span className="size-3.5 rounded-full" style={{ background: 'var(--amber)' }} />
               High
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-3.5 rounded-full border" style={{ background: 'var(--red-soft)', borderColor: 'var(--ink)' }} />
+              <span className="size-3.5 rounded-full" style={{ background: 'var(--red)' }} />
               Hot
             </span>
           </div>
