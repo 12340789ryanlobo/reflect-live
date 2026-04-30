@@ -5,9 +5,11 @@
 // one of four anatomical categories:
 //
 // 1. MUSCLE GROUPS — paint a 1:1 or composite slug set:
-//    hand, forearm, bicep, tricep, upper_arm (catch-all = bicep+tricep),
-//    upper_back, mid_back, lower_back, neck, hamstring, quad, calf,
-//    shin, chest, abs, obliques
+//    hand, forearm, bicep, tricep, upper_back, mid_back, lower_back,
+//    neck, hamstring, quad, calf, shin, chest, abs, obliques
+//    (Note: there is no 'upper_arm' canonical region. 'upper arm' /
+//    'arm' phrases expand to bicep + tricep [+ forearm] via group
+//    aliases in injury-aliases.ts.)
 //
 // 2. JOINTS WITH LIBRARY SHAPES — the library renders an actual joint
 //    silhouette, so we paint it directly:
@@ -49,11 +51,9 @@ export function regionToMuscles(region: string, view: View = 'front'): MuscleSlu
     // as elbow: still a valid injury-report region, just doesn't paint.
     case 'wrist':       return [];
     case 'forearm':     return ['forearm'];
-    // upper_arm is the catch-all when the description doesn't specify
-    // which muscle ('arm soreness', 'upper arm pain'). bicep / tricep
-    // are the focused buckets used when the description names the
-    // muscle explicitly (curl → bicep, tricep extension → tricep).
-    case 'upper_arm':   return ['biceps', 'triceps'];
+    // bicep / tricep are the only upper-arm regions. 'upper arm' /
+    // 'arm' phrases are GROUP aliases that expand to bicep + tricep
+    // (+ forearm) — see REGION_GROUP_ALIASES in injury-aliases.ts.
     case 'bicep':       return ['biceps'];
     case 'tricep':      return ['triceps'];
     // Elbow is a JOINT — there's no elbow shape on the silhouette and
@@ -117,7 +117,7 @@ export function regionToMuscle(region: string, view: View = 'front'): MuscleSlug
  */
 const ALL_REGIONS = [
   'hand', 'wrist', 'forearm', 'elbow',
-  'upper_arm', 'bicep', 'tricep', 'shoulder',
+  'bicep', 'tricep', 'shoulder',
   'upper_back', 'mid_back', 'lower_back', 'neck',
   'hip', 'groin', 'hamstring', 'quad', 'knee', 'calf',
   'shin', 'ankle', 'foot', 'achilles', 'chest', 'abs', 'obliques',

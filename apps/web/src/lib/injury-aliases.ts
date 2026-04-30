@@ -6,12 +6,12 @@
 
 export const BODY_REGIONS = [
   'hand', 'wrist', 'forearm', 'elbow',
-  // upper_arm stays for ambiguous "arm pain" / "upper arm soreness"
-  // reports. bicep + tricep are the more specific buckets — the
-  // `react-muscle-highlighter` library has separate slugs for each, so
-  // splitting gives a more accurate heatmap when descriptions name the
-  // specific muscle (curl → bicep, tricep extension → tricep).
-  'upper_arm', 'bicep', 'tricep', 'shoulder',
+  // Upper-arm muscles are tracked as bicep + tricep individually.
+  // We don't carry a separate 'upper_arm' bucket — generic "arm" /
+  // "upper arm" mentions expand to bicep + tricep (+ forearm for the
+  // wider 'arm' group alias) so the side list reads in muscle terms,
+  // not parent-region terms.
+  'bicep', 'tricep', 'shoulder',
   'upper_back', 'mid_back', 'lower_back', 'neck',
   'hip', 'groin', 'hamstring', 'quad', 'knee', 'calf',
   'shin', 'ankle', 'foot', 'achilles', 'chest', 'abs', 'obliques',
@@ -27,9 +27,8 @@ const REGION_ALIASES: Record<string, BodyRegion> = {
   wrists: 'wrist',
   // Forearm
   forearms: 'forearm', 'lower arm': 'forearm',
-  // Upper arm (catch-all when the description doesn't specify front vs back)
-  'upper arm': 'upper_arm', 'upper arms': 'upper_arm',
-  // Specific upper-arm muscles
+  // Upper-arm muscles (specific). 'upper arm' / 'upper arms' are
+  // handled as group aliases below — they expand to bicep + tricep.
   bicep: 'bicep', biceps: 'bicep',
   tricep: 'tricep', triceps: 'tricep',
   // Elbow
@@ -95,11 +94,18 @@ const REGION_ALIASES: Record<string, BodyRegion> = {
 };
 
 const REGION_GROUP_ALIASES: Record<string, BodyRegion[]> = {
-  'entire arm': ['upper_arm', 'elbow', 'forearm'],
-  'full arm': ['upper_arm', 'elbow', 'forearm'],
-  'whole arm': ['upper_arm', 'elbow', 'forearm'],
-  arm: ['upper_arm', 'elbow', 'forearm'],
-  arms: ['upper_arm', 'elbow', 'forearm'],
+  // 'upper arm' is just bicep + tricep — we don't carry a separate
+  // upper_arm bucket. 'arm' adds the forearm. Joint regions (elbow,
+  // wrist) are intentionally excluded from these expansions: they're
+  // tracked when explicitly named, but generic 'arm' references in
+  // workout descriptions shouldn't credit a joint as a 'muscle worked'.
+  'upper arm': ['bicep', 'tricep'],
+  'upper arms': ['bicep', 'tricep'],
+  'entire arm': ['bicep', 'tricep', 'forearm'],
+  'full arm': ['bicep', 'tricep', 'forearm'],
+  'whole arm': ['bicep', 'tricep', 'forearm'],
+  arm: ['bicep', 'tricep', 'forearm'],
+  arms: ['bicep', 'tricep', 'forearm'],
   'entire back': ['upper_back', 'mid_back', 'lower_back'],
   'full back': ['upper_back', 'mid_back', 'lower_back'],
   'whole back': ['upper_back', 'mid_back', 'lower_back'],

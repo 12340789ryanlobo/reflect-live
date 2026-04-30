@@ -40,7 +40,10 @@ describe('parseInjuryRegions', () => {
   });
 
   test('group alias expands to multiple regions', () => {
-    expect(parseInjuryRegions('right arm')).toEqual(['upper_arm', 'elbow', 'forearm']);
+    // 'arm' expands to the upper-arm muscles + forearm. Joint regions
+    // (elbow, wrist) are intentionally excluded — they're tracked when
+    // explicitly named, but generic 'arm' shouldn't credit a joint.
+    expect(parseInjuryRegions('right arm')).toEqual(['bicep', 'tricep', 'forearm']);
     expect(parseInjuryRegions('whole back')).toEqual(['upper_back', 'mid_back', 'lower_back']);
   });
 
