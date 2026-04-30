@@ -161,6 +161,34 @@ export function UnifiedTimeline({ logs, messages, period }: Props) {
         </div>
       </header>
 
+      {/* Color legend — small, subtle, always visible. Helps the
+          eye link the pill colors to what they mean. */}
+      <div
+        className="flex items-center gap-4 flex-wrap px-6 py-2 border-b text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <span className="size-2 rounded-full" style={{ background: 'var(--green)' }} />
+          Workout
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="size-2 rounded-full" style={{ background: 'var(--amber)' }} />
+          Rehab
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="size-2 rounded-full" style={{ background: 'var(--blue)' }} />
+          Survey
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="size-2 rounded-full" style={{ background: 'var(--red)' }} />
+          Flagged (≤ 4 / 10)
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="size-2 rounded-full bg-[color:var(--ink-dim)]" />
+          Chat
+        </span>
+      </div>
+
       {filtered.length === 0 ? (
         <div className="px-6 py-10 text-center">
           <p className="text-[13px] text-[color:var(--ink-mute)]">— no entries in this view —</p>
