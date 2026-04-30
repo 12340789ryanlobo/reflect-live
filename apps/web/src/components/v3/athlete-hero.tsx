@@ -161,7 +161,7 @@ export function AthleteHero({
           <div className="min-w-0">
             <div className="text-[18px] font-bold text-[color:var(--ink)] truncate">{player.name}</div>
             <div className="text-[12px] text-[color:var(--ink-mute)]">
-              {player.group ?? 'No group'} · ID {String(player.id).padStart(4, '0')}
+              {player.group ?? 'No group'}
             </div>
           </div>
         </div>

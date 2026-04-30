@@ -14,7 +14,7 @@ export const BODY_REGIONS = [
   'upper_arm', 'bicep', 'tricep', 'shoulder',
   'upper_back', 'mid_back', 'lower_back', 'neck',
   'hip', 'groin', 'hamstring', 'quad', 'knee', 'calf',
-  'shin', 'ankle', 'foot', 'achilles', 'chest', 'abs',
+  'shin', 'ankle', 'foot', 'achilles', 'chest', 'abs', 'obliques',
 ] as const;
 
 export type BodyRegion = typeof BODY_REGIONS[number];
@@ -86,9 +86,12 @@ const REGION_ALIASES: Record<string, BodyRegion> = {
   // Chest
   pec: 'chest', pecs: 'chest', pectoral: 'chest', pectorals: 'chest',
   sternum: 'chest', rib: 'chest', ribs: 'chest',
-  // Abs
+  // Abs (front core)
   ab: 'abs', abdomen: 'abs', abdominal: 'abs', abdominals: 'abs',
-  core: 'abs', oblique: 'abs', obliques: 'abs', stomach: 'abs',
+  core: 'abs', stomach: 'abs',
+  // Obliques (side core) — own region; library has its own slug.
+  oblique: 'obliques', 'side abs': 'obliques', 'side ab': 'obliques',
+  'love handles': 'obliques',
 };
 
 const REGION_GROUP_ALIASES: Record<string, BodyRegion[]> = {
@@ -166,12 +169,22 @@ const WORKOUT_ALIASES: Record<string, BodyRegion> = {
   jump: 'calf', jumps: 'calf', jumping: 'calf',
   pogo: 'calf', pogos: 'calf',
   'calf raise': 'calf', 'calf raises': 'calf',
-  // Core
+  // Core — front (abs)
   situp: 'abs', situps: 'abs', 'sit up': 'abs', 'sit ups': 'abs',
   'sit-up': 'abs', 'sit-ups': 'abs',
   crunch: 'abs', crunches: 'abs',
   plank: 'abs', planks: 'abs',
   'leg raise': 'abs', 'leg raises': 'abs',
+  // Core — side (obliques). Phrases longer than 'plank' / 'crunch'
+  // win the longest-first sort, so 'side plank' won't ever
+  // misattribute to plain 'plank'.
+  'side plank': 'obliques', 'side planks': 'obliques',
+  'russian twist': 'obliques', 'russian twists': 'obliques',
+  'oblique twist': 'obliques', 'oblique twists': 'obliques',
+  'oblique crunch': 'obliques', 'oblique crunches': 'obliques',
+  'side bend': 'obliques', 'side bends': 'obliques',
+  woodchop: 'obliques', woodchops: 'obliques',
+  woodchopper: 'obliques', woodchoppers: 'obliques',
 };
 
 /**

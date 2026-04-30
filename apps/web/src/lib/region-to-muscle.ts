@@ -65,9 +65,11 @@ export function regionToMuscles(region: string, view: View = 'front'): MuscleSlu
     case 'foot':        return ['feet'];
     case 'achilles':    return ['calves'];      // no achilles slug; nearest
     case 'chest':       return ['chest'];
-    // abs aliases include 'oblique(s)' (see injury-aliases.ts), so abs
-    // counts paint both the abs and obliques shapes on the front.
-    case 'abs':         return view === 'front' ? ['abs', 'obliques'] : ['abs'];
+    // abs is the front core; obliques is its own canonical region now.
+    // The library has separate `abs` and `obliques` slugs and only
+    // renders obliques on the front view.
+    case 'abs':         return ['abs'];
+    case 'obliques':    return view === 'front' ? ['obliques'] : [];
     default:            return [];              // 'other' or unknown
   }
 }
@@ -92,7 +94,7 @@ const ALL_REGIONS = [
   'upper_arm', 'bicep', 'tricep', 'shoulder',
   'upper_back', 'mid_back', 'lower_back', 'neck',
   'hip', 'groin', 'hamstring', 'quad', 'knee', 'calf',
-  'shin', 'ankle', 'foot', 'achilles', 'chest', 'abs',
+  'shin', 'ankle', 'foot', 'achilles', 'chest', 'abs', 'obliques',
 ];
 
 export function muscleToRegions(slug: MuscleSlug): string[] {
