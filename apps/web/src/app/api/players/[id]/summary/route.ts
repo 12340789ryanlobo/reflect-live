@@ -18,6 +18,7 @@ import {
   type ResponseRow,
   type FlagRow,
   type SummaryResult,
+  type Period,
 } from '@/lib/player-summary';
 
 function serviceClient() {
@@ -40,8 +41,14 @@ export async function POST(
   if (!Number.isInteger(playerId)) return NextResponse.json({ error: 'bad_player_id' }, { status: 400 });
 
   const url = new URL(req.url);
-  const daysRaw = Number(url.searchParams.get('days') ?? '14');
-  const days = Number.isInteger(daysRaw) && daysRaw > 0 && daysRaw <= 90 ? daysRaw : 14;
+  const daysParam = url.searchParams.get('days') ?? '14';
+  let days: Period;
+  if (daysParam === 'all') {
+    days = 'all';
+  } else {
+    const n = Number(daysParam);
+    days = Number.isInteger(n) && n > 0 && n <= 365 ? n : 14;
+  }
 
   const sb = serviceClient();
 
@@ -69,21 +76,24 @@ export async function POST(
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  const sinceIso = new Date(Date.now() - days * 86400 * 1000).toISOString();
+  const sinceIso = days === 'all' ? null : new Date(Date.now() - days * 86400 * 1000).toISOString();
+
+  const responseQ = sb
+    .from('responses')
+    .select('session_id, question_id, answer_raw, answer_num, created_at')
+    .eq('player_id', playerId)
+    .order('created_at', { ascending: true })
+    .limit(500);
+  const flagQ = sb
+    .from('flags')
+    .select('flag_type, severity, details, created_at')
+    .eq('player_id', playerId)
+    .order('created_at', { ascending: false })
+    .limit(50);
 
   const [{ data: respRows }, { data: flagRows }] = await Promise.all([
-    sb.from('responses')
-      .select('session_id, question_id, answer_raw, answer_num, created_at')
-      .eq('player_id', playerId)
-      .gte('created_at', sinceIso)
-      .order('created_at', { ascending: true })
-      .limit(500),
-    sb.from('flags')
-      .select('flag_type, severity, details, created_at')
-      .eq('player_id', playerId)
-      .gte('created_at', sinceIso)
-      .order('created_at', { ascending: false })
-      .limit(50),
+    sinceIso ? responseQ.gte('created_at', sinceIso) : responseQ,
+    sinceIso ? flagQ.gte('created_at', sinceIso) : flagQ,
   ]);
 
   const responses = (respRows ?? []) as ResponseRow[];

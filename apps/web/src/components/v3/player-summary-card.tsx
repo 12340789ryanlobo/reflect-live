@@ -23,10 +23,16 @@ interface Props {
   playerId: number;
 }
 
-const DAYS_OPTIONS = [7, 14, 30] as const;
+type Period = 7 | 14 | 30 | 'all';
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: 7, label: '7d' },
+  { value: 14, label: '14d' },
+  { value: 30, label: '30d' },
+  { value: 'all', label: 'All' },
+];
 
 export function PlayerSummaryCard({ playerId }: Props) {
-  const [days, setDays] = useState<7 | 14 | 30>(14);
+  const [days, setDays] = useState<Period>(14);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SummaryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,19 +72,19 @@ export function PlayerSummaryCard({ playerId }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-md border" style={{ borderColor: 'var(--border)' }}>
-            {DAYS_OPTIONS.map((d) => (
+            {PERIOD_OPTIONS.map((opt) => (
               <button
-                key={d}
+                key={String(opt.value)}
                 type="button"
-                onClick={() => setDays(d)}
+                onClick={() => setDays(opt.value)}
                 className={`px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition ${
-                  days === d
+                  days === opt.value
                     ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
                     : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]'
                 }`}
                 disabled={loading}
               >
-                {d}d
+                {opt.label}
               </button>
             ))}
           </div>
@@ -91,7 +97,8 @@ export function PlayerSummaryCard({ playerId }: Props) {
       <div className="px-6 py-5">
         {!result && !loading && !error && (
           <p className="text-[13px] text-[color:var(--ink-mute)]">
-            Click <span className="font-semibold">Generate</span> for a data-driven readout of the last {days} days.
+            Click <span className="font-semibold">Generate</span> for a data-driven readout
+            {days === 'all' ? ' across all recorded check-ins' : ` of the last ${days} days`}.
             Numbers and flags only — no fluff.
           </p>
         )}

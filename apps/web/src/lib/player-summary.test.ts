@@ -99,4 +99,29 @@ describe('generateCacheKey', () => {
     expect(generateCacheKey(42, 7, 'abc')).not.toBe(base);
     expect(generateCacheKey(42, 14, 'xyz')).not.toBe(base);
   });
+
+  it('treats "all" as a distinct period from any number', () => {
+    const seven = generateCacheKey(42, 7, 'abc');
+    const all = generateCacheKey(42, 'all', 'abc');
+    expect(all).toMatch(/^[a-f0-9]{32}$/);
+    expect(all).not.toBe(seven);
+  });
+});
+
+describe('rulesBasedSummary with "all" period', () => {
+  it('phrases the empty-data summary without a "last N days" clause', () => {
+    const s = rulesBasedSummary({ playerName: 'Eve', responses: [], flags: [], days: 'all' });
+    expect(s.summary).toMatch(/across all recorded check-ins/i);
+    expect(s.summary).not.toMatch(/last \d+ days/i);
+  });
+
+  it('phrases a non-empty summary using all-time language', () => {
+    const responses = [
+      r({ session_id: 1, answer_num: 7 }),
+      r({ session_id: 2, answer_num: 8 }),
+      r({ session_id: 3, answer_num: 6 }),
+    ];
+    const s = rulesBasedSummary({ playerName: 'Frank', responses, flags: [], days: 'all' });
+    expect(s.summary).toMatch(/across all recorded check-ins/i);
+  });
 });

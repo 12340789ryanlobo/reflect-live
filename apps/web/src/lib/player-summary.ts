@@ -37,8 +37,22 @@ export interface SummaryResult {
   error?: string;
 }
 
-export function generateCacheKey(playerId: number, days: number, dataHash: string): string {
-  const raw = `player:${playerId}:days:${days}:data:${dataHash}`;
+export type Period = number | 'all';
+
+function periodKey(p: Period): string {
+  return p === 'all' ? 'all' : String(p);
+}
+
+function periodLabel(p: Period): string {
+  return p === 'all' ? 'All-time' : `Last ${p} days`;
+}
+
+function periodPhrase(p: Period): string {
+  return p === 'all' ? 'across all recorded check-ins' : `in the last ${p} days`;
+}
+
+export function generateCacheKey(playerId: number, days: Period, dataHash: string): string {
+  const raw = `player:${playerId}:days:${periodKey(days)}:data:${dataHash}`;
   return createHash('sha256').update(raw).digest('hex').slice(0, 32);
 }
 
@@ -63,7 +77,7 @@ function buildPrompt(args: {
   playerName: string;
   responses: ResponseRow[];
   flags: FlagRow[];
-  days: number;
+  days: Period;
 }): string {
   const { playerName, responses, flags, days } = args;
 
@@ -85,7 +99,7 @@ function buildPrompt(args: {
 
   const dataSummary = `
 Player: ${playerName}
-Period: Last ${days} days
+Period: ${periodLabel(days)}
 Total Responses: ${sessionCount} sessions
 
 Readiness scores (1-10): ${readiness.length ? JSON.stringify(readiness.slice(-10)) : 'No data'}
@@ -143,7 +157,7 @@ export function rulesBasedSummary(args: {
   playerName: string;
   responses: ResponseRow[];
   flags: FlagRow[];
-  days: number;
+  days: Period;
 }): SummaryResult {
   const { playerName, responses, flags, days } = args;
 
@@ -164,11 +178,11 @@ export function rulesBasedSummary(args: {
   const recommendations: string[] = [];
 
   if (sessions === 0) {
-    summary = `No check-in data available for ${playerName} in the last ${days} days.`;
+    summary = `No check-in data available for ${playerName} ${periodPhrase(days)}.`;
     observations.push('No recent responses recorded');
     recommendations.push('Consider following up to ensure player is completing check-ins');
   } else {
-    const parts = [`${playerName} completed ${sessions} check-in(s) in the last ${days} days.`];
+    const parts = [`${playerName} completed ${sessions} check-in(s) ${periodPhrase(days)}.`];
     if (avgReadiness != null) parts.push(`Average readiness: ${avgReadiness.toFixed(1)}/10.`);
     if (injuries > 0) parts.push(`Reported ${injuries} injury concern(s).`);
     summary = parts.join(' ');
@@ -203,7 +217,7 @@ export async function generatePlayerSummary(args: {
   playerName: string;
   responses: ResponseRow[];
   flags: FlagRow[];
-  days: number;
+  days: Period;
 }): Promise<SummaryResult> {
   const cfg = getLlmConfig();
   if (!cfg.enabled || !cfg.apiKey) return rulesBasedSummary(args);
