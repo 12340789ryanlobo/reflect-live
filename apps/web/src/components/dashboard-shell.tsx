@@ -175,10 +175,22 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         return;
       }
       // Athletes are locked to their own surfaces — anything else bounces
-      // to /dashboard/athlete. (Security fix from A1.)
+      // to their canonical player page (security fix from A1).
+      // Canonical landing for an athlete is /dashboard/players/[their-id]
+      // when impersonate is set; otherwise the /dashboard/athlete picker
+      // handles the admin-debug case.
       if (role === 'athlete' && !isAthletePath && !isSettings) {
-        router.replace('/dashboard/athlete');
-        return;
+        const ownPlayerPath = result.prefs?.impersonate_player_id
+          ? `/dashboard/players/${result.prefs.impersonate_player_id}`
+          : null;
+        // Allow staying when they're already on their own canonical URL —
+        // without this guard, /dashboard/athlete redirects to
+        // /dashboard/players/[id], dashboard-shell bounces back to
+        // /dashboard/athlete, and the two pages ping-pong forever.
+        if (!(ownPlayerPath && pathname === ownPlayerPath)) {
+          router.replace(ownPlayerPath ?? '/dashboard/athlete');
+          return;
+        }
       }
       // Captains land on /dashboard/captain when they hit the coach root,
       // but their sidebar entries (live, heatmap, events, requests, etc.)
