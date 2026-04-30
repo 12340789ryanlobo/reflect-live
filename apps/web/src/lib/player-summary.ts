@@ -10,6 +10,9 @@
 
 import { createHash } from 'node:crypto';
 import { callJsonPrompt, getLlmConfig } from './llm-client';
+import { periodKey, periodLabel, periodPhrase, type Period } from './period';
+
+export type { Period };
 
 export interface ResponseRow {
   session_id: number;
@@ -35,20 +38,6 @@ export interface SummaryResult {
   confidence: 'low' | 'medium' | 'high';
   from_cache: boolean;
   error?: string;
-}
-
-export type Period = number | 'all';
-
-function periodKey(p: Period): string {
-  return p === 'all' ? 'all' : String(p);
-}
-
-function periodLabel(p: Period): string {
-  return p === 'all' ? 'All-time' : `Last ${p} days`;
-}
-
-function periodPhrase(p: Period): string {
-  return p === 'all' ? 'across all recorded check-ins' : `in the last ${p} days`;
 }
 
 export function generateCacheKey(playerId: number, days: Period, dataHash: string): string {
@@ -178,7 +167,10 @@ export function rulesBasedSummary(args: {
   const recommendations: string[] = [];
 
   if (sessions === 0) {
-    summary = `No check-in data available for ${playerName} ${periodPhrase(days)}.`;
+    summary =
+      days === 'all'
+        ? `No check-in data on record for ${playerName}.`
+        : `No check-in data available for ${playerName} ${periodPhrase(days)}.`;
     observations.push('No recent responses recorded');
     recommendations.push('Consider following up to ensure player is completing check-ins');
   } else {

@@ -111,7 +111,7 @@ describe('generateCacheKey', () => {
 describe('rulesBasedSummary with "all" period', () => {
   it('phrases the empty-data summary without a "last N days" clause', () => {
     const s = rulesBasedSummary({ playerName: 'Eve', responses: [], flags: [], days: 'all' });
-    expect(s.summary).toMatch(/across all recorded check-ins/i);
+    expect(s.summary).toMatch(/no check-in data on record/i);
     expect(s.summary).not.toMatch(/last \d+ days/i);
   });
 
@@ -122,6 +122,6 @@ describe('rulesBasedSummary with "all" period', () => {
       r({ session_id: 3, answer_num: 6 }),
     ];
     const s = rulesBasedSummary({ playerName: 'Frank', responses, flags: [], days: 'all' });
-    expect(s.summary).toMatch(/across all recorded check-ins/i);
+    expect(s.summary).toMatch(/across all recorded data/i);
   });
 });

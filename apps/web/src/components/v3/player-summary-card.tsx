@@ -6,6 +6,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Pill } from '@/components/v3/pill';
+import { PeriodToggle } from '@/components/v3/period-toggle';
+import { periodKey, type Period } from '@/lib/period';
 import { Sparkles } from 'lucide-react';
 
 interface SummaryResult {
@@ -23,14 +25,6 @@ interface Props {
   playerId: number;
 }
 
-type Period = 7 | 14 | 30 | 'all';
-const PERIOD_OPTIONS: { value: Period; label: string }[] = [
-  { value: 7, label: '7d' },
-  { value: 14, label: '14d' },
-  { value: 30, label: '30d' },
-  { value: 'all', label: 'All' },
-];
-
 export function PlayerSummaryCard({ playerId }: Props) {
   const [days, setDays] = useState<Period>(14);
   const [loading, setLoading] = useState(false);
@@ -41,7 +35,7 @@ export function PlayerSummaryCard({ playerId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`/api/players/${playerId}/summary?days=${days}`, { method: 'POST' });
+      const r = await fetch(`/api/players/${playerId}/summary?days=${periodKey(days)}`, { method: 'POST' });
       if (!r.ok) {
         setError(`Request failed (${r.status}). Try again or contact admin.`);
         setResult(null);
@@ -71,23 +65,7 @@ export function PlayerSummaryCard({ playerId }: Props) {
           <h2 className="text-base font-bold text-[color:var(--ink)]">AI summary</h2>
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-md border" style={{ borderColor: 'var(--border)' }}>
-            {PERIOD_OPTIONS.map((opt) => (
-              <button
-                key={String(opt.value)}
-                type="button"
-                onClick={() => setDays(opt.value)}
-                className={`px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition ${
-                  days === opt.value
-                    ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
-                    : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]'
-                }`}
-                disabled={loading}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <PeriodToggle value={days} onChange={setDays} disabled={loading} />
           <Button size="sm" onClick={generate} disabled={loading} className="font-bold">
             {loading ? 'Generating…' : result ? 'Regenerate' : 'Generate'}
           </Button>

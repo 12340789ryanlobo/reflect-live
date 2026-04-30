@@ -18,8 +18,8 @@ import {
   type ResponseRow,
   type FlagRow,
   type SummaryResult,
-  type Period,
 } from '@/lib/player-summary';
+import { parsePeriod, periodSinceIso } from '@/lib/period';
 
 function serviceClient() {
   return createClient(
@@ -41,14 +41,7 @@ export async function POST(
   if (!Number.isInteger(playerId)) return NextResponse.json({ error: 'bad_player_id' }, { status: 400 });
 
   const url = new URL(req.url);
-  const daysParam = url.searchParams.get('days') ?? '14';
-  let days: Period;
-  if (daysParam === 'all') {
-    days = 'all';
-  } else {
-    const n = Number(daysParam);
-    days = Number.isInteger(n) && n > 0 && n <= 365 ? n : 14;
-  }
+  const days = parsePeriod(url.searchParams.get('days'));
 
   const sb = serviceClient();
 
@@ -76,7 +69,7 @@ export async function POST(
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  const sinceIso = days === 'all' ? null : new Date(Date.now() - days * 86400 * 1000).toISOString();
+  const sinceIso = periodSinceIso(days);
 
   const responseQ = sb
     .from('responses')
