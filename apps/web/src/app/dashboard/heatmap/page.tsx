@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
-import { BodyHeatmap } from '@/components/v3/body-heatmap';
+import { HeatmapTabs, type InjurySideRow } from '@/components/v3/heatmap-tabs';
 import { Pill } from '@/components/v3/pill';
-import { regionLabel } from '@/lib/injury-aliases';
+import { parseAllRegions, regionLabel } from '@/lib/injury-aliases';
+import { regionToMuscles } from '@/lib/region-to-muscle';
+import type { ActivityLog } from '@reflect-live/shared';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -35,11 +37,31 @@ interface InjuryRow {
 
 interface PlayerLite { id: number; name: string }
 
+// Joints with no body-map shape shouldn't be credited as 'muscles
+// worked' on the activity / rehab tabs (same logic as the player page).
+function paintsAnyMuscle(region: string): boolean {
+  return regionToMuscles(region, 'front').length > 0
+    || regionToMuscles(region, 'back').length > 0;
+}
+
+function aggregateActivityCounts(logs: ActivityLog[], kind: 'workout' | 'rehab'): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const r of logs) {
+    if (r.kind !== kind || r.hidden) continue;
+    for (const region of parseAllRegions(r.description)) {
+      if (!paintsAnyMuscle(region)) continue;
+      counts[region] = (counts[region] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
 export default function HeatmapPage() {
   const { prefs, team, role } = useDashboard();
   const sb = useSupabase();
   const [days, setDays] = useState(90);
   const [reports, setReports] = useState<InjuryRow[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [players, setPlayers] = useState<PlayerLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
@@ -55,7 +77,7 @@ export default function HeatmapPage() {
   async function refresh() {
     setLoading(true);
     const lower = days === 0 ? new Date(0).toISOString() : new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
-    const [{ data: rpts }, { data: ps }] = await Promise.all([
+    const [{ data: rpts }, { data: ps }, { data: logs }] = await Promise.all([
       sb.from('injury_reports')
         .select('*, player:players(name, group)')
         .eq('team_id', prefs.team_id)
@@ -63,9 +85,17 @@ export default function HeatmapPage() {
         .order('reported_at', { ascending: false })
         .limit(500),
       sb.from('players').select('id,name').eq('team_id', prefs.team_id).eq('active', true).order('name'),
+      // Team-wide activity logs feed the activity + rehab heatmap tabs.
+      sb.from('activity_logs')
+        .select('*')
+        .eq('team_id', prefs.team_id)
+        .gte('logged_at', lower)
+        .order('logged_at', { ascending: false })
+        .limit(2000),
     ]);
     setReports((rpts ?? []) as InjuryRow[]);
     setPlayers((ps ?? []) as PlayerLite[]);
+    setActivityLogs((logs ?? []) as ActivityLog[]);
     setLoading(false);
   }
 
@@ -74,7 +104,7 @@ export default function HeatmapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sb, prefs.team_id, days]);
 
-  const counts: Record<string, number> = useMemo(() => {
+  const injuryCounts: Record<string, number> = useMemo(() => {
     const c: Record<string, number> = {};
     for (const r of reports) {
       if (r.resolved_at) continue;
@@ -82,6 +112,34 @@ export default function HeatmapPage() {
     }
     return c;
   }, [reports]);
+
+  const activityCounts = useMemo(
+    () => aggregateActivityCounts(activityLogs, 'workout'),
+    [activityLogs],
+  );
+  const rehabCounts = useMemo(
+    () => aggregateActivityCounts(activityLogs, 'rehab'),
+    [activityLogs],
+  );
+
+  // Side-list rows for the injury tab inside HeatmapTabs (separate from
+  // the detailed reports list further down the page — that one carries
+  // player names and resolve actions which the side panel doesn't).
+  const injurySideRows = useMemo<InjurySideRow[]>(
+    () =>
+      reports
+        .filter((r) => !r.resolved_at)
+        .map((r) => ({
+          id: r.id,
+          regions: r.regions,
+          severity: r.severity,
+          description: r.player?.name
+            ? `${r.player.name} — ${r.description}`
+            : r.description,
+          reportedAt: r.reported_at,
+        })),
+    [reports],
+  );
 
   const activeReports = reports.filter((r) => !r.resolved_at);
   const filtered = selectedRegions.length
@@ -206,39 +264,28 @@ export default function HeatmapPage() {
       />
 
       <main className="px-6 pb-12 pt-4 space-y-6">
-        <section className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-6">
-          {/* Heatmap */}
-          <div className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-[color:var(--ink)]">Active injuries</h2>
-              {selectedRegions.length > 0 && (
-                <button
-                  className="text-[12px] text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]"
-                  onClick={() => setSelectedRegions([])}
-                >clear</button>
-              )}
-            </div>
-            <BodyHeatmap
-              counts={counts}
-              gender={team.default_gender ?? 'male'}
-              selectedRegions={selectedRegions}
-              onMuscleClick={setSelectedRegions}
-              scale={0.9}
-              className="w-full"
-            />
-            <p className="mt-3 text-[11px] italic text-[color:var(--ink-mute)] text-center">
-              Body chart shows the nearest muscle group. The list at right has the exact reported region.
-            </p>
-            <div className="mt-3 flex items-center justify-center gap-2 text-[11.5px] text-[color:var(--ink-mute)]">
-              <span>cool</span>
-              {['#DCEAF5', '#C2E8DD', '#F4D8A6', '#E89B6F', '#D85447'].map((c) => (
-                <span key={c} className="inline-block size-3.5 rounded-sm" style={{ background: c }} />
-              ))}
-              <span>hot</span>
-            </div>
-          </div>
+        {/* Tabbed body map — Injury / Activity / Rehab. Same component
+            as the player page, fed with team-wide aggregates. Click a
+            muscle to filter the detailed reports list below by region. */}
+        <HeatmapTabs
+          injuryCounts={injuryCounts}
+          activityCounts={activityCounts}
+          rehabCounts={rehabCounts}
+          injuryRows={injurySideRows}
+          gender={team.default_gender ?? 'male'}
+          selectedRegions={selectedRegions}
+          onMuscleClick={(regions) => {
+            const next = Array.from(new Set(regions)).sort();
+            const same =
+              selectedRegions.length === next.length &&
+              selectedRegions.every((r, i) => r === next[i]);
+            setSelectedRegions(same ? [] : next);
+          }}
+        />
 
-          {/* Detail list */}
+        <section>
+          {/* Detail list — separate from the HeatmapTabs side panel
+              because this one carries player names + resolve actions. */}
           <div className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
             <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold text-[color:var(--ink)]">

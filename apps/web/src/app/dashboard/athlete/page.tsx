@@ -43,17 +43,7 @@ function clockHM(ts: string): string {
 export default function AthletePage() {
   const { prefs, team, refresh } = useDashboard();
   const router = useRouter();
-
-  // Canonical URL for an athlete viewing their own data is
-  // /dashboard/players/[their-player-id]. Redirect there as soon as we
-  // know which player they are. Admins without an impersonation set fall
-  // through to the picker below.
-  useEffect(() => {
-    if (prefs.impersonate_player_id) {
-      router.replace(`/dashboard/players/${prefs.impersonate_player_id}`);
-    }
-  }, [prefs.impersonate_player_id, router]);
-
+  const redirectingPlayerId = prefs.impersonate_player_id;
   const sb = useSupabase();
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [me, setMe] = useState<Player | null>(null);
@@ -64,7 +54,21 @@ export default function AthletePage() {
   const [weekRank, setWeekRank] = useState<number | null>(null);
   const [allTimeRank, setAllTimeRank] = useState<number | null>(null);
 
+  // Canonical URL for an athlete viewing their own data is
+  // /dashboard/players/[their-player-id]. Redirect there as soon as we
+  // know which player they are. Admins without an impersonation set
+  // fall through to the picker further down (the early-return splash
+  // before the main render block stops the old simulator UI from
+  // flashing while the navigation is in flight).
   useEffect(() => {
+    if (redirectingPlayerId) {
+      router.replace(`/dashboard/players/${redirectingPlayerId}`);
+    }
+  }, [redirectingPlayerId, router]);
+
+  useEffect(() => {
+    // Skip data load when we're redirecting away.
+    if (redirectingPlayerId) return;
     (async () => {
       const { data: players } = await sb
         .from('players')
@@ -80,7 +84,7 @@ export default function AthletePage() {
         setMe(null);
       }
     })();
-  }, [sb, prefs.team_id, prefs.impersonate_player_id]);
+  }, [sb, prefs.team_id, prefs.impersonate_player_id, redirectingPlayerId]);
 
   useEffect(() => {
     if (!me) return;
@@ -166,6 +170,18 @@ export default function AthletePage() {
   }, [msgs]);
 
   const daysShort = days === 7 ? '7d' : days === 30 ? '30d' : days === 90 ? '90d' : `${days}d`;
+
+  // Redirecting splash. Without this, the old picker / simulator UI
+  // flashes for a frame before router.replace lands on
+  // /dashboard/players/[id], which made the redesigned C1 page look
+  // like 'the old view' to the user.
+  if (redirectingPlayerId) {
+    return (
+      <main className="flex flex-1 items-center justify-center px-6 py-12">
+        <p className="text-[13px] text-[color:var(--ink-mute)]">— opening your dashboard —</p>
+      </main>
+    );
+  }
 
   // Picker mode
   if (!me) {
