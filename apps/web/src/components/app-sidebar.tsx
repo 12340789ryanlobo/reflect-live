@@ -207,7 +207,7 @@ export function AppSidebar({
   hasLinkedAthlete,
   captainCanViewSessions = false,
   pendingRequestCount = 0,
-  athleteOwnPlayerId = null,
+  ownPlayerId = null,
 }: {
   role: UserRole;
   teamName?: string;
@@ -216,10 +216,11 @@ export function AppSidebar({
   hasLinkedAthlete?: boolean;
   captainCanViewSessions?: boolean;
   pendingRequestCount?: number;
-  /** When this user is an athlete linked to a roster player, the
-   *  'My view' nav entry rewrites to that canonical /dashboard/players
-   *  URL so the longest-prefix highlighter recognises the active page. */
-  athleteOwnPlayerId?: number | null;
+  /** When this user is linked to a roster player (athlete OR captain
+   *  who's also on the roster), 'My view' rewrites to that canonical
+   *  /dashboard/players/[id] URL so the longest-prefix highlighter
+   *  recognises the active page. */
+  ownPlayerId?: number | null;
 }) {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
@@ -249,16 +250,21 @@ export function AppSidebar({
   }
   if (role === 'athlete') {
     const items = ATHLETE_NAV_BASE.map((i) =>
-      i.href === '/dashboard/athlete' && athleteOwnPlayerId
-        ? { ...i, href: `/dashboard/players/${athleteOwnPlayerId}` }
+      i.href === '/dashboard/athlete' && ownPlayerId
+        ? { ...i, href: `/dashboard/players/${ownPlayerId}` }
         : i,
     );
     groups.push({ label: 'Your view', items });
   }
   if (hasLinkedAthlete && role !== 'athlete') {
+    // Captains and coaches who are also on the roster get an 'Also you'
+    // shortcut to their own player page. Use the canonical URL when we
+    // have ownPlayerId so the longest-prefix highlighter activates the
+    // entry when the user is on their own /dashboard/players/[id] page.
+    const myViewHref = ownPlayerId ? `/dashboard/players/${ownPlayerId}` : '/dashboard/athlete';
     groups.push({
       label: 'Also you',
-      items: [{ href: '/dashboard/athlete', label: 'My view', icon: UserIcon }],
+      items: [{ href: myViewHref, label: 'My view', icon: UserIcon }],
     });
   }
   if (role === 'admin') groups.push({ label: 'Administration', items: ADMIN_NAV });

@@ -313,7 +313,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           hasLinkedAthlete={Boolean(prefs.impersonate_player_id)}
           captainCanViewSessions={team.captain_can_view_sessions === true}
           pendingRequestCount={pendingRequestCount}
-          athleteOwnPlayerId={role === 'athlete' ? prefs.impersonate_player_id ?? null : null}
+          ownPlayerId={prefs.impersonate_player_id ?? null}
         />
         <SidebarInset>
           {pendingMems.length > 0 && (

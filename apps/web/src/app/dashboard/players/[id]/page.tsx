@@ -219,9 +219,13 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     );
   }
 
-  // Athletes get self-affordances when viewing themselves; coaches/captains/admins always get coach-affordances.
+  // Anyone (athlete, captain, or coach who's also on the roster) viewing
+  // their OWN player page gets the self affordances — Self-report / Log
+  // workout / Report injury — instead of the manage-someone-else set.
+  // Texting yourself or marking your own injury 'resolved' from the coach
+  // panel makes no sense; this is your personal page. Platform admins are
+  // excluded so they keep the cross-team manager affordances.
   const viewerIsSelf =
-    prefs.role === 'athlete' &&
     !prefs.is_platform_admin &&
     prefs.impersonate_player_id === player.id;
   // Phone is always visible: when viewer is the athlete it's their own
