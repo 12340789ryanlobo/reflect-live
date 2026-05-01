@@ -35,11 +35,17 @@ export interface TimelineEntry {
    *  activity_logs.media_sids by the worker so logs have direct
    *  access without a JOIN). */
   mediaSids: string[] | null;
-  /** For inbound survey replies: the question that was sent
-   *  immediately before this reply (most recent outbound to the
-   *  same player within a 24h window). Lets the timeline render
-   *  the row as 'Q: How ready? / A: 10' rather than just '10'. */
+  /** For inbound replies: the question this is answering (most
+   *  recent outbound message to the same player, within 24h, that
+   *  looks like a question). Pairing covers numeric AND text
+   *  replies — anything that came back to a system question. */
   pairedQuestion: string | null;
+  /** True when this entry is an OUTBOUND question that got paired
+   *  with a later inbound reply. The reply renders the question
+   *  inline (Q: ...), so the standalone outbound row is hidden to
+   *  avoid duplication. Outbound questions with no reply yet stay
+   *  visible. */
+  pairedWithReply: boolean;
   /** Per-source extras for the row renderer. */
   meta:
     | { source: 'log'; logId: number }
@@ -80,6 +86,7 @@ function logToEntry(l: ActivityLog): TimelineEntry {
     messageSid: l.source_sid ?? null,
     mediaSids: l.media_sids ?? null,
     pairedQuestion: null,
+    pairedWithReply: false,
     meta: { source: 'log', logId: l.id },
   };
 }
@@ -104,25 +111,49 @@ function msgToEntry(m: TwilioMessage): TimelineEntry {
     messageSid: m.sid,
     mediaSids: m.media_sids ?? null,
     pairedQuestion: null,
+    pairedWithReply: false,
     meta: { source: 'msg', sid: m.sid, direction: m.direction },
   };
 }
 
 const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-// Pair each inbound survey reply with the most recent outbound message
-// to the same player within PAIR_WINDOW_MS. Survey questions arrive as
-// outbound system SMS and replies arrive as inbound — the most-recent-
-// outbound-before-inbound is reliably the question being answered, even
-// without a formal sessions/responses linkage. Mutates entries in place.
-function attachSurveyQuestions(
+// Heuristic: does this outbound message look like a question worth
+// pairing with a subsequent reply? Trailing '?' is the strongest
+// signal; survey scaffolding ('reply', 'enter 0', '1-10', '(1=…, 10=…)')
+// catches the variants where the question ends in a directive instead
+// of a question mark. Casual outbound statements ('hit the pool!')
+// don't pair — they aren't answering anything.
+function looksLikeQuestion(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (t.endsWith('?')) return true;
+  if (/\breply\b/i.test(t)) return true;
+  if (/\benter\s+\d/i.test(t)) return true;
+  if (/1\s*[-–]\s*10\b/i.test(t)) return true;
+  if (/\(\s*\d+\s*=\s*\w+\s*,\s*\d+\s*=\s*\w+\s*\)/i.test(t)) return true;
+  if (/\bprovide\s+your\b/i.test(t)) return true;
+  return false;
+}
+
+// Pair each inbound reply with the most recent outbound *question* to
+// the same player within PAIR_WINDOW_MS. Covers numeric AND text
+// replies — any answer to a system question. Mutates entries in place:
+//   - inbound entries get pairedQuestion set
+//   - the outbound question entry gets pairedWithReply=true so it's
+//     hidden from rendering (its content shows inline with the answer)
+//
+// Outbound questions with no reply yet stay visible so coaches can see
+// what's pending. Casual outbound statements never pair.
+function attachQuestionPairings(
   entries: TimelineEntry[],
   msgs: TwilioMessage[],
 ): void {
-  // Index outbound messages by player_id, sorted asc by date_sent.
+  // Index outbound questions by player_id, sorted asc by date_sent.
   const outboundByPlayer = new Map<number, TwilioMessage[]>();
   for (const m of msgs) {
     if (m.direction !== 'outbound' || m.player_id == null || !m.body) continue;
+    if (!looksLikeQuestion(m.body)) continue;
     const arr = outboundByPlayer.get(m.player_id) ?? [];
     arr.push(m);
     outboundByPlayer.set(m.player_id, arr);
@@ -130,10 +161,11 @@ function attachSurveyQuestions(
   for (const arr of outboundByPlayer.values()) {
     arr.sort((a, b) => a.date_sent.localeCompare(b.date_sent));
   }
-  // For each inbound survey reply, walk back through that player's
-  // outbounds to find the most recent question within the window.
+
+  // Track which outbound SIDs got paired so the standalone row hides.
+  const pairedOutboundSids = new Set<string>();
+
   for (const e of entries) {
-    if (e.kind !== 'survey') continue;
     if (e.meta.source !== 'msg' || e.meta.direction !== 'inbound') continue;
     const sid = e.meta.sid;
     const orig = msgs.find((m) => m.sid === sid);
@@ -141,16 +173,23 @@ function attachSurveyQuestions(
     const candidates = outboundByPlayer.get(orig.player_id);
     if (!candidates) continue;
     const replyTs = new Date(e.ts).getTime();
-    let best: TwilioMessage | null = null;
     for (let i = candidates.length - 1; i >= 0; i--) {
       const c = candidates[i];
       const cTs = new Date(c.date_sent).getTime();
-      if (cTs >= replyTs) continue; // must be before
-      if (replyTs - cTs > PAIR_WINDOW_MS) break; // too old, stop walking
-      best = c;
+      if (cTs >= replyTs) continue;
+      if (replyTs - cTs > PAIR_WINDOW_MS) break;
+      e.pairedQuestion = c.body!.trim();
+      pairedOutboundSids.add(c.sid);
       break;
     }
-    if (best?.body) e.pairedQuestion = best.body.trim();
+  }
+
+  // Mark paired outbound question entries as hidden.
+  for (const e of entries) {
+    if (e.meta.source !== 'msg' || e.meta.direction !== 'outbound') continue;
+    if (pairedOutboundSids.has(e.meta.sid)) {
+      e.pairedWithReply = true;
+    }
   }
 }
 
@@ -199,6 +238,6 @@ export function buildTimeline(
   }
 
   entries.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
-  attachSurveyQuestions(entries, msgs);
+  attachQuestionPairings(entries, msgs);
   return entries;
 }

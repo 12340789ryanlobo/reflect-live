@@ -20,13 +20,22 @@ import { prettyDateTime, relativeTime } from '@/lib/format';
 
 // Survey replies span multiple questions — readiness 1-10, energy
 // 1-10, effort 1-10, injury yes/no, focus area free-text, etc. We
-// can't assume a bare digit is the readiness score (it might be
-// effort, team energy, anything). All we know is "this is a survey
-// reply"; let the body speak for itself. For bare-number replies,
-// we visually pad them so a stranded "10" reads as an intentional
-// answer rather than a typo.
-function isBareNumericReply(body: string): boolean {
-  return /^\d{1,2}\s*$/.test(body.trim());
+// can't assume a bare digit means readiness. But ANY 1-10 numeric
+// reply is best surfaced as a colored score pill rather than a
+// stranded number in the body — color encodes urgency without
+// claiming to know the question.
+function bareScore(body: string): number | null {
+  const m = /^\s*(\d{1,2})\s*$/.exec(body);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n < 1 || n > 10) return null;
+  return n;
+}
+
+function scoreTone(n: number): 'red' | 'amber' | 'green' {
+  if (n <= 4) return 'red';
+  if (n <= 6) return 'amber';
+  return 'green';
 }
 
 type Chip = 'important' | 'all' | 'activity' | 'messages' | 'survey';
@@ -54,12 +63,17 @@ const CHIPS: Array<{ key: Chip; label: string }> = [
 ];
 
 // Body-content patterns that match worker-generated SMS scaffolding
-// (verification codes, onboarding templates, survey-question prompts,
-// account-setup links, auto-replies). Hidden from the "Important" view
-// because they're not athlete signal.
+// (verification codes, onboarding templates, account-setup links,
+// auto-replies). Hidden from the "Important" view because they're
+// not athlete signal.
 //
-// Bias: keep each pattern narrow. False positives here hide real
-// messages. If a pattern starts catching legit chat, narrow it.
+// NOTE: survey-question patterns used to live here too, but the
+// pairing logic in lib/timeline.ts now hides outbound questions
+// when they get paired with a reply. Unpaired questions (no answer
+// yet) stay visible so coaches can see what's pending — that's
+// useful signal, not noise. Don't add question patterns back here.
+//
+// Bias: keep each pattern narrow. False positives hide real messages.
 const NOISE_BODY_PATTERNS: RegExp[] = [
   // Clerk OTP / 2FA codes
   /verification code/i,
@@ -74,12 +88,6 @@ const NOISE_BODY_PATTERNS: RegExp[] = [
   /setup-password\?token=/i,
   // Auto thank-you replies the worker sends after a check-in
   /^thanks for checking in/i,
-  // Survey-question prompts — recognised by the "Reply: 0 = no, 1 = yes"
-  // / "Reply 1-10" / "(1 = very poorly, 10 = very well)" instruction tail.
-  /\breply\s*[:\-]?\s*(?:0\s*=|1\s*=|1\s*[-–]\s*10)/i,
-  /\(\s*\d+\s*=\s*\w+\s*,\s*\d+\s*=\s*\w+\s*\)/i,
-  // Body-readiness ask
-  /provide your body readiness score/i,
 ];
 
 // Bare-probe replies (single-word chat that's almost always noise).
@@ -95,15 +103,14 @@ function isNoise(e: TimelineEntry): boolean {
   return false;
 }
 
-// A survey row is "flagged" if the body starts with a small number — the
-// athlete reported a low readiness reading. Drives the red side-stripe so
-// these jump out of the feed.
-function flaggedReadiness(e: TimelineEntry): number | null {
+// A survey-numeric row is "flagged" if the score is 1-4 (low). Drives
+// the red side-stripe so these jump out of the feed regardless of
+// which scaled question they're answering — low effort, low energy,
+// and low readiness all warrant the coach's attention.
+function flaggedScore(e: TimelineEntry): number | null {
   if (e.kind !== 'survey') return null;
-  const m = /^(\d{1,2})/.exec(e.body.trim());
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) && n >= 1 && n <= 4 ? n : null;
+  const n = bareScore(e.body);
+  return n != null && n <= 4 ? n : null;
 }
 
 const KIND_TONE: Record<TimelineKind, 'green' | 'amber' | 'blue' | 'mute'> = {
@@ -152,6 +159,12 @@ export function UnifiedTimeline({
   const filtered = useMemo(
     () =>
       all.filter((e) => {
+        // Outbound questions that got paired with an inbound reply
+        // are rendered inline with the answer (Q: ...). Hide the
+        // standalone outbound row to avoid duplication. Unpaired
+        // outbounds (no reply yet) still surface — coaches want to
+        // see pending questions.
+        if (e.pairedWithReply) return false;
         if (!entryMatchesChip(e, chip)) return false;
         if (regionSet) {
           // Empty regions or no overlap → exclude.
@@ -239,19 +252,26 @@ export function UnifiedTimeline({
         <ScrollArea className="h-[440px]">
           <ul>
             {filtered.map((e) => {
-              const flag = flaggedReadiness(e);
+              const flagScore = flaggedScore(e);
+              const score = e.kind === 'survey' ? bareScore(e.body) : null;
+              const hasMedia = e.messageSid && e.mediaSids && e.mediaSids.length > 0;
+              // Render rule: when the answer IS the score (bare number
+              // like '10', 'unique answer pill above does the work), drop
+              // the body to avoid showing the same number twice. For text
+              // replies and mixed bodies, render normally.
+              const skipBody = score != null;
               return (
                 <li
                   key={e.id}
                   className="border-b px-5 py-3 last:border-0 relative"
                   style={{
                     borderColor: 'var(--border)',
-                    background: flag != null
+                    background: flagScore != null
                       ? 'color-mix(in srgb, var(--red) 4%, transparent)'
                       : undefined,
                   }}
                 >
-                  {flag != null && (
+                  {flagScore != null && (
                     <span
                       aria-hidden
                       className="absolute left-0 top-0 bottom-0 w-[3px]"
@@ -271,44 +291,25 @@ export function UnifiedTimeline({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Pill tone={KIND_TONE[e.kind]}>{KIND_LABEL[e.kind]}</Pill>
-                        {flag != null && (
-                          <Pill tone="red">{flag}/10</Pill>
+                        {score != null && (
+                          <Pill tone={scoreTone(score)}>{score}/10</Pill>
                         )}
                       </div>
                       {e.pairedQuestion && (
-                        <div className="mt-1.5 text-[12.5px] leading-snug text-[color:var(--ink-mute)] italic">
-                          <span className="not-italic font-semibold mr-1.5">Q:</span>
+                        <div className="mt-1.5 text-[12.5px] leading-snug text-[color:var(--ink-mute)]">
+                          <span className="font-semibold text-[color:var(--ink-soft)] mr-1.5">Q:</span>
                           {e.pairedQuestion}
                         </div>
                       )}
-                      {e.body && (() => {
-                        // Survey replies that are just a bare number
-                        // get a slightly larger / mono treatment so a
-                        // stranded '10' reads as the intentional answer
-                        // it is, not a typo. The paired question above
-                        // (when found) gives the context — readiness vs
-                        // energy vs effort etc.
-                        const isAnswer = e.kind === 'survey' && !!e.pairedQuestion;
-                        if (e.kind === 'survey' && isBareNumericReply(e.body)) {
-                          return (
-                            <div className={`mono ${isAnswer ? 'mt-0.5' : 'mt-1.5'} text-[18px] font-semibold tabular text-[color:var(--ink)]`}>
-                              {isAnswer && (
-                                <span className="font-semibold mr-1.5 text-[color:var(--ink-mute)] text-[14px] not-italic">A:</span>
-                              )}
-                              {e.body.trim()}
-                            </div>
-                          );
-                        }
-                        return (
-                          <div className={`text-[14px] leading-relaxed text-[color:var(--ink-soft)] ${isAnswer ? 'mt-0.5' : 'mt-1.5'}`}>
-                            {isAnswer && (
-                              <span className="font-semibold mr-1.5 text-[color:var(--ink-mute)]">A:</span>
-                            )}
-                            {e.body}
-                          </div>
-                        );
-                      })()}
-                      {e.messageSid && e.mediaSids && e.mediaSids.length > 0 && (
+                      {e.body && !skipBody && (
+                        <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
+                          {e.pairedQuestion && (
+                            <span className="font-semibold text-[color:var(--ink-mute)] mr-1.5">A:</span>
+                          )}
+                          {e.body}
+                        </div>
+                      )}
+                      {hasMedia && (
                         <div className="mt-2">
                           <TwilioMediaStrip
                             messageSid={e.messageSid}
