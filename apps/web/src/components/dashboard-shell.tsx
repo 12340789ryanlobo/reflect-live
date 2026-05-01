@@ -132,27 +132,47 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       .eq('status', 'requested');
     setPendingRequestCount(pendingCount ?? 0);
 
-    // Make sure user_preferences exists and points at the active team
-    // for backward compat (the old prefs.team_id is still consulted by
-    // some routes during the transition). Insert if missing.
+    // Make sure user_preferences exists and points at the active team.
+    // Route through POST /api/preferences (service-role, bypasses RLS)
+    // rather than the browser Supabase client — the browser-client
+    // upsert was returning null silently when RLS hiccupped, leaving
+    // prefs=null and rendering a blank page on first login after
+    // approval.
     if (!prefRow) {
-      const { data: created } = await sb
-        .from('user_preferences')
-        .upsert({
+      const upRes = await fetch('/api/preferences', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
           team_id: defaultTeamId,
-          role: membershipRole,
           watchlist: [],
           group_filter: null,
-          // Pre-fill the per-user player link from membership so a
-          // freshly-approved athlete doesn't land on the empty
-          // "Pick an athlete to simulate" picker. (B1 fix.)
+          role: membershipRole,
+          // Pre-fill from membership so a freshly-approved athlete
+          // doesn't land on the empty player picker. (B1 fix.)
           impersonate_player_id: membershipPlayerId,
-        })
-        .select('*')
-        .maybeSingle();
-      const createdPrefs = created as UserPreferences;
-      setPrefs(createdPrefs);
-      return { state, prefs: createdPrefs, team: teamData as Team, effectiveRole: membershipRole };
+        }),
+      }).then((r) => r.ok ? r.json() : null).catch(() => null);
+      const createdPrefs = (upRes?.preferences ?? null) as UserPreferences | null;
+      if (createdPrefs) {
+        setPrefs(createdPrefs);
+        return { state, prefs: createdPrefs, team: teamData as Team, effectiveRole: membershipRole };
+      }
+      // Defensive: if the API somehow didn't return the row, build a
+      // synthetic prefs object so the shell can render. The next mount
+      // will re-fetch via GET /api/preferences and pick up the real row.
+      const synthetic: UserPreferences = {
+        clerk_user_id: '',
+        team_id: defaultTeamId,
+        watchlist: [],
+        group_filter: null,
+        role: membershipRole,
+        impersonate_player_id: membershipPlayerId,
+        is_platform_admin: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setPrefs(synthetic);
+      return { state, prefs: synthetic, team: teamData as Team, effectiveRole: membershipRole };
     }
 
     const p = prefRow as UserPreferences;

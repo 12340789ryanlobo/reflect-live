@@ -106,7 +106,11 @@ export async function POST(req: Request) {
     payload.impersonate_player_id = impersonate_player_id;
   }
 
-  const { error } = await sb.from('user_preferences').upsert(payload, { onConflict: 'clerk_user_id' });
+  const { data: upserted, error } = await sb
+    .from('user_preferences')
+    .upsert(payload, { onConflict: 'clerk_user_id' })
+    .select('*')
+    .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, role: effectiveRole });
+  return NextResponse.json({ ok: true, role: effectiveRole, preferences: upserted });
 }

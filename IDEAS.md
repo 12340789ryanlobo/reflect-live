@@ -270,10 +270,10 @@
 
 ---
 
-_Updated 2026-05-01: re-requesting after cancel/deny/removed now
-works. POST /api/team-memberships used to 400 'already_member_or_pending'
-for any existing row regardless of status. Now it splits the gate:
-'requested' / 'active' / 'invited' still block; 'left' / 'denied' /
-'removed' UPDATE the existing row back to 'requested' with fresh
-details. (clerk_user_id, team_id) is the unique pair, so we reset
-in place rather than INSERT a duplicate._
+_Updated 2026-05-01: blank-screen-on-first-login fixed. dashboard-shell's
+auto-create branch for user_preferences was using the browser Supabase
+client, which the JWT/RLS path has been silently dropping in some
+cases — leaving prefs=null and rendering a blank page. Now routes
+through POST /api/preferences (service-role, bypasses RLS) and uses
+the returned row directly. POST also returns the upserted row for
+this purpose._
