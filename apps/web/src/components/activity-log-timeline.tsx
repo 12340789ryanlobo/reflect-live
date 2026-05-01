@@ -14,7 +14,10 @@ export function ActivityLogTimeline({ teamId }: { teamId: number }) {
   useEffect(() => {
     (async () => {
       const [{ data: l }, { data: p }] = await Promise.all([
-        sb.from('activity_logs').select('*').eq('team_id', teamId).order('logged_at', { ascending: false }).limit(20),
+        // Hidden rows are coach-soft-deletes — they survive worker
+        // backfills (idempotent on source_sid) but should never resurface
+        // on the live feed.
+        sb.from('activity_logs').select('*').eq('team_id', teamId).eq('hidden', false).order('logged_at', { ascending: false }).limit(20),
         sb.from('players').select('*').eq('team_id', teamId),
       ]);
       if (l) setLogs(l as ActivityLog[]);

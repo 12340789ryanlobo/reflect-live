@@ -89,6 +89,7 @@ export default function HeatmapPage() {
       sb.from('activity_logs')
         .select('*')
         .eq('team_id', prefs.team_id)
+        .eq('hidden', false)
         .gte('logged_at', lower)
         .order('logged_at', { ascending: false })
         .limit(2000),

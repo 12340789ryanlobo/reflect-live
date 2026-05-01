@@ -136,6 +136,7 @@ export default function Dashboard() {
         .from('activity_logs')
         .select('*, player:players(name, group)')
         .eq('team_id', prefs.team_id)
+        .eq('hidden', false)
         .order('logged_at', { ascending: false })
         .limit(4);
       setRecentActivity((data ?? []) as ActivityWithPlayer[]);

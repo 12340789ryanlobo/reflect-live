@@ -198,7 +198,6 @@
 ---
 
 ## 🐛 Known small issues / followups
-- `ActivityLogTimeline` on `/dashboard/live` should filter `hidden=false`
 - Data-sync audit: how reflect-live represents inbound data vs reflect
 - The summary's "no readiness despite N inbound SMS" case suggests some
   inbound surveys may be miscategorised as `chat` — verify the worker's
@@ -206,10 +205,8 @@
 
 ---
 
-_Updated 2026-04-30: D3 complete — Self-report dialog now ships
-alongside Log workout / Log rehab and Report injury. Self-report
-writes a synthetic `web-self-…` row into `twilio_messages` with
-`category='survey'`, body `'<readiness> <notes>'`, so it flows
-through every existing readiness path (hero bar, LLM summary,
-heatmap of nothing — readings stay numerical) without a new
-client-side parser._
+_Updated 2026-04-30: hidden=false filter applied at every user-facing
+activity_logs read site (live timeline, dashboard recent-activity
+teaser, team heatmap, individual athlete page). Coach soft-deletes
+now actually disappear from the UI everywhere, not just the leaderboard
++ fitness counters that already filtered._

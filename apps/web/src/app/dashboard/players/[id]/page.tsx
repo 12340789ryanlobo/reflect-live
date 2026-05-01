@@ -115,6 +115,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         .from('activity_logs')
         .select('*')
         .eq('player_id', playerId)
+        .eq('hidden', false)
         .order('logged_at', { ascending: false })
         .limit(200);
       const injQ = sb
