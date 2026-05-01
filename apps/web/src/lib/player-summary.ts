@@ -169,6 +169,22 @@ function buildPrompt(args: Required<Omit<SummaryInputs, 'days'>> & { days: Perio
     .filter((m) => m.category === 'chat' && m.body)
     .slice(0, 4)
     .map((m) => `${m.date_sent.slice(0, 10)}: ${m.body!.slice(0, 100)}`);
+  // When no readiness number was parseable, give the LLM raw inbound
+  // bodies anyway so it can still extract context (qualitative cues,
+  // missed-survey patterns, off-topic chatter, etc).
+  const rawInboundSamples = inbound
+    .filter((m) => m.body)
+    .slice(0, 8)
+    .map((m) => `${m.date_sent.slice(0, 10)} [${m.category}]: ${m.body!.slice(0, 120)}`);
+
+  // Split workouts into recent vs earlier so the LLM can call out
+  // direction with magnitude rather than just averaging the whole window.
+  const half = Math.max(1, Math.floor(workouts.length / 2));
+  const recentHalfCount = workouts.slice(0, half).length;
+  const earlierHalfCount = workouts.slice(half).length;
+  const smsHalf = Math.max(1, Math.floor(smsReadings.length / 2));
+  const recentSmsAvg = smsReadings.slice(0, smsHalf);
+  const earlierSmsAvg = smsReadings.slice(smsHalf);
 
   const dataSummary = `
 Player: ${playerName}
@@ -177,9 +193,12 @@ Period: ${periodLabel(days)}
 == CHECK-INS ==
 SMS survey readiness (1-10), most recent first: ${smsReadings.length ? JSON.stringify(smsReadings.slice(0, 10)) : 'No data'}
 Avg SMS readiness: ${avg(smsReadings)}
+Recent half avg readiness: ${avg(recentSmsAvg)}  (${recentSmsAvg.length} readings)
+Earlier half avg readiness: ${avg(earlierSmsAvg)}  (${earlierSmsAvg.length} readings)
 Inbound SMS count: ${inbound.length}
 Last inbound: ${lastInbound ?? 'never'}
 ${chatSnippets.length ? `Recent chat snippets: ${JSON.stringify(chatSnippets)}` : ''}
+${rawInboundSamples.length && smsReadings.length === 0 ? `Sample inbound message bodies (no readiness numbers parseable):\n${rawInboundSamples.map((s) => `  - ${s}`).join('\n')}` : ''}
 
 Session check-ins (legacy tables): ${sessionCount}
 ${sessionReadiness.length ? `Session readiness scores: ${JSON.stringify(sessionReadiness.slice(-10))} (avg ${avg(sessionReadiness)})` : ''}
@@ -191,6 +210,7 @@ ${matchReflections.length ? `Match reflections: ${JSON.stringify(matchReflection
 == ACTIVITY ==
 Workouts logged: ${workouts.length}
 Rehabs logged: ${rehabs.length}
+Workout pacing: ${recentHalfCount} in recent half vs ${earlierHalfCount} in earlier half (direction = ${recentHalfCount > earlierHalfCount ? 'rising' : recentHalfCount < earlierHalfCount ? 'falling' : 'flat'})
 ${recentWorkouts.length ? `Recent workouts:\n${recentWorkouts.map((w) => `  - ${w}`).join('\n')}` : 'No workouts logged this period.'}
 ${recentRehabs.length ? `Recent rehabs:\n${recentRehabs.map((r) => `  - ${r}`).join('\n')}` : ''}
 
@@ -205,27 +225,38 @@ Flags triggered: ${flags.length}
 Flag types: ${JSON.stringify(flags.slice(0, 5).map((f) => f.flag_type))}
 `;
 
-  return `You are a demanding, data-driven coaching analyst. No sugarcoating. No filler.
-Based ONLY on the data below, produce a blunt, actionable assessment of this player.
+  return `You are a demanding, data-driven coaching analyst writing a coach-facing
+brief. The coach already sees workout count, readiness average, and open
+injury count as numbers on the page — DO NOT just restate those. Your job
+is the *analysis* layer: patterns, trends, anomalies, what to do next.
 
 RULES:
-1. Lead with the most important finding. Open injuries beat low readiness; both beat workout volume.
-2. Every observation MUST cite a specific number from the data.
-3. Compare recent activity (last 3-5 entries) vs earlier. State direction and magnitude.
-4. If avg SMS readiness < 5: flag as "Load management required."
-5. If any open injury exists: state body regions and say "Trainer evaluation needed."
-6. If workouts logged is zero in the period AND inbound SMS exists: note disengagement from logging.
-7. No hedging language ("consider", "might want to"). Say what needs to happen.
-8. If data is insufficient (< 3 inbound SMS AND < 3 workouts AND no injuries), say "Insufficient data for trend analysis" and keep it brief.
+1. Lead the summary with the single highest-priority finding for the
+   coach. Open injuries > readiness drop > load anomaly > engagement gap.
+2. Cite specific numbers in EVERY observation. "Workouts dropped from
+   8/wk to 3/wk" beats "workout volume declined."
+3. Trend, don't average: when SMS readiness is split into recent vs
+   earlier halves, name the direction with magnitude (e.g., "readiness
+   slipped from 7.2 to 5.4"). Same for workout pacing.
+4. Look at workout DESCRIPTIONS, not just counts. Call out muscle-group
+   imbalance ("4 leg sessions, 0 upper body") or repetition patterns.
+5. If readiness data is missing but inbound SMS exist, read the sample
+   bodies and infer mood/engagement from the qualitative text. Don't
+   just say "no readiness data" — that's not analysis.
+6. Open injuries: name regions, severity, and days-since-reported.
+7. No hedging ("might want to", "consider"). Imperative voice.
+8. If data is genuinely thin (< 3 of everything), say
+   "Insufficient data for trend analysis" briefly — don't pad.
 
 DATA:
 ${dataSummary}
 
-Respond in JSON:
+Respond in JSON. Aim for substance, not length — but don't compress so
+hard that the coach learns nothing they didn't already see on the page:
 {
-    "summary": "2-3 sentences. Start with the single most important finding.",
-    "observations": ["data-backed observation with specific numbers", ...max 4],
-    "recommendations": ["specific action required", ...max 3],
+    "summary": "3-5 sentences. Lead with the most important finding for the coach. Then explain trend, then the WHY (what the data suggests), not just the WHAT.",
+    "observations": ["data-backed observation with specific numbers and trend direction", "...", "...", "..." — exactly 3 to 5 items],
+    "recommendations": ["imperative action with reasoning", "...", "..." — exactly 2 to 4 items],
     "confidence": "low|medium|high"
 }`;
 }
@@ -363,8 +394,8 @@ export async function generatePlayerSummary(args: SummaryInputs): Promise<Summar
       parsed.confidence === 'low' || parsed.confidence === 'high' ? parsed.confidence : 'medium';
     return {
       summary,
-      observations: observations.slice(0, 4),
-      recommendations: recommendations.slice(0, 3),
+      observations: observations.slice(0, 5),
+      recommendations: recommendations.slice(0, 4),
       citations: extractCitations(filled.responses, filled.activityLogs, filled.injuries),
       generated_by: 'llm',
       confidence,

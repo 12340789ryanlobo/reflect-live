@@ -29,6 +29,9 @@ interface Derived {
 
 interface SummaryResult {
   summary: string;
+  observations?: string[];
+  recommendations?: string[];
+  citations?: string[];
   generated_by: 'llm' | 'rules';
   confidence: 'low' | 'medium' | 'high';
   from_cache?: boolean;
@@ -260,9 +263,46 @@ export function AthleteHero({
                 <p className="text-[14px] leading-relaxed text-[color:var(--ink)]">
                   {summary.summary}
                 </p>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                {summary.observations && summary.observations.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--ink-mute)] mb-1.5">
+                      Observations
+                    </div>
+                    <ul className="space-y-1">
+                      {summary.observations.map((o, i) => (
+                        <li
+                          key={i}
+                          className="text-[13px] leading-snug text-[color:var(--ink-soft)] pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-[color:var(--blue)]"
+                        >
+                          {o}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {summary.recommendations && summary.recommendations.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--ink-mute)] mb-1.5">
+                      Recommended actions
+                    </div>
+                    <ul className="space-y-1">
+                      {summary.recommendations.map((r, i) => (
+                        <li
+                          key={i}
+                          className="text-[13px] leading-snug text-[color:var(--ink-soft)] pl-3 relative before:content-['→'] before:absolute before:left-0 before:text-[color:var(--blue)]"
+                        >
+                          {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
                   <Pill tone={summary.generated_by === 'llm' ? 'blue' : 'mute'}>
                     {summary.generated_by === 'llm' ? 'LLM' : 'Rules'}
+                  </Pill>
+                  <Pill tone={summary.confidence === 'high' ? 'green' : summary.confidence === 'medium' ? 'amber' : 'mute'}>
+                    {summary.confidence} confidence
                   </Pill>
                   {summary.error && <Pill tone="amber">Fallback</Pill>}
                   {cachedAge && (
@@ -275,7 +315,7 @@ export function AthleteHero({
                     onClick={() => forceRegen()}
                     disabled={loading}
                     aria-label="Regenerate summary"
-                    className="ml-1 inline-flex items-center justify-center rounded-md border p-1 text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] disabled:opacity-50"
+                    className="ml-auto inline-flex items-center justify-center rounded-md border p-1 text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] disabled:opacity-50"
                     style={{ borderColor: 'var(--border)' }}
                   >
                     <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} />
