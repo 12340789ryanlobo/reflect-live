@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { Pill } from '@/components/v3/pill';
+import { TwilioMediaStrip } from '@/components/v3/twilio-media-strip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { type Period, periodLabel } from '@/lib/period';
 import {
@@ -16,6 +17,17 @@ import {
 import { regionLabel } from '@/lib/injury-aliases';
 import type { ActivityLog, TwilioMessage } from '@reflect-live/shared';
 import { prettyDateTime, relativeTime } from '@/lib/format';
+
+// Survey replies are often just a number ("8" / "10") — the readiness
+// score the athlete texted back. Display as "Readiness 10/10 — <rest>"
+// so the row reads like content, not a stray digit.
+function renderSurveyBody(body: string): { score: number | null; trailer: string } {
+  const m = /^(\d{1,2})(?:\s+(.+))?$/s.exec(body.trim());
+  if (!m) return { score: null, trailer: body };
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n < 1 || n > 10) return { score: null, trailer: body };
+  return { score: n, trailer: m[2]?.trim() ?? '' };
+}
 
 type Chip = 'important' | 'all' | 'activity' | 'messages' | 'survey';
 
@@ -263,9 +275,41 @@ export function UnifiedTimeline({
                           <Pill tone="red">{flag}/10</Pill>
                         )}
                       </div>
-                      {e.body && (
-                        <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
-                          {e.body}
+                      {e.body && (() => {
+                        // Survey rows where the body is just a digit
+                        // ('10', '8 felt great') get humanized so the
+                        // row reads as content, not a stray number.
+                        if (e.kind === 'survey') {
+                          const { score, trailer } = renderSurveyBody(e.body);
+                          if (score != null) {
+                            return (
+                              <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
+                                <span className="font-semibold text-[color:var(--ink)]">
+                                  Readiness {score}/10
+                                </span>
+                                {trailer && (
+                                  <>
+                                    {' '}
+                                    <span className="text-[color:var(--ink-mute)]">·</span>{' '}
+                                    {trailer}
+                                  </>
+                                )}
+                              </div>
+                            );
+                          }
+                        }
+                        return (
+                          <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
+                            {e.body}
+                          </div>
+                        );
+                      })()}
+                      {e.messageSid && e.mediaSids && e.mediaSids.length > 0 && (
+                        <div className="mt-2">
+                          <TwilioMediaStrip
+                            messageSid={e.messageSid}
+                            mediaSids={e.mediaSids}
+                          />
                         </div>
                       )}
                     </div>

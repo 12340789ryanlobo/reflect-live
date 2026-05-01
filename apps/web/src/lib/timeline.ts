@@ -27,6 +27,14 @@ export interface TimelineEntry {
    * just a number).
    */
   regions: string[];
+  /** Twilio message SID this entry traces back to — paired with
+   *  `mediaSids` to render inline thumbnails. Activity logs forward
+   *  their `source_sid`; SMS rows use their own sid. */
+  messageSid: string | null;
+  /** Twilio media SIDs attached to the message (mirrored onto
+   *  activity_logs.media_sids by the worker so logs have direct
+   *  access without a JOIN). */
+  mediaSids: string[] | null;
   /** Per-source extras for the row renderer. */
   meta:
     | { source: 'log'; logId: number }
@@ -64,6 +72,8 @@ function logToEntry(l: ActivityLog): TimelineEntry {
     ts: l.logged_at,
     body,
     regions: parseAllRegions(body),
+    messageSid: l.source_sid ?? null,
+    mediaSids: l.media_sids ?? null,
     meta: { source: 'log', logId: l.id },
   };
 }
@@ -85,6 +95,8 @@ function msgToEntry(m: TwilioMessage): TimelineEntry {
     ts: m.date_sent,
     body,
     regions: parseAllRegions(body),
+    messageSid: m.sid,
+    mediaSids: m.media_sids ?? null,
     meta: { source: 'msg', sid: m.sid, direction: m.direction },
   };
 }
