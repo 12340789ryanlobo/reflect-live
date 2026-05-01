@@ -228,8 +228,20 @@ export default function Onboarding() {
                       id="phone"
                       type="tel"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+1 555 555 5555"
+                      onChange={(e) => {
+                        // Strict input: digits only, with a single leading
+                        // '+' allowed for international numbers. Letters,
+                        // dashes, parens, spaces, etc. are stripped at the
+                        // source so the user literally can't type bs. The
+                        // server still runs toE164 as a backstop.
+                        const raw = e.target.value;
+                        const digitsOnly = raw.replace(/[^\d+]/g, '');
+                        const normalized = digitsOnly.startsWith('+')
+                          ? '+' + digitsOnly.slice(1).replace(/\+/g, '')
+                          : digitsOnly.replace(/\+/g, '');
+                        setPhone(normalized);
+                      }}
+                      placeholder="+15551234567 or 5551234567"
                       autoComplete="tel"
                       inputMode="tel"
                       aria-invalid={phoneInvalid || undefined}
@@ -237,8 +249,10 @@ export default function Onboarding() {
                     />
                     {phoneInvalid ? (
                       <p className="text-[11px]" style={{ color: 'var(--red)' }}>
-                        Doesn&rsquo;t look like a valid number. Use international format
-                        (e.g. <span className="mono">+1 555 555 5555</span>) or 10 digits for US.
+                        Doesn&rsquo;t look like a valid number. 10 digits for US,
+                        or full international format with a&nbsp;
+                        <span className="mono">+</span> prefix
+                        (e.g. <span className="mono">+442079460958</span>).
                       </p>
                     ) : phoneNormalized ? (
                       <p className="text-[11px] text-[color:var(--ink-mute)]">
@@ -246,6 +260,7 @@ export default function Onboarding() {
                       </p>
                     ) : (
                       <p className="text-[11px] text-[color:var(--ink-mute)]">
+                        Numbers only. Use <span className="mono">+</span> for international.
                         So your coach can reach you and link you to surveys.
                       </p>
                     )}

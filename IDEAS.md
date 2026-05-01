@@ -54,6 +54,11 @@
   `toE164` normalizer the OTP + Twilio sender use — live preview
   ('Will be saved as +1…') and red-bordered error if the input
   can't be normalized. Submit disabled until phone is valid.
+- **Phone input is strict at the source:** onChange filter strips
+  everything that isn't a digit or a single leading `+`, so users
+  literally can't type letters / spaces / dashes / parens. Server
+  still runs `toE164` as a backstop. International numbers come
+  through cleanly via the `+` prefix (e.g. `+442079460958`).
 
 ### Athlete page (C1 — design-language anchor)
 - Hero: readiness bar + AI sentence + period toggle + inline action row
@@ -238,10 +243,7 @@
 
 ---
 
-_Updated 2026-05-01: dashboard-shell platform-admin recovery path.
-Previously, an admin whose memberships all flipped to status='left'
-(e.g. via a stray SQL update) would be permanently bounced to
-/onboarding with no way back. Now, when `is_platform_admin === true`,
-the shell falls through with prefRow.team_id as a synthetic active
-team and a 'admin' role override. Onboarding hardening (email
-locked, phone E.164) also stayed from earlier today._
+_Updated 2026-05-01: phone input on /onboarding is now strict at
+the source — onChange filter blocks every character except digits
+and a single leading `+`. International still works via the `+`
+prefix; toE164 normalizes on submit. Hint copy updated to match._
