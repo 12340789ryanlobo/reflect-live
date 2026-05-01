@@ -9,6 +9,9 @@ export interface TwilioMessageLike {
   body: string | null;
   status: string | null;
   dateSent: Date;
+  /** Twilio Media SIDs attached to this message. Populated upstream
+   *  by the poll loop (an extra API call per message-with-media). */
+  mediaSids?: string[];
 }
 
 export interface MessageRow {
@@ -22,6 +25,7 @@ export interface MessageRow {
   date_sent: string;
   player_id: number | null;
   team_id: number | null;
+  media_sids: string[] | null;
 }
 
 export function normalizePhone(s: string | null | undefined): string | null {
@@ -48,5 +52,6 @@ export async function toRow(
     date_sent: m.dateSent.toISOString(),
     player_id: ref?.id ?? null,
     team_id: ref?.team_id ?? defaultTeamId,
+    media_sids: m.mediaSids && m.mediaSids.length > 0 ? m.mediaSids : null,
   };
 }

@@ -203,6 +203,10 @@
   as a primary row in the new `player_phones` table. Until applied:
   worker matcher will fail (missing table), phones manager dialog will
   show empty.
+- **Apply migration `supabase/migrations/0023_twilio_media.sql`** via
+  the Supabase SQL editor. Adds `media_sids text[]` to `twilio_messages`
+  and `activity_logs`. Until applied: worker insert will fail on
+  messages with attachments; thumbnail strip stays empty.
 
 ---
 
@@ -226,25 +230,24 @@
 - "Athletes overview" list page → present better than a flat list
 - Schedule page (events) → real CRUD UX, not just a read-only grid
 
-### Inbound media (images on activity logs)
-- The schema has `activity_logs.image_path` but the worker
-  (`apps/worker/src/poll.ts:65`) sets it to null on every insert.
-  `twilio_messages` doesn't store media URLs at all. Athletes who
-  text photos with their workout updates have those photos
-  silently dropped.
-- Plan when we tackle this:
-  1. Add `media_urls text[]` to `twilio_messages` (store the raw
-     Twilio MediaUrl values from the API response).
-  2. Worker: pull `num_media` + per-index `MediaUrl` from each
-     message and write the array. When categorizing as
-     workout/rehab, also copy onto `activity_logs.media_urls`.
-  3. Twilio media URLs require Basic Auth, so add a thin proxy:
-     `/api/twilio-media?messageSid=...&mediaIdx=...` that fetches
-     with credentials and streams the image back. (Or download
-     to Supabase Storage and serve from there for permanence —
-     Twilio retains messages ~30d.)
-  4. UI: small thumbnail strip on past-activity rows + the
-     unified-timeline; click to open in a lightbox modal.
+### Inbound media — shipped end-to-end
+- Migration 0023 adds `media_sids text[]` to `twilio_messages` and
+  `activity_logs`. Worker pulls Twilio media SIDs per message (extra
+  API call when `numMedia > 0`) and stores them; copies onto
+  activity_logs when category is workout/rehab.
+- Proxy endpoint `/api/twilio-media/[messageSid]/[mediaSid]` auths
+  with the team's twilio creds (or env fallback) and streams the
+  image bytes back; browser caches each image 24h.
+- `<TwilioMediaStrip>` renders 3 inline 36px thumbnails with `+N`
+  overflow chip; click opens a lightbox modal with prev/next arrows
+  and a `current/total` counter.
+- Wired into `/dashboard/fitness` past-activity table. Follow-up:
+  drop the same component into the C1 unified-timeline and the
+  /dashboard/live activity feed for consistency.
+- Permanence is the next concern: Twilio retains media ~30 days.
+  Once that becomes a real issue, add a Supabase Storage step in
+  the worker to download + store, and have the proxy fall back
+  cleanly (or serve directly from Storage).
 
 ### Athlete-side features
 - Show inbound-SMS images: `twilio_messages` may carry a media URL;
@@ -290,9 +293,9 @@
 
 ---
 
-_Updated 2026-05-01: past-activity table on /dashboard/fitness is
-paginated — 25 rows by default with 'Show 25 more' / 'Show all' /
-'Collapse' controls. Resets to first page when the kind filter or
-period changes. Image rendering on activity logs queued in the
-backlog — worker doesn't capture Twilio media yet so there's nothing
-to show until that pipeline ships._
+_Updated 2026-05-01: inbound media pipeline shipped end-to-end —
+worker captures Twilio MediaSIDs, /api/twilio-media proxy fetches
+with team auth + streams back, <TwilioMediaStrip> renders 3 inline
+36px thumbnails (with +N overflow) on the past-activity table, and
+clicking opens a lightbox with prev/next + counter. Migration 0023
+must be applied before this works in prod._

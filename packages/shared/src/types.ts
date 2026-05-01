@@ -52,6 +52,9 @@ export interface TwilioMessage {
   player_id: number | null;
   team_id: number | null;
   ingested_at: string;
+  /** Twilio Media SIDs for any photos/videos attached to this message
+   *  (migration 0023). Render via /api/twilio-media/<sid>/<mediaSid>. */
+  media_sids: string[] | null;
 }
 
 export interface ActivityLog {
@@ -61,6 +64,9 @@ export interface ActivityLog {
   kind: ActivityKind;
   description: string;
   image_path: string | null;
+  /** Mirrored from twilio_messages.media_sids when this log was
+   *  ingested from a workout/rehab SMS (migration 0023). */
+  media_sids: string[] | null;
   logged_at: string;
   created_at: string;
   source_sid: string | null;

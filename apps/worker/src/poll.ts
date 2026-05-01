@@ -27,8 +27,23 @@ export async function pollOnce(deps: PollDeps): Promise<number> {
 
   if (msgs.length) {
     const rows = await Promise.all(
-      msgs.map((m) =>
-        toRow(
+      msgs.map(async (m) => {
+        // Twilio reports attachment count via numMedia (string). When > 0,
+        // fetch the media list to get the SIDs. Each is one extra API
+        // call per message-with-media; rate limit is generous.
+        const numMedia = parseInt(m.numMedia ?? '0', 10);
+        let mediaSids: string[] = [];
+        if (numMedia > 0) {
+          try {
+            const media = await twilio.messages(m.sid).media.list();
+            mediaSids = media.map((md) => md.sid);
+          } catch (e) {
+            console.error('[twilio] media list failed for %s: %s', m.sid, e instanceof Error ? e.message : String(e));
+            // Don't fail the whole batch — ingest the message body
+            // anyway, just without media references.
+          }
+        }
+        return toRow(
           {
             sid: m.sid,
             direction: m.direction,
@@ -37,11 +52,12 @@ export async function pollOnce(deps: PollDeps): Promise<number> {
             body: m.body ?? null,
             status: m.status ?? null,
             dateSent: m.dateSent ?? new Date(),
+            mediaSids,
           } as TwilioMessageLike,
           cache,
           defaultTeamId,
-        ),
-      ),
+        );
+      }),
     );
     const { error } = await sb.from('twilio_messages').upsert(rows, { onConflict: 'sid' });
     if (error) throw error;
@@ -62,7 +78,11 @@ export async function pollOnce(deps: PollDeps): Promise<number> {
         team_id: r.team_id as number,
         kind: r.category,
         description: r.body ?? '',
+        // Mirror media_sids onto activity_logs so the past-activity feed
+        // doesn't have to JOIN twilio_messages for thumbnail rendering.
+        // image_path stays null — kept for legacy schema compat.
         image_path: null as string | null,
+        media_sids: r.media_sids,
         logged_at: r.date_sent,
         source_sid: r.sid,
       }));
