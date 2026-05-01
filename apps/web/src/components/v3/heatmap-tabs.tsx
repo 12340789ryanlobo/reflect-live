@@ -39,8 +39,8 @@ interface Props {
 }
 
 const TABS: Array<{ key: HeatmapTab; label: string }> = [
-  { key: 'injury', label: 'Injury' },
   { key: 'activity', label: 'Activity' },
+  { key: 'injury', label: 'Injury' },
   { key: 'rehab', label: 'Rehab' },
 ];
 
@@ -65,7 +65,7 @@ export function HeatmapTabs({
   selectedRegions,
   onMuscleClick,
 }: Props) {
-  const [tab, setTab] = useState<HeatmapTab>('injury');
+  const [tab, setTab] = useState<HeatmapTab>('activity');
 
   const counts =
     tab === 'injury' ? injuryCounts : tab === 'activity' ? activityCounts : rehabCounts;
