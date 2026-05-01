@@ -92,10 +92,12 @@
   prefs from memberships on every load, so writing only to prefs
   silently reverted the link for non-admin users. The membership row
   is now the source of truth.
-- `/dashboard/admin/users` removed from sidebar nav, admin landing
-  tile, and command palette. The page + endpoint stay routable so
-  admins can fix one-off legacy linkage edge cases by typing the URL,
-  but it's no longer a discovery surface.
+- `/dashboard/admin/users` is back in sidebar / admin landing tile /
+  command palette as a clean read-only **overview** of every account.
+  The link-athlete dropdown was stripped — that interaction now lives
+  inline on the requests inbox. Roles still editable; everything else
+  is informational. Linked athlete is shown as plain text or
+  '— unlinked —'.
 - **Approve waterfall** on `/api/teams/[id]/requests/[clerkUserId]`
   now does phone-match → name-match (case-insensitive, trimmed,
   exactly one unlinked roster player) → create new. Catches the
@@ -231,12 +233,9 @@
 
 ---
 
-_Updated 2026-04-30: legacy roster linkage now mostly auto-resolves.
-Approve waterfall: phone match → name match (single unlinked roster
-player, case-insensitive trimmed) → create new. Inbox shows
-"Will link to existing roster row …" hint inline so the coach sees
-the decision before clicking. Multiple-name-match returns 409 with a
-helpful detail and a yellow inline warning, pointing to the hidden
-/dashboard/admin/users tool for disambiguation. Onboarding still
-takes a single full-name string (pre-filled from Clerk's fullName)
-which matches the players.name shape — no first/last split needed._
+_Updated 2026-04-30: /dashboard/admin/users is back in the nav as a
+clean read-only platform overview (every account, role, linked
+athlete, joined-on). Stripped the link-athlete dropdown — that
+interaction is now inline on the requests inbox where the auto-match
+hint surfaces it before the coach clicks Approve. Role editor still
+works for the rare promote/demote case._

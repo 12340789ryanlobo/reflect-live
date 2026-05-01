@@ -63,48 +63,35 @@ export default function AdminUsersPage() {
     setBusyId(null);
   }
 
-  async function setLinkedPlayer(id: string, playerId: number | null) {
-    setBusyId(id);
-    const res = await fetch('/api/users', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ clerk_user_id: id, impersonate_player_id: playerId }),
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      alert(j.error ?? 'Failed to update linked player');
-    }
-    await load();
-    setBusyId(null);
-  }
-
-  const playersByTeam = useMemo(() => {
-    const map = new Map<number, Player[]>();
-    for (const p of players) {
-      const arr = map.get(p.team_id) ?? [];
-      arr.push(p);
-      map.set(p.team_id, arr);
-    }
-    return map;
-  }, [players]);
+  // Link-athlete dropdown intentionally removed from this page — legacy
+  // linkage now happens automatically via the request approve flow's
+  // phone+name waterfall, with an inline 'will link to existing roster
+  // row' hint surfaced on /dashboard/requests. The PATCH endpoint still
+  // accepts impersonate_player_id for the rare disambiguation case;
+  // call it directly via the SQL editor or a one-shot fetch if needed.
 
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
+  const teamCount = useMemo(() => {
+    const s = new Set<number>();
+    for (const r of rows) s.add(r.team_id);
+    return s.size;
+  }, [rows]);
 
   return (
     <>
       <PageHeader
         eyebrow="Platform admin"
         title="Users"
-        subtitle={`${rows.length} users · ${playersByTeam.size} teams`}
+        subtitle={`${rows.length} users · ${teamCount} teams`}
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
         <p className="text-[13px] text-[color:var(--ink-mute)] leading-relaxed">
-          Fallback for when the normal flows aren&rsquo;t enough. Routine assignment is
-          automatic: athletes self-request via <span className="mono">/onboarding</span>,
-          coaches approve via <span className="mono">/dashboard/requests</span>, and the
-          per-user roster link is set on approval. Use this page to fix legacy accounts,
-          re-link someone whose phone changed, or escalate / demote a user&rsquo;s role.
+          Read-only overview of every account on the platform. The
+          &ldquo;linked athlete&rdquo; column shows which roster row each
+          user maps to — assignment happens automatically in the request
+          approve flow on <span className="mono">/dashboard/requests</span>.
+          Roles can be changed inline; everything else is informational.
         </p>
 
         <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
@@ -123,13 +110,12 @@ export default function AdminUsersPage() {
                     <Th>Email</Th>
                     <Th>Name</Th>
                     <Th>Role</Th>
-                    <Th>Roster link (player)</Th>
+                    <Th>Linked athlete</Th>
                     <Th>Joined</Th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((u) => {
-                    const teamPlayers = playersByTeam.get(u.team_id) ?? [];
                     const linked = u.impersonate_player_id
                       ? playerById.get(u.impersonate_player_id)
                       : null;
@@ -170,31 +156,15 @@ export default function AdminUsersPage() {
                           </div>
                         </Td>
                         <Td>
-                          <Select
-                            value={
-                              u.impersonate_player_id ? String(u.impersonate_player_id) : '__none__'
-                            }
-                            onValueChange={(v) =>
-                              setLinkedPlayer(u.clerk_user_id, v === '__none__' ? null : Number(v))
-                            }
-                            disabled={busyId === u.clerk_user_id || teamPlayers.length === 0}
-                          >
-                            <SelectTrigger className="w-56 h-8 text-[12px]">
-                              <SelectValue placeholder="— none —" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">— none —</SelectItem>
-                              {teamPlayers.map((p) => (
-                                <SelectItem key={p.id} value={String(p.id)}>
-                                  {p.name} {p.group ? `· ${p.group}` : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {linked && (
-                            <div className="text-[11px] text-[color:var(--ink-mute)] mt-1">
-                              linked → {linked.name}
-                            </div>
+                          {linked ? (
+                            <span className="text-[13px] text-[color:var(--ink)]">
+                              {linked.name}
+                              {linked.group && (
+                                <span className="text-[color:var(--ink-mute)]"> · {linked.group}</span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-[12px] text-[color:var(--ink-dim)]">— unlinked —</span>
                           )}
                         </Td>
                         <Td>

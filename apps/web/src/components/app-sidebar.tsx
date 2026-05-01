@@ -112,13 +112,9 @@ const CAPTAIN_NAV: NavItem[] = [
   { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
 ];
 
-// `/dashboard/admin/users` is intentionally NOT in the nav. The page is
-// kept routable so admins can fix one-off legacy linkage edge cases by
-// typing the URL, but everyday roster + role management lives on
-// /dashboard/players (group + captain) and the per-team request inbox.
-// New athletes auto-link via phone in the approve flow.
 const ADMIN_NAV: NavItem[] = [
   { href: '/dashboard/admin', label: 'Admin', icon: Shield },
+  { href: '/dashboard/admin/users', label: 'Users', icon: Users },
   { href: '/dashboard/admin/teams', label: 'Teams', icon: Building2 },
   { href: '/dashboard/admin/system', label: 'System', icon: Activity },
   { href: '/dashboard/admin/database', label: 'Database', icon: Database },

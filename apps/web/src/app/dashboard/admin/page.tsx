@@ -5,7 +5,7 @@ import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { WorkerHealthCard } from '@/components/worker-health-card';
 import { useSupabase } from '@/lib/supabase-browser';
-import { Building2, Cpu, Database } from 'lucide-react';
+import { Users, Building2, Cpu, Database } from 'lucide-react';
 
 interface AdminCounts {
   users: number;
@@ -19,6 +19,12 @@ const quickLinks: Array<{
   description: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
+  {
+    href: '/dashboard/admin/users',
+    title: 'Users',
+    description: 'Overview of every account, role, and which roster row they map to.',
+    icon: Users,
+  },
   {
     href: '/dashboard/admin/teams',
     title: 'Teams',
