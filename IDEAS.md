@@ -92,6 +92,12 @@
   prefs from memberships on every load, so writing only to prefs
   silently reverted the link for non-admin users. The membership row
   is now the source of truth.
+- `/dashboard/admin/users` removed from sidebar nav, admin landing
+  tile, and command palette. The page + endpoint stay routable so
+  admins can fix one-off legacy linkage edge cases by typing the URL,
+  but it's no longer a discovery surface — new athletes auto-link via
+  phone in the request approve flow, so the manual tool is only ever
+  needed for pre-seeded rosters from before the membership system.
 
 ### Manual logging from the web (D3 — complete)
 - **Log workout / Log rehab** dialog from the athlete-hero action row.
@@ -189,9 +195,6 @@
 
 ### Coach + admin polish
 - "All athletes" view (coach) → tighter card grid, filter by group
-- Admin "users" page — keep it minimal: name, team, role. Drop or
-  rename the "Roster link (player)" column to something the admin
-  actually understands
 
 ### Notifications + alerts
 - Activity tab: flag new activity by teammates since last check
@@ -219,9 +222,9 @@
 
 ---
 
-_Updated 2026-04-30: "meets" → "competitions" everywhere user-facing
-(data column stays kind='meet'). And: fixed the admin linked-athlete
-tool — it was only writing to user_preferences.impersonate_player_id,
-which dashboard-shell auto-heals from team_memberships, so the link
-silently reverted on every page load for non-admin users. Now writes
-both, membership row authoritative._
+_Updated 2026-04-30: pulled `/dashboard/admin/users` out of the
+sidebar, admin landing tile, and command palette. New athletes
+auto-link by phone in the approve flow; the manual linker page is
+now only reachable by typing the URL (kept for one-off legacy roster
+fixes). Coach+admin polish backlog item about minimising that page
+is closed._

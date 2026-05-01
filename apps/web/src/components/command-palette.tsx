@@ -108,10 +108,6 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
                 <Shield />
                 <span>Admin</span>
               </CommandItem>
-              <CommandItem onSelect={() => go('/dashboard/admin/users')}>
-                <Users />
-                <span>Users</span>
-              </CommandItem>
               <CommandItem onSelect={() => go('/dashboard/admin/system')}>
                 <Activity />
                 <span>System</span>
