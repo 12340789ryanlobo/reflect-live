@@ -54,7 +54,17 @@ export async function GET() {
   const isBootstrapAdmin = !!email && adminEmails.includes(email);
   const canSwitchRole = (data?.role === 'admin') || isBootstrapAdmin;
 
-  return NextResponse.json({ preferences: data, can_switch_role: canSwitchRole });
+  // Bundle the team in the same response so dashboard-shell doesn't have
+  // to do a second sb.from('teams') query — that path hits RLS on the
+  // browser client and 406s when the JWT/policy mismatch (which has been
+  // happening intermittently for fresh users).
+  let team: Record<string, unknown> | null = null;
+  if (data?.team_id) {
+    const { data: t } = await sb.from('teams').select('*').eq('id', data.team_id).maybeSingle();
+    team = t ?? null;
+  }
+
+  return NextResponse.json({ preferences: data, can_switch_role: canSwitchRole, team });
 }
 
 export async function POST(req: Request) {
@@ -112,5 +122,15 @@ export async function POST(req: Request) {
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, role: effectiveRole, preferences: upserted });
+
+  // Bundle the team alongside the prefs so dashboard-shell's auto-create
+  // path doesn't need a follow-up sb.from('teams') query (which hits
+  // browser-client RLS and 406s for some fresh users).
+  let team: Record<string, unknown> | null = null;
+  if (upserted?.team_id) {
+    const { data: t } = await sb.from('teams').select('*').eq('id', upserted.team_id).maybeSingle();
+    team = t ?? null;
+  }
+
+  return NextResponse.json({ ok: true, role: effectiveRole, preferences: upserted, team });
 }

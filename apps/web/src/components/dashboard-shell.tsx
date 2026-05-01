@@ -51,10 +51,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     // Memberships are authoritative for "what teams am I on"; prefs
     // hold per-user UI preferences.
     const [prefsRes, memsRes] = await Promise.all([
-      fetch('/api/preferences').then((r) => r.ok ? r.json() : { preferences: null }),
+      fetch('/api/preferences').then((r) => r.ok ? r.json() : { preferences: null, team: null }),
       fetch('/api/team-memberships').then((r) => r.ok ? r.json() : { memberships: [] }),
     ]);
     const prefRow = (prefsRes.preferences ?? null) as UserPreferences | null;
+    // Team comes bundled with prefs (service-role) so we never have to
+    // hit browser-client RLS on the teams table — that path 406s
+    // intermittently for fresh users.
+    let teamFromApi: Team | null = (prefsRes.team ?? null) as Team | null;
     const mems = ((memsRes.memberships ?? []) as TeamMembership[]);
     setMemberships(mems);
 
@@ -108,8 +112,16 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       router.push('/onboarding');
       return null;
     }
-    const { data: teamData } = await sb.from('teams').select('*').eq('id', defaultTeamId).single();
-    setTeam(teamData as Team);
+    // Prefer the team bundled with /api/preferences. Fall back to a
+    // browser-client query only if the API didn't include it (e.g. a
+    // freshly-created prefs row whose team_id hasn't been mirrored
+    // yet) — and then to the membership row's team as a last resort.
+    let teamData: Team | null = teamFromApi;
+    if (!teamData || teamData.id !== defaultTeamId) {
+      const { data: t } = await sb.from('teams').select('*').eq('id', defaultTeamId).maybeSingle();
+      teamData = (t as Team | null) ?? teamFromApi;
+    }
+    setTeam(teamData);
 
     const activeMem =
       state.kind === 'active'
@@ -153,6 +165,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         }),
       }).then((r) => r.ok ? r.json() : null).catch(() => null);
       const createdPrefs = (upRes?.preferences ?? null) as UserPreferences | null;
+      // POST also returns the team bundled — use it if the GET path
+      // earlier didn't have one yet (e.g. team_id was set by this very
+      // POST and the GET ran first against a missing prefs row).
+      if (upRes?.team && !teamData) {
+        teamData = upRes.team as Team;
+        setTeam(teamData);
+      }
       if (createdPrefs) {
         setPrefs(createdPrefs);
         return { state, prefs: createdPrefs, team: teamData as Team, effectiveRole: membershipRole };

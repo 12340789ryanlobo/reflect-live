@@ -270,10 +270,11 @@
 
 ---
 
-_Updated 2026-05-01: blank-screen-on-first-login fixed. dashboard-shell's
-auto-create branch for user_preferences was using the browser Supabase
-client, which the JWT/RLS path has been silently dropping in some
-cases — leaving prefs=null and rendering a blank page. Now routes
-through POST /api/preferences (service-role, bypasses RLS) and uses
-the returned row directly. POST also returns the upserted row for
-this purpose._
+_Updated 2026-05-01: blank-screen-on-first-login — round 2. The prefs
+fix landed earlier today fixed half of it; the other half was the
+team data fetch (`sb.from('teams').select('*').eq('id', 1).single()`)
+returning 406 because the same browser-client RLS path drops fresh
+users' JWTs intermittently. Both GET + POST `/api/preferences` now
+bundle the team alongside the prefs row, and dashboard-shell prefers
+that over the browser query. Together with the prefs fix, the auto-
+create + render path is now fully service-role for fresh logins._
