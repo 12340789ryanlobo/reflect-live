@@ -56,7 +56,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     // Resolve current state.
     const state = resolveMembershipState(mems);
 
-    if (state.kind === 'no_memberships') {
+    // Platform admins are not gated by membership state — they can keep
+    // working even if all their memberships are 'left'/'denied'/etc.
+    // (Otherwise an admin who accidentally leaves their last team would
+    // be permanently bounced to /onboarding with no recovery path.)
+    const prefIsPlatformAdmin = (prefRow as UserPreferences | null)?.is_platform_admin === true;
+
+    if (state.kind === 'no_memberships' && !prefIsPlatformAdmin) {
       router.push('/onboarding');
       return null;
     }
@@ -70,7 +76,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       setTeamNames(names);
     }
 
-    if (state.kind === 'pending_only') {
+    if (state.kind === 'pending_only' && !prefIsPlatformAdmin) {
       // Pending state: minimal prefs row may not exist yet; we render the
       // layout in pending mode without a Context provider so children that
       // call useDashboard never see this branch (the routes wired up to
@@ -80,13 +86,34 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       return { state, prefs: null, team: null, effectiveRole: 'athlete' as UserRole };
     }
 
-    // Active state: pick the default team.
-    const defaultTeamId = state.defaultTeamId;
+    // Active state: pick the default team. Platform admins without an
+    // active membership fall back to prefRow.team_id — they always have
+    // a prefs row (the schema defaults team_id on insert), and the
+    // /dashboard/admin/teams page lets them switch from there.
+    const fallbackTeamId =
+      prefIsPlatformAdmin && state.kind !== 'active'
+        ? (prefRow as UserPreferences).team_id
+        : null;
+    const defaultTeamId =
+      state.kind === 'active' ? state.defaultTeamId : fallbackTeamId;
+    if (defaultTeamId == null) {
+      // Defensive — shouldn't happen because we either have an active
+      // membership OR we're a platform admin with prefs.team_id. If it
+      // does, send to onboarding rather than crash.
+      router.push('/onboarding');
+      return null;
+    }
     const { data: teamData } = await sb.from('teams').select('*').eq('id', defaultTeamId).single();
     setTeam(teamData as Team);
 
-    const activeMem = state.active.find((m) => m.team_id === defaultTeamId);
-    const membershipRole = (activeMem?.role ?? 'athlete') as UserRole;
+    const activeMem =
+      state.kind === 'active'
+        ? state.active.find((m) => m.team_id === defaultTeamId)
+        : undefined;
+    // Platform admins without a membership get a synthetic 'admin' role.
+    // For everyone else, the membership row's role is authoritative.
+    const membershipRole = (activeMem?.role
+      ?? (prefIsPlatformAdmin ? 'admin' : 'athlete')) as UserRole;
     const membershipPlayerId = activeMem?.player_id ?? null;
 
     // Pending request count for the active team — used to surface the
@@ -272,7 +299,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   // Pending-only: render the layout with the banner and an empty content
   // area. No DashboardCtx provider — children that call useDashboard will
   // throw, which is fine since they're scoped to active-membership routes.
-  if (state.kind === 'pending_only') {
+  // Platform admins skip this branch — they always render the full shell.
+  const isPlatformAdmin = prefs?.is_platform_admin === true;
+  if (state.kind === 'pending_only' && !isPlatformAdmin) {
     return (
       <SidebarProvider>
         <AppSidebar role="athlete" />

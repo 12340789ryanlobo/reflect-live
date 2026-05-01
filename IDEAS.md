@@ -238,11 +238,10 @@
 
 ---
 
-_Updated 2026-05-01: onboarding form hardened. Email is now
-read-only and sourced from Clerk (server ignores body.email — auth
-identity is the source of truth so a tampered client can't
-impersonate). Phone uses the shared `toE164` normalizer with live
-inline preview / red-bordered error; submit disabled until phone
-normalizes. `toE164` extracted from twilio-sms.ts to a new
-dependency-free `lib/phone.ts` so it's safe to import in client
-components without pulling Twilio + Supabase SDKs into the bundle._
+_Updated 2026-05-01: dashboard-shell platform-admin recovery path.
+Previously, an admin whose memberships all flipped to status='left'
+(e.g. via a stray SQL update) would be permanently bounced to
+/onboarding with no way back. Now, when `is_platform_admin === true`,
+the shell falls through with prefRow.team_id as a synthetic active
+team and a 'admin' role override. Onboarding hardening (email
+locked, phone E.164) also stayed from earlier today._
