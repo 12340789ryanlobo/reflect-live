@@ -18,15 +18,15 @@ import { regionLabel } from '@/lib/injury-aliases';
 import type { ActivityLog, TwilioMessage } from '@reflect-live/shared';
 import { prettyDateTime, relativeTime } from '@/lib/format';
 
-// Survey replies are often just a number ("8" / "10") — the readiness
-// score the athlete texted back. Display as "Readiness 10/10 — <rest>"
-// so the row reads like content, not a stray digit.
-function renderSurveyBody(body: string): { score: number | null; trailer: string } {
-  const m = /^(\d{1,2})(?:\s+(.+))?$/s.exec(body.trim());
-  if (!m) return { score: null, trailer: body };
-  const n = Number(m[1]);
-  if (!Number.isFinite(n) || n < 1 || n > 10) return { score: null, trailer: body };
-  return { score: n, trailer: m[2]?.trim() ?? '' };
+// Survey replies span multiple questions — readiness 1-10, energy
+// 1-10, effort 1-10, injury yes/no, focus area free-text, etc. We
+// can't assume a bare digit is the readiness score (it might be
+// effort, team energy, anything). All we know is "this is a survey
+// reply"; let the body speak for itself. For bare-number replies,
+// we visually pad them so a stranded "10" reads as an intentional
+// answer rather than a typo.
+function isBareNumericReply(body: string): boolean {
+  return /^\d{1,2}\s*$/.test(body.trim());
 }
 
 type Chip = 'important' | 'all' | 'activity' | 'messages' | 'survey';
@@ -276,27 +276,19 @@ export function UnifiedTimeline({
                         )}
                       </div>
                       {e.body && (() => {
-                        // Survey rows where the body is just a digit
-                        // ('10', '8 felt great') get humanized so the
-                        // row reads as content, not a stray number.
-                        if (e.kind === 'survey') {
-                          const { score, trailer } = renderSurveyBody(e.body);
-                          if (score != null) {
-                            return (
-                              <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
-                                <span className="font-semibold text-[color:var(--ink)]">
-                                  Readiness {score}/10
-                                </span>
-                                {trailer && (
-                                  <>
-                                    {' '}
-                                    <span className="text-[color:var(--ink-mute)]">·</span>{' '}
-                                    {trailer}
-                                  </>
-                                )}
-                              </div>
-                            );
-                          }
+                        // Survey replies that are just a bare number
+                        // get a slightly larger / mono treatment so a
+                        // stranded '10' reads as the intentional answer
+                        // it is, not a typo. We can't infer WHICH
+                        // question (readiness vs energy vs effort etc.)
+                        // without joining to the survey schedule, so we
+                        // don't label it — just present the answer.
+                        if (e.kind === 'survey' && isBareNumericReply(e.body)) {
+                          return (
+                            <div className="mt-1.5 mono text-[18px] font-semibold tabular text-[color:var(--ink)]">
+                              {e.body.trim()}
+                            </div>
+                          );
                         }
                         return (
                           <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
