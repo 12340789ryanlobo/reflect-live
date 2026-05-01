@@ -43,14 +43,19 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
 
   const fetchAll = useCallback(async () => {
-    // Pull prefs + memberships in parallel; memberships are authoritative
-    // for "what teams am I on", prefs hold per-user UI preferences.
-    const [{ data: prefRow }, { data: memRows }] = await Promise.all([
-      sb.from('user_preferences').select('*').maybeSingle(),
-      sb.from('team_memberships').select('*'),
+    // Pull prefs + memberships via the service-role API endpoints
+    // rather than the browser-side Supabase client. The browser client
+    // depends on Clerk JWT → Supabase RLS, which has bitten us when
+    // the JWT template drifts; the API endpoints use auth() server-side
+    // and the service-role key, so they always see the right rows.
+    // Memberships are authoritative for "what teams am I on"; prefs
+    // hold per-user UI preferences.
+    const [prefsRes, memsRes] = await Promise.all([
+      fetch('/api/preferences').then((r) => r.ok ? r.json() : { preferences: null }),
+      fetch('/api/team-memberships').then((r) => r.ok ? r.json() : { memberships: [] }),
     ]);
-
-    const mems = (memRows ?? []) as TeamMembership[];
+    const prefRow = (prefsRes.preferences ?? null) as UserPreferences | null;
+    const mems = ((memsRes.memberships ?? []) as TeamMembership[]);
     setMemberships(mems);
 
     // Resolve current state.
