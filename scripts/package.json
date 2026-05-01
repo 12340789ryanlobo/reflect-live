@@ -9,7 +9,8 @@
   "dependencies": {
     "@reflect-live/shared": "workspace:*",
     "@supabase/supabase-js": "^2.45.0",
-    "better-sqlite3": "^11.3.0"
+    "better-sqlite3": "^11.3.0",
+    "twilio": "^6.0.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",

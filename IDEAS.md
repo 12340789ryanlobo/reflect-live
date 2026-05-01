@@ -207,6 +207,11 @@
   the Supabase SQL editor. Adds `media_sids text[]` to `twilio_messages`
   and `activity_logs`. Until applied: worker insert will fail on
   messages with attachments; thumbnail strip stays empty.
+- **Backfill historical media** (after migration is applied):
+  `bun run scripts/backfill-twilio-media.ts --dry-run` first to see the
+  impact, then re-run without `--dry-run` to apply. Idempotent +
+  resumable. Twilio retains inbound media ~30 days, so messages older
+  than that will return zero media (stored as `[]`, skipped).
 
 ---
 
@@ -293,9 +298,8 @@
 
 ---
 
-_Updated 2026-05-01: inbound media pipeline shipped end-to-end —
-worker captures Twilio MediaSIDs, /api/twilio-media proxy fetches
-with team auth + streams back, <TwilioMediaStrip> renders 3 inline
-36px thumbnails (with +N overflow) on the past-activity table, and
-clicking opens a lightbox with prev/next + counter. Migration 0023
-must be applied before this works in prod._
+_Updated 2026-05-01: media pipeline + historical backfill ready.
+Worker captures going forward; scripts/backfill-twilio-media.ts
+catches up older inbound rows that have media_sids=null. Idempotent,
+resumable, polite (50ms sleep between Twilio calls). Twilio's ~30-day
+retention means anything older returns `[]` and is no-op'd silently._
