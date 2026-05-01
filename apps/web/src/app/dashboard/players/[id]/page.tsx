@@ -9,6 +9,7 @@ import { UnifiedTimeline } from '@/components/v3/unified-timeline';
 import { EditAthleteDialog } from '@/components/v3/edit-athlete-dialog';
 import { LogActivityDialog } from '@/components/v3/log-activity-dialog';
 import { ReportInjuryDialog } from '@/components/v3/report-injury-dialog';
+import { SelfReportDialog } from '@/components/v3/self-report-dialog';
 import { Button } from '@/components/ui/button';
 import { type Period, periodSinceIso } from '@/lib/period';
 import { parseAllRegions } from '@/lib/injury-aliases';
@@ -97,6 +98,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [logActivityOpen, setLogActivityOpen] = useState(false);
   const [logActivityKind, setLogActivityKind] = useState<'workout' | 'rehab'>('workout');
   const [reportInjuryOpen, setReportInjuryOpen] = useState(false);
+  const [selfReportOpen, setSelfReportOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -311,10 +313,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         setReportInjuryOpen(true);
         return;
       case 'self_report':
-        // Self-report (web equivalent of the SMS readiness reply) needs
-        // a synthetic survey-row writer that doesn't exist yet — keeping
-        // the placeholder while the rest of D3 ships.
-        alert('Self-report on web is still in progress.');
+        setSelfReportOpen(true);
         return;
     }
   }
@@ -364,6 +363,14 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           viewerIsSelf={viewerIsSelf}
           onSaved={() => setDataTick((n) => n + 1)}
         />
+        {viewerIsSelf && (
+          <SelfReportDialog
+            open={selfReportOpen}
+            onOpenChange={setSelfReportOpen}
+            playerId={player.id}
+            onSaved={() => setDataTick((n) => n + 1)}
+          />
+        )}
         <AthleteHero
           player={player}
           derived={derived}

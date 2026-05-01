@@ -76,7 +76,7 @@
   (every athlete moves) or delete a group (every member ungrouped).
   Backed by `PATCH /api/teams/[id]/groups`.
 
-### Manual logging from the web (D3, partial)
+### Manual logging from the web (D3 — complete)
 - **Log workout / Log rehab** dialog from the athlete-hero action row.
   Kind toggle, free-form description (heatmap auto-tags regions from
   the text), optional "Notes for coach" field surfaced only when the
@@ -86,8 +86,16 @@
 - **Report injury** dialog from the same action row. Free-form
   description + optional 1-5 severity radio with tone color. Reuses the
   existing `POST /api/injury-reports`.
-- Both dialogs bump a local `dataTick` so the page's timeline + heatmap
-  re-fetch on save — no hard reload.
+- **Self-report** dialog (athletes only). 1-10 readiness picker with
+  tone color (1-4 red, 5-6 amber, 7-10 green) + descriptor labels
+  (Cooked / Heavy / OK / Solid / Flying), optional notes. Posts to a
+  new `POST /api/self-report` that writes a synthetic
+  `twilio_messages` row with `category='survey'`, `direction='inbound'`,
+  body shape `'<n> <notes>'` so the existing readiness parser picks it
+  up automatically. Sid prefix `web-self-<uuid>` makes manual
+  self-reports identifiable in the data.
+- All three dialogs bump a local `dataTick` so the page's timeline +
+  heatmap + readiness bar refresh on save — no hard reload.
 
 ### Heatmap + body taxonomy
 - One slug ↔ one canonical region rule across the whole map
@@ -148,20 +156,16 @@
 - Schedule page (events) → real CRUD UX, not just a read-only grid
 
 ### Athlete-side features
-- **Self-report on the web** (last D3 leg). Workout + injury are now
-  shipped; self-report (web equivalent of the SMS readiness reply)
-  still needs a synthetic-survey-row writer. Either insert into
-  `twilio_messages` with a `web-…` sid + `category='survey'`, or push
-  through the new sessions/responses path. Button currently alerts
-  "Self-report on web is still in progress."
 - Athlete dashboard surface: upcoming events / competitions / start-of-
   season dates pulled from coach-inputted schedule. Model after
   reflect's existing athlete view.
 - Show inbound-SMS images: `twilio_messages` may carry a media URL;
   surface those in the timeline if present.
 - Optional photo upload on Log workout (storage bucket + signed URL).
-- Backdate option on Log workout / Report injury (date+time picker
-  defaulting to now; useful for "logged it the next morning").
+- Backdate option on Log workout / Report injury / Self-report
+  (date+time picker defaulting to now; useful for "logged it the next
+  morning"). Today the synthetic survey row uses `now()` for
+  `date_sent`, so backfilling a missed check-in isn't possible.
 
 ### AI as the centerpiece (Phase 4 — once polish settles)
 - AI chat assistant scoped to a player's data
@@ -202,8 +206,10 @@
 
 ---
 
-_Updated 2026-04-30: D3 partial — Log workout / Log rehab and Report
-injury dialogs now wired up on the athlete page action row, replacing
-the previous "Coming soon" alerts. New `POST /api/activity-logs`
-endpoint handles self vs coach-on-behalf gating. Self-report on the
-web is the only D3 leg still pending._
+_Updated 2026-04-30: D3 complete — Self-report dialog now ships
+alongside Log workout / Log rehab and Report injury. Self-report
+writes a synthetic `web-self-…` row into `twilio_messages` with
+`category='survey'`, body `'<readiness> <notes>'`, so it flows
+through every existing readiness path (hero bar, LLM summary,
+heatmap of nothing — readings stay numerical) without a new
+client-side parser._
