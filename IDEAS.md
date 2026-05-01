@@ -1,8 +1,20 @@
 # Reflect-Live Ideas + Backlog
 
-Living doc. Three sections: what's shipped, what's in flight, what's next.
-Every item the original list mentioned is preserved — just routed to the
-section it actually belongs in.
+> **Working contract for Claude:** read this file at the start of every
+> task, and update it after every shipped change. Move new ideas out of
+> the Inbox into the right backlog section as part of each update. Mark
+> things as ✅ Shipped only after they're committed and pushed.
+
+---
+
+## 🧠 Inbox — drop raw thoughts here
+
+> Write anything here as it comes to you — half-formed ideas, bugs you
+> spotted, questions, "wouldn't it be nice if…". Claude will fold each
+> entry into the structured sections below on the next update and clear
+> it from this list. Leave a `-` bullet per thought.
+
+-
 
 ---
 
@@ -35,6 +47,18 @@ section it actually belongs in.
   mention that region; "Filtered by:" pill clears it
 - Personal counters: workouts / rehabs / surveys / flags
 - Click into an athlete → sidebar tab highlights correctly (canonical URL)
+
+### Roster management (coach + admin)
+- "Edit" pencil button on the athlete page header opens a dialog with
+  group dropdown (existing groups + "+ New group…") and captain toggle
+- Same dialog opens when clicking the group pill on `/dashboard/players`
+  — `+ Add group` affordance replaces "—" for athletes with no group
+- "Captain" pill renders next to an athlete's name in the roster table
+  for quick visual scan of who runs what
+- Captain promotion writes to `team_memberships.role` and heals the
+  affected user's `user_preferences.role` so the change is immediate
+- Coaches (was admin-only) can now edit name/group/phone/active/gender;
+  delete remains admin-only
 
 ### Heatmap + body taxonomy
 - One slug ↔ one canonical region rule across the whole map
@@ -113,8 +137,10 @@ section it actually belongs in.
 
 ### Coach + admin polish
 - "All athletes" view (coach) → tighter card grid, filter by group
-- Group rename: coach should be able to edit the group label without
-  re-importing the roster CSV
+- Bulk group rename — change the *label* of an existing group across
+  every player at once (current edit dialog only changes one player at
+  a time; clicking + New group on each is fine for moves but a true
+  rename needs a server-side bulk update)
 - Admin "users" page — keep it minimal: name, team, role. Drop or
   rename the "Roster link (player)" column to something the admin
   actually understands
@@ -146,5 +172,7 @@ section it actually belongs in.
 
 ---
 
-_Last restructure: 2026-04-30. Previous iterations of this file are in
-`git log`._
+_Updated 2026-04-30: per-athlete edit dialog (group + captain toggle)
+launched from athlete page header AND from clicking the group pill on
+`/dashboard/players`. Inbox section added — drop thoughts there and
+they'll be folded in on the next update._
