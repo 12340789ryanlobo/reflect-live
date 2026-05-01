@@ -10,6 +10,7 @@ import { EditAthleteDialog } from '@/components/v3/edit-athlete-dialog';
 import { LogActivityDialog } from '@/components/v3/log-activity-dialog';
 import { ReportInjuryDialog } from '@/components/v3/report-injury-dialog';
 import { SelfReportDialog } from '@/components/v3/self-report-dialog';
+import { ManagePhonesDialog } from '@/components/v3/manage-phones-dialog';
 import { UpcomingMeets } from '@/components/v3/upcoming-meets';
 import { Button } from '@/components/ui/button';
 import { type Period, periodSinceIso } from '@/lib/period';
@@ -100,6 +101,11 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [logActivityKind, setLogActivityKind] = useState<'workout' | 'rehab'>('workout');
   const [reportInjuryOpen, setReportInjuryOpen] = useState(false);
   const [selfReportOpen, setSelfReportOpen] = useState(false);
+  const [phonesOpen, setPhonesOpen] = useState(false);
+  // Count of alternate (non-primary) phones — drives the '+N' pill on
+  // the identity card so the coach knows alternates exist without
+  // opening the dialog. Refetched whenever rosterTick bumps.
+  const [alternatePhoneCount, setAlternatePhoneCount] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -211,6 +217,22 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         setLinkedMembership({ hasLink: false, role: null });
       }
       if (freshPlayer) setPlayer(freshPlayer as Player);
+
+      // Pull alternate phone count via the API (service-role, bypasses
+      // RLS) so the '+N' chip reflects reality even if the browser
+      // Supabase JWT isn't propagating perfectly.
+      try {
+        const r = await fetch(`/api/players/${playerId}/phones`);
+        if (r.ok) {
+          const j = await r.json();
+          const phones = (j.phones ?? []) as Array<{ is_primary: boolean }>;
+          if (alive) setAlternatePhoneCount(phones.filter((p) => !p.is_primary).length);
+        } else if (alive) {
+          setAlternatePhoneCount(0);
+        }
+      } catch {
+        if (alive) setAlternatePhoneCount(0);
+      }
     })();
     return () => { alive = false; };
   }, [sb, team.id, playerId, rosterTick]);
@@ -373,6 +395,15 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             onSaved={() => setDataTick((n) => n + 1)}
           />
         )}
+        {(viewerCanEdit || viewerIsSelf) && (
+          <ManagePhonesDialog
+            open={phonesOpen}
+            onOpenChange={setPhonesOpen}
+            playerId={player.id}
+            playerName={player.name}
+            onSaved={() => setRosterTick((n) => n + 1)}
+          />
+        )}
         <AthleteHero
           player={player}
           derived={derived}
@@ -384,6 +415,10 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           seasonRank={seasonRank}
           seasonRankTotal={seasonRankTotal}
           seasonStart={team.competition_start_date ?? null}
+          onManagePhones={
+            viewerCanEdit || viewerIsSelf ? () => setPhonesOpen(true) : undefined
+          }
+          alternatePhoneCount={alternatePhoneCount}
         />
         <HeatmapTabs
           injuryCounts={injuryCounts}

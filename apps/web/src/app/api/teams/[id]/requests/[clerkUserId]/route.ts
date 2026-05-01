@@ -164,13 +164,35 @@ export async function PATCH(
   //   3. Otherwise: create a fresh players row.
   let playerId: number | null = null;
 
-  const { data: phoneMatch } = await sb
-    .from('players')
-    .select('id')
-    .eq('team_id', teamId)
-    .eq('phone_e164', request.requested_phone)
-    .maybeSingle<{ id: number }>();
-  if (phoneMatch) playerId = phoneMatch.id;
+  // Phone match: hits player_phones (covers ALT numbers from
+  // international students with US + home-country phones), then falls
+  // back to the legacy players.phone_e164 cache for players that
+  // somehow don't have a player_phones row yet. Two-step: find candidate
+  // player_ids by e164, then narrow to this team via a follow-up query.
+  // (Avoids fragile typing on supabase's relation joins.)
+  const { data: phoneRows } = await sb
+    .from('player_phones')
+    .select('player_id')
+    .eq('e164', request.requested_phone);
+  const candidateIds = ((phoneRows ?? []) as Array<{ player_id: number }>).map((r) => r.player_id);
+  if (candidateIds.length > 0) {
+    const { data: scoped } = await sb
+      .from('players')
+      .select('id')
+      .eq('team_id', teamId)
+      .in('id', candidateIds)
+      .limit(1);
+    if (scoped && scoped.length > 0) playerId = (scoped[0] as { id: number }).id;
+  }
+  if (playerId == null) {
+    const { data: phoneMatch } = await sb
+      .from('players')
+      .select('id')
+      .eq('team_id', teamId)
+      .eq('phone_e164', request.requested_phone)
+      .maybeSingle<{ id: number }>();
+    if (phoneMatch) playerId = phoneMatch.id;
+  }
 
   if (playerId == null) {
     // Name-match fallback. Pull all players + linked memberships and do
@@ -214,6 +236,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'player_insert_failed', detail: insErr.message }, { status: 500 });
     }
     playerId = created.id as number;
+    // Also seed the primary row in player_phones — the worker's
+    // inbound matcher reads from there, not from players.phone_e164.
+    await sb.from('player_phones').insert({
+      player_id: playerId,
+      e164: request.requested_phone,
+      is_primary: true,
+    });
   }
 
   // Flip the membership to active and link the player. If this is the

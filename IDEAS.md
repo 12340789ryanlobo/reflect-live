@@ -74,6 +74,26 @@
 - Personal counters: workouts / rehabs / surveys / flags
 - Click into an athlete → sidebar tab highlights correctly (canonical URL)
 
+### Multiple phones per athlete
+- New `player_phones` table — one row per number an athlete owns,
+  exactly one `is_primary=true` per player (enforced by a unique
+  partial index). `players.phone_e164` is kept as a denormalized
+  cache of the primary so leaderboard/heatmap queries don't have
+  to JOIN.
+- **Manage phones** dialog from clicking the phone row on the
+  athlete page (visible to coach/admin OR the athlete themselves).
+  Add a phone (using the same react-phone-number-input widget),
+  star one as default, delete alternates. The default is always
+  promoted before any deletion of the current primary.
+- Worker inbound matcher now reads from `player_phones` so a text
+  from an athlete's home-country number lands on their timeline
+  the same as their US number.
+- Approve waterfall queries `player_phones` first (covers alts
+  from international students). Falls back to `players.phone_e164`
+  for legacy data, then name-match.
+- '+N' chip on the identity card surfaces alternate-phone count
+  without opening the dialog.
+
 ### Roster management (coach + admin)
 - "Edit" pencil button on the athlete page header opens a dialog with
   group dropdown (existing groups + "+ New group…") and captain toggle
@@ -177,8 +197,12 @@
 ## ⚠️ Action required (before next ship)
 
 - **Apply migration `supabase/migrations/0021_competition_start_date.sql`**
-  via the Supabase SQL editor. Until then the season-rank fetch and the
-  Season-start settings PATCH will both error.
+  via the Supabase SQL editor (if not already done).
+- **Apply migration `supabase/migrations/0022_player_phones.sql`** via
+  the Supabase SQL editor. Backfills every existing `players.phone_e164`
+  as a primary row in the new `player_phones` table. Until applied:
+  worker matcher will fail (missing table), phones manager dialog will
+  show empty.
 
 ---
 
@@ -246,10 +270,9 @@
 
 ---
 
-_Updated 2026-05-01: phone input on /onboarding swapped to
-`react-phone-number-input` — country flag selector on the left,
-hard-capped digit field on the right, auto-format per-country,
-output is E.164. `isValidPhoneNumber` validates digit count for
-the selected country, so submit stays disabled until the format is
-exactly right (e.g. exactly 10 digits for US). Theme overrides for
-the library live in globals.css under `.phone-input.PhoneInput`._
+_Updated 2026-05-01: multi-phone support via new `player_phones` table.
+International students with US + home-country numbers now have all of
+them on file with one starred as default. Worker matcher + approve
+waterfall both read from the new table. Manage-phones dialog on the
+athlete page (click the phone row) lets coach/admin/self add, star,
+delete. Migration 0022 must be applied before this works in prod._

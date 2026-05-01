@@ -22,10 +22,27 @@ let surveyErrors = 0;
 
 async function loadPhones(sb: ReturnType<typeof createServiceClient>) {
   return async () => {
-    const { data, error } = await sb.from('players').select('phone_e164,id,team_id');
-    if (error) throw error;
+    // Pull phones from player_phones (includes alternates for international
+    // students with US + home-country numbers). Joining to players lets us
+    // surface team_id without a second query. Falls back to the legacy
+    // players.phone_e164 column for any players who don't yet have a
+    // player_phones row (defensive — the migration backfills these).
     const map = new Map<string, { id: number; team_id: number }>();
-    for (const row of data ?? []) map.set(row.phone_e164, { id: row.id, team_id: row.team_id });
+    const { data: pp, error: ppErr } = await sb
+      .from('player_phones')
+      .select('e164, players!inner(id,team_id)');
+    if (ppErr) throw ppErr;
+    for (const row of (pp ?? []) as Array<{ e164: string; players: { id: number; team_id: number } }>) {
+      if (row.e164 && row.players) map.set(row.e164, { id: row.players.id, team_id: row.players.team_id });
+    }
+    // Defensive fallback for any players that somehow have a phone_e164
+    // but no player_phones row. Skips entries already in the map.
+    const { data: legacy } = await sb.from('players').select('phone_e164,id,team_id');
+    for (const row of (legacy ?? []) as Array<{ phone_e164: string | null; id: number; team_id: number }>) {
+      if (row.phone_e164 && !map.has(row.phone_e164)) {
+        map.set(row.phone_e164, { id: row.id, team_id: row.team_id });
+      }
+    }
     return map;
   };
 }

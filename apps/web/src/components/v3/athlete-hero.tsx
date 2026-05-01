@@ -54,6 +54,13 @@ interface Props {
   viewerIsSelf: boolean;
   showPhone: boolean;
   onAction: (verb: ActionVerb) => void;
+  /** Coach/admin/self can click the phone row to open the phone
+   *  manager dialog. Hidden when undefined. */
+  onManagePhones?: () => void;
+  /** Count of additional non-primary numbers, surfaced as a small
+   *  '+N more' chip next to the primary so the coach knows there
+   *  are alternates without opening the dialog. */
+  alternatePhoneCount?: number;
   /** Athlete's place on the team leaderboard for the configured
    *  competition window — 1-indexed. Null when the athlete has no
    *  scored activity (or no roster mates). */
@@ -91,6 +98,8 @@ export function AthleteHero({
   seasonRank = null,
   seasonRankTotal = null,
   seasonStart = null,
+  onManagePhones,
+  alternatePhoneCount = 0,
 }: Props) {
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -202,7 +211,21 @@ export function AthleteHero({
         {showPhone && (
           <div className="flex items-center justify-between text-[12px]">
             <span className="text-[color:var(--ink-mute)]">Phone</span>
-            <span className="mono tabular text-[color:var(--ink-soft)]">{prettyPhone(player.phone_e164)}</span>
+            {onManagePhones ? (
+              <button
+                type="button"
+                onClick={onManagePhones}
+                className="inline-flex items-center gap-1.5 mono tabular text-[color:var(--ink-soft)] hover:text-[color:var(--blue)] transition"
+                aria-label="Manage phone numbers"
+              >
+                <span>{prettyPhone(player.phone_e164)}</span>
+                {alternatePhoneCount > 0 && (
+                  <Pill tone="mute">+{alternatePhoneCount}</Pill>
+                )}
+              </button>
+            ) : (
+              <span className="mono tabular text-[color:var(--ink-soft)]">{prettyPhone(player.phone_e164)}</span>
+            )}
           </div>
         )}
         {/* Competition rank — visible to everyone viewing the page so
