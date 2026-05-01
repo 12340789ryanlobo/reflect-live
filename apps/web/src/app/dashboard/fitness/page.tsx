@@ -45,6 +45,10 @@ export default function FitnessPage() {
   const [allTimeRows, setAllTimeRows] = useState<LeaderboardRow[]>([]);
   const [deleting, setDeleting] = useState<number | null>(null);
   const canDelete = role === 'coach' || role === 'admin';
+  // Past activity pagination — render a fixed page size instead of every
+  // row up-front. Coach said the page was getting unscrollable.
+  const PAGE_SIZE = 25;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   async function deleteLog(id: number) {
     if (deleting !== null) return;
@@ -132,6 +136,14 @@ export default function FitnessPage() {
 
   const filtered = kindFilter === 'all' ? logs : logs.filter((l) => l.kind === kindFilter);
   const daysShort = DAY_OPTIONS.find((o) => Number(o.value) === days)?.label ?? `${days}d`;
+  // Reset pagination when the user narrows / widens the kind filter or
+  // the period — otherwise switching from 'all' to 'rehab' on page 3
+  // would show 'visibleCount=75 of 8 rehab entries', which looks weird.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [kindFilter, days]);
+  const visibleRows = filtered.slice(0, visibleCount);
+  const hiddenCount = Math.max(0, filtered.length - visibleCount);
 
   return (
     <>
@@ -271,7 +283,7 @@ export default function FitnessPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((l) => {
+                  {visibleRows.map((l) => {
                     const name = l.player?.name ?? 'Unknown';
                     return (
                       <tr
@@ -337,6 +349,48 @@ export default function FitnessPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          {!loading && filtered.length > 0 && hiddenCount > 0 && (
+            <div
+              className="flex items-center justify-between gap-3 px-6 py-3 border-t text-[12px]"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <span className="text-[color:var(--ink-mute)] tabular">
+                Showing {visibleRows.length} of {filtered.length}
+                {hiddenCount > 0 && <> · {hiddenCount} more</>}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                  className="rounded-md border px-3 py-1.5 text-[12px] font-semibold text-[color:var(--ink-soft)] hover:text-[color:var(--ink)] hover:border-[color:var(--blue)] transition"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  Show {Math.min(PAGE_SIZE, hiddenCount)} more
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount(filtered.length)}
+                  className="rounded-md px-3 py-1.5 text-[12px] font-semibold text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] transition"
+                >
+                  Show all
+                </button>
+              </div>
+            </div>
+          )}
+          {!loading && filtered.length > 0 && hiddenCount === 0 && visibleCount > PAGE_SIZE && (
+            <div
+              className="flex items-center justify-end px-6 py-3 border-t text-[12px]"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <button
+                type="button"
+                onClick={() => setVisibleCount(PAGE_SIZE)}
+                className="rounded-md px-3 py-1.5 text-[12px] font-semibold text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] transition"
+              >
+                Collapse
+              </button>
             </div>
           )}
         </section>

@@ -226,6 +226,26 @@
 - "Athletes overview" list page → present better than a flat list
 - Schedule page (events) → real CRUD UX, not just a read-only grid
 
+### Inbound media (images on activity logs)
+- The schema has `activity_logs.image_path` but the worker
+  (`apps/worker/src/poll.ts:65`) sets it to null on every insert.
+  `twilio_messages` doesn't store media URLs at all. Athletes who
+  text photos with their workout updates have those photos
+  silently dropped.
+- Plan when we tackle this:
+  1. Add `media_urls text[]` to `twilio_messages` (store the raw
+     Twilio MediaUrl values from the API response).
+  2. Worker: pull `num_media` + per-index `MediaUrl` from each
+     message and write the array. When categorizing as
+     workout/rehab, also copy onto `activity_logs.media_urls`.
+  3. Twilio media URLs require Basic Auth, so add a thin proxy:
+     `/api/twilio-media?messageSid=...&mediaIdx=...` that fetches
+     with credentials and streams the image back. (Or download
+     to Supabase Storage and serve from there for permanence —
+     Twilio retains messages ~30d.)
+  4. UI: small thumbnail strip on past-activity rows + the
+     unified-timeline; click to open in a lightbox modal.
+
 ### Athlete-side features
 - Show inbound-SMS images: `twilio_messages` may carry a media URL;
   surface those in the timeline if present.
@@ -270,11 +290,9 @@
 
 ---
 
-_Updated 2026-05-01: BOOTSTRAP_ADMIN_EMAIL no longer overrides team
-membership role. Previously, any email on the allowlist auto-got
-role='admin' on first prefs creation — even if their team_membership
-said 'athlete'. That made it impossible to test the athlete flow on
-a bootstrap-admin account. Now the allowlist only sets
-is_platform_admin=true; role comes from team_memberships. The 'first
-user ever bootstraps as admin' fallback (count=0) stays for fresh
-installs._
+_Updated 2026-05-01: past-activity table on /dashboard/fitness is
+paginated — 25 rows by default with 'Show 25 more' / 'Show all' /
+'Collapse' controls. Resets to first page when the kind filter or
+period changes. Image rendering on activity logs queued in the
+backlog — worker doesn't capture Twilio media yet so there's nothing
+to show until that pipeline ships._
