@@ -224,16 +224,32 @@ export default function Dashboard() {
             <ul>
               {recentActivity.map((l) => {
                 const tone = l.kind === 'workout' ? 'green' : 'amber';
-                return (
-                  <li key={l.id} className="flex items-start gap-4 border-b px-6 py-3 last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+                const inner = (
+                  <>
                     <div className="text-[12px] font-semibold text-[color:var(--ink-mute)] tabular min-w-[60px] pt-0.5">
                       {relativeTime(l.logged_at)}
                     </div>
                     <div className="pt-0.5"><Pill tone={tone}>{l.kind}</Pill></div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[14px] font-semibold text-[color:var(--ink)]">{l.player?.name ?? 'Unknown'}</div>
+                      <div className="text-[14px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--blue)] transition">
+                        {l.player?.name ?? 'Unknown'}
+                      </div>
                       <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed line-clamp-2">{l.description}</div>
                     </div>
+                  </>
+                );
+                return (
+                  <li key={l.id} className="border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+                    {l.player_id ? (
+                      <Link
+                        href={`/dashboard/players/${l.player_id}`}
+                        className="group flex items-start gap-4 px-6 py-3 hover:bg-[color:var(--paper-2)] transition"
+                      >
+                        {inner}
+                      </Link>
+                    ) : (
+                      <div className="flex items-start gap-4 px-6 py-3">{inner}</div>
+                    )}
                   </li>
                 );
               })}

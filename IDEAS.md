@@ -205,8 +205,9 @@
 
 ---
 
-_Updated 2026-04-30: hidden=false filter applied at every user-facing
-activity_logs read site (live timeline, dashboard recent-activity
-teaser, team heatmap, individual athlete page). Coach soft-deletes
-now actually disappear from the UI everywhere, not just the leaderboard
-+ fitness counters that already filtered._
+_Updated 2026-04-30: every player-name row across the dashboards now
+links to the athlete's `/dashboard/players/[id]` page. Was previously
+clickable on the leaderboard, NeedsAttention, and LiveFeed; missing
+from dashboard root recent-activity, captain follow-up list, and
+/dashboard/live activity timeline. Fixed all three with consistent
+hover treatment (paper-2 row bg + ink → blue name)._

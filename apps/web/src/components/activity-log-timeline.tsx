@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { ActivityLog, Player } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Pill } from './v3/pill';
@@ -41,8 +42,8 @@ export function ActivityLogTimeline({ teamId }: { teamId: number }) {
             {logs.map((l) => {
               const player = l.player_id ? byId.get(l.player_id) : null;
               const tone = l.kind === 'workout' ? 'green' : 'amber';
-              return (
-                <li key={l.id} className="flex items-start gap-4 py-3 border-[color:var(--border)]">
+              const inner = (
+                <>
                   <div className="text-[12px] font-semibold text-[color:var(--ink-mute)] tabular min-w-[64px] pt-0.5">
                     {prettyDate(l.logged_at)}
                   </div>
@@ -50,9 +51,25 @@ export function ActivityLogTimeline({ teamId }: { teamId: number }) {
                     <Pill tone={tone}>{l.kind}</Pill>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[14px] font-semibold text-[color:var(--ink)]">{player?.name ?? 'Unknown'}</div>
+                    <div className="text-[14px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--blue)] transition">
+                      {player?.name ?? 'Unknown'}
+                    </div>
                     <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed">{l.description}</div>
                   </div>
+                </>
+              );
+              return (
+                <li key={l.id} className="border-[color:var(--border)]">
+                  {l.player_id ? (
+                    <Link
+                      href={`/dashboard/players/${l.player_id}`}
+                      className="group flex items-start gap-4 py-3 px-1 -mx-1 rounded-md hover:bg-[color:var(--paper-2)] transition"
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div className="flex items-start gap-4 py-3">{inner}</div>
+                  )}
                 </li>
               );
             })}

@@ -192,24 +192,29 @@ export default function CaptainHome() {
             </p>
           ) : (
             <ul className="grid gap-0 md:grid-cols-2">
-              {overdue.slice(0, 10).map(({ p, ts }, i) => (
+              {overdue.slice(0, 10).map(({ p, ts }) => (
                 <li
                   key={p.id}
-                  className="flex items-center gap-3 border-b px-5 py-3"
-                  style={{ borderColor: 'var(--border)', ...(i % 2 === 0 ? {} : {}) }}
+                  className="border-b"
+                  style={{ borderColor: 'var(--border)' }}
                 >
-                  <span className="grid size-8 place-items-center rounded-md border bg-[color:var(--paper)] text-[11px] font-bold shrink-0" style={{ borderColor: 'var(--border)' }}>
-                    {initials(p.name)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-semibold text-[color:var(--ink)]">
-                      {p.name}
+                  <Link
+                    href={`/dashboard/players/${p.id}`}
+                    className="group flex items-center gap-3 px-5 py-3 hover:bg-[color:var(--paper-2)] transition"
+                  >
+                    <span className="grid size-8 place-items-center rounded-md border bg-[color:var(--paper)] text-[11px] font-bold shrink-0" style={{ borderColor: 'var(--border)' }}>
+                      {initials(p.name)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[14px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--blue)] transition">
+                        {p.name}
+                      </div>
+                      <div className="text-[12px] text-[color:var(--ink-dim)] truncate">
+                        {p.group ?? 'no group'} · {ts ? `last reply ${relativeTime(ts)}` : 'never'}
+                      </div>
                     </div>
-                    <div className="text-[12px] text-[color:var(--ink-dim)] truncate">
-                      {p.group ?? 'no group'} · {ts ? `last reply ${relativeTime(ts)}` : 'never'}
-                    </div>
-                  </div>
-                  <Pill tone={ts ? 'amber' : 'mute'}>{ts ? 'watch' : 'silent'}</Pill>
+                    <Pill tone={ts ? 'amber' : 'mute'}>{ts ? 'watch' : 'silent'}</Pill>
+                  </Link>
                 </li>
               ))}
             </ul>
