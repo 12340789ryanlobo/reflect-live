@@ -19,23 +19,38 @@ import type { ActivityLog, TwilioMessage } from '@reflect-live/shared';
 import { prettyDateTime, relativeTime } from '@/lib/format';
 
 // Survey replies span multiple questions — readiness 1-10, energy
-// 1-10, effort 1-10, injury yes/no, focus area free-text, etc. We
-// can't assume a bare digit means readiness. But ANY 1-10 numeric
-// reply is best surfaced as a colored score pill rather than a
-// stranded number in the body — color encodes urgency without
-// claiming to know the question.
+// 1-10, effort 1-10, injury yes/no (0 or 1), 'Enter 0 to skip', etc.
+// Any bare numeric body (including decimals like 6.5 and yes/no 0/1)
+// gets surfaced as a pill so the row reads consistently.
+//
+// Range: 0-10 inclusive. 0 covers 'no pain' / 'skip'; decimals cover
+// half-step readiness scores. Anything outside 0-10 is probably noise
+// (a phone digit, a typo) and falls through to body rendering.
 function bareScore(body: string): number | null {
-  const m = /^\s*(\d{1,2})\s*$/.exec(body);
+  const m = /^\s*(\d{1,2}(?:\.\d+)?)\s*$/.exec(body);
   if (!m) return null;
   const n = Number(m[1]);
-  if (!Number.isFinite(n) || n < 1 || n > 10) return null;
+  if (!Number.isFinite(n) || n < 0 || n > 10) return null;
   return n;
 }
 
-function scoreTone(n: number): 'red' | 'amber' | 'green' {
-  if (n <= 4) return 'red';
-  if (n <= 6) return 'amber';
+// Color encoding: low integers (1-4) are concerning, mid (5-6) is
+// neutral, high (7-10) is positive. 0 is mute — for the 'no pain'
+// or 'skip' case, low isn't bad. Decimals bucket by floor so 4.5 still
+// flags red, 6.5 stays amber.
+function scoreTone(n: number): 'red' | 'amber' | 'green' | 'mute' {
+  if (n < 1) return 'mute';
+  const f = Math.floor(n);
+  if (f <= 4) return 'red';
+  if (f <= 6) return 'amber';
   return 'green';
+}
+
+// Pill text: '6/10' for integers, '6.5/10' for decimals, just '0'
+// for the yes/no / skip case (0/10 framing is misleading there).
+function scoreLabel(n: number): string {
+  if (n === 0) return '0';
+  return `${n}/10`;
 }
 
 type Chip = 'important' | 'all' | 'activity' | 'messages' | 'survey';
@@ -110,7 +125,10 @@ function isNoise(e: TimelineEntry): boolean {
 function flaggedScore(e: TimelineEntry): number | null {
   if (e.kind !== 'survey') return null;
   const n = bareScore(e.body);
-  return n != null && n <= 4 ? n : null;
+  if (n == null) return null;
+  // 0 is the 'no pain' / 'skip' answer — low number, but not concerning.
+  if (n < 1) return null;
+  return Math.floor(n) <= 4 ? n : null;
 }
 
 const KIND_TONE: Record<TimelineKind, 'green' | 'amber' | 'blue' | 'mute'> = {
@@ -292,7 +310,7 @@ export function UnifiedTimeline({
                       <div className="flex items-center gap-2 flex-wrap">
                         <Pill tone={KIND_TONE[e.kind]}>{KIND_LABEL[e.kind]}</Pill>
                         {score != null && (
-                          <Pill tone={scoreTone(score)}>{score}/10</Pill>
+                          <Pill tone={scoreTone(score)}>{scoreLabel(score)}</Pill>
                         )}
                       </div>
                       {e.pairedQuestion && (
