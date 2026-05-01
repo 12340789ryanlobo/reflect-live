@@ -12,22 +12,21 @@ function serviceClient() {
 
 async function computeInitialRole(
   userId: string,
-  userEmail: string | undefined,
+  _userEmail: string | undefined,
   teamId: number,
 ): Promise<'admin' | 'coach' | 'captain' | 'athlete'> {
-  // BOOTSTRAP_ADMIN_EMAIL can be a single email or a comma-separated list.
-  const adminEmails = (process.env.BOOTSTRAP_ADMIN_EMAIL ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  if (userEmail && adminEmails.includes(userEmail.toLowerCase())) return 'admin';
+  // team_memberships.role is authoritative for this user on this team.
+  // Bootstrap-admin emails (BOOTSTRAP_ADMIN_EMAIL env var) used to also
+  // override role to 'admin' here, but that conflated two concerns:
+  // platform-wide admin access (is_platform_admin) vs the user's role
+  // on a specific team. A platform admin who joins a team as an
+  // athlete should be 'athlete' on that team — they keep admin access
+  // via is_platform_admin, not via the membership role. So the email
+  // check is gone; admin elevation now happens purely via the
+  // is_platform_admin flag set on the prefs row.
   const sb = serviceClient();
   const { count } = await sb.from('user_preferences').select('clerk_user_id', { count: 'exact', head: true });
-  if ((count ?? 0) === 0) return 'admin'; // first user becomes admin
-  // team_memberships is the authoritative role for this user on this team.
-  // Without this branch, athletes hitting POST /api/preferences before
-  // dashboard-shell's fetchAll runs ended up with role='coach' (the schema
-  // default) and then saw the coach view.
+  if ((count ?? 0) === 0) return 'admin'; // first ever user bootstraps as admin
   const { data: mem } = await sb
     .from('team_memberships')
     .select('role')
@@ -110,6 +109,13 @@ export async function POST(req: Request) {
     updated_at: new Date().toISOString(),
   };
   if (effectiveRole !== null) payload.role = effectiveRole;
+  // BOOTSTRAP_ADMIN_EMAIL → is_platform_admin=true on first creation.
+  // We only set this on insert (no existing row); on subsequent
+  // updates the flag is left alone so an admin can intentionally
+  // demote themselves via SQL without it bouncing back.
+  if (!existing && isBootstrapAdmin) {
+    payload.is_platform_admin = true;
+  }
   // Admins (and bootstrap-admin emails switching back) can set impersonate_player_id.
   // Other users must prove phone ownership via POST /api/link-phone.
   if ((existing && existing.role === 'admin') || isBootstrapAdmin) {

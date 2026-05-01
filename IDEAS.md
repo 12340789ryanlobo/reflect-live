@@ -270,11 +270,11 @@
 
 ---
 
-_Updated 2026-05-01: blank-screen-on-first-login — round 2. The prefs
-fix landed earlier today fixed half of it; the other half was the
-team data fetch (`sb.from('teams').select('*').eq('id', 1).single()`)
-returning 406 because the same browser-client RLS path drops fresh
-users' JWTs intermittently. Both GET + POST `/api/preferences` now
-bundle the team alongside the prefs row, and dashboard-shell prefers
-that over the browser query. Together with the prefs fix, the auto-
-create + render path is now fully service-role for fresh logins._
+_Updated 2026-05-01: BOOTSTRAP_ADMIN_EMAIL no longer overrides team
+membership role. Previously, any email on the allowlist auto-got
+role='admin' on first prefs creation — even if their team_membership
+said 'athlete'. That made it impossible to test the athlete flow on
+a bootstrap-admin account. Now the allowlist only sets
+is_platform_admin=true; role comes from team_memberships. The 'first
+user ever bootstraps as admin' fallback (count=0) stays for fresh
+installs._
