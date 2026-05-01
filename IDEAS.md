@@ -207,11 +207,12 @@
   the Supabase SQL editor. Adds `media_sids text[]` to `twilio_messages`
   and `activity_logs`. Until applied: worker insert will fail on
   messages with attachments; thumbnail strip stays empty.
-- **Backfill historical media** (after migration is applied):
-  `bun run scripts/backfill-twilio-media.ts --dry-run` first to see the
-  impact, then re-run without `--dry-run` to apply. Idempotent +
-  resumable. Twilio retains inbound media ~30 days, so messages older
-  than that will return zero media (stored as `[]`, skipped).
+- ~~Backfill historical media~~ — done 2026-05-01. Final tally:
+  4947 inbound messages scanned, 473 had photos, 293 mirrored onto
+  activity_logs (the rest were chat/survey messages without an
+  activity_logs row). 0 failures. Script paginated wrong on first
+  pass (offset-based + mutating filter set skipped rows); fixed in
+  the same change to `.limit(PAGE)` from-the-top instead.
 
 ---
 
@@ -298,8 +299,10 @@
 
 ---
 
-_Updated 2026-05-01: media pipeline + historical backfill ready.
-Worker captures going forward; scripts/backfill-twilio-media.ts
-catches up older inbound rows that have media_sids=null. Idempotent,
-resumable, polite (50ms sleep between Twilio calls). Twilio's ~30-day
-retention means anything older returns `[]` and is no-op'd silently._
+_Updated 2026-05-01: media backfill executed against prod —
+4947 messages scanned, 473 had photos, 293 mirrored onto
+activity_logs. Past-activity feed should now show thumbnails on
+historical workout/rehab rows that still have media on Twilio's
+side. Script's offset-pagination skip bug (each UPDATE shrunk the
+IS NULL filter) was patched mid-run; fixed version uses .limit()
+from-the-top so future re-runs converge in one pass._

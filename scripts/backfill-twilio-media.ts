@@ -44,9 +44,10 @@ async function main() {
   console.log('=== twilio media backfill %s ===', DRY ? '(DRY RUN)' : '');
 
   // Page through every inbound twilio_messages row with media_sids IS NULL.
-  // We only care about inbound — outbound messages we send don't have
-  // attachments to backfill.
-  let offset = 0;
+  // Always fetch from the top: each batch's UPDATE shrinks the result set
+  // (rows now have media_sids set) so a fixed offset would skip un-
+  // processed rows. Single-fetch-from-top means each iteration grabs the
+  // next 200 still-NULL rows; loop terminates when 0 remain.
   let totalScanned = 0;
   let totalWithMedia = 0;
   let totalEmpty = 0;
@@ -60,7 +61,7 @@ async function main() {
       .is('media_sids', null)
       .eq('direction', 'inbound')
       .order('date_sent', { ascending: false })
-      .range(offset, offset + PAGE - 1);
+      .limit(PAGE);
     if (error) throw error;
     const batch = (rows ?? []) as Row[];
     if (batch.length === 0) break;
@@ -134,7 +135,6 @@ async function main() {
       await sleep(SLEEP_MS);
     }
 
-    offset += batch.length;
     console.log(
       '  progress: scanned=%d  with_media=%d  empty=%d  failed=%d  activity_mirrored=%d',
       totalScanned, totalWithMedia, totalEmpty, totalFailed, totalActivityMirrored,
