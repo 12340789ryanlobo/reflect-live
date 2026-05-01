@@ -4,17 +4,20 @@ import { useRouter } from 'next/navigation';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { Pill } from '@/components/v3/pill';
+import { EditAthleteDialog } from '@/components/v3/edit-athlete-dialog';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player } from '@reflect-live/shared';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Search } from 'lucide-react';
+import { Trash2, Search, Plus } from 'lucide-react';
 import { prettyPhone, relativeTime } from '@/lib/format';
 
 interface PlayerRow extends Player {
   last_inbound: string | null;
   workouts_30d: number;
   rehabs_30d: number;
+  membership_role: 'captain' | 'athlete' | null;
+  has_linked_membership: boolean;
 }
 
 function initials(name: string): string {
@@ -34,13 +37,20 @@ export default function PlayersPage() {
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState<string>('all');
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editTarget, setEditTarget] = useState<PlayerRow | null>(null);
   const isAdmin = role === 'admin';
+  // Coach-or-better can edit roster (group + captain). Mirrors the
+  // server-side requireRosterManager gate on PATCH /api/players/[id].
+  const canEditRoster = role === 'coach' || role === 'admin' || prefs.is_platform_admin === true;
 
   const load = useCallback(async () => {
     setLoading(true);
     const { data: players } = await sb.from('players').select('*').eq('team_id', prefs.team_id).order('name');
     const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-    const { data: msgs } = await sb.from('twilio_messages').select('player_id,direction,category,date_sent').eq('team_id', prefs.team_id).gte('date_sent', since30);
+    const [{ data: msgs }, { data: mems }] = await Promise.all([
+      sb.from('twilio_messages').select('player_id,direction,category,date_sent').eq('team_id', prefs.team_id).gte('date_sent', since30),
+      sb.from('team_memberships').select('player_id,role,status').eq('team_id', prefs.team_id).eq('status', 'active'),
+    ]);
     const msgList = (msgs ?? []) as Array<{ player_id: number | null; direction: string; category: string; date_sent: string }>;
     const lastInboundByPlayer = new Map<number, string>();
     const workoutByPlayer = new Map<number, number>();
@@ -54,11 +64,18 @@ export default function PlayersPage() {
       if (m.category === 'workout') workoutByPlayer.set(m.player_id, (workoutByPlayer.get(m.player_id) ?? 0) + 1);
       if (m.category === 'rehab') rehabByPlayer.set(m.player_id, (rehabByPlayer.get(m.player_id) ?? 0) + 1);
     }
+    const memByPlayer = new Map<number, 'captain' | 'athlete'>();
+    for (const m of (mems ?? []) as Array<{ player_id: number | null; role: string; status: string }>) {
+      if (m.player_id == null) continue;
+      memByPlayer.set(m.player_id, m.role === 'captain' ? 'captain' : 'athlete');
+    }
     const enriched: PlayerRow[] = (players ?? []).map((p: Player) => ({
       ...p,
       last_inbound: lastInboundByPlayer.get(p.id) ?? null,
       workouts_30d: workoutByPlayer.get(p.id) ?? 0,
       rehabs_30d: rehabByPlayer.get(p.id) ?? 0,
+      membership_role: memByPlayer.get(p.id) ?? null,
+      has_linked_membership: memByPlayer.has(p.id),
     }));
     setRows(enriched);
     setLoading(false);
@@ -181,10 +198,33 @@ export default function PlayersPage() {
                               {initials(p.name)}
                             </span>
                             <span className="font-semibold text-[color:var(--ink)]">{p.name}</span>
+                            {p.membership_role === 'captain' && (
+                              <Pill tone="amber">Captain</Pill>
+                            )}
                           </div>
                         </Td>
                         <Td>
-                          {p.group ? <Pill tone="mute">{p.group}</Pill> : <span className="text-[color:var(--ink-mute)]">—</span>}
+                          {canEditRoster ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setEditTarget(p); }}
+                              aria-label={`Edit ${p.name}`}
+                              className="rounded-md transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[color:var(--blue)] focus:ring-offset-1 focus:ring-offset-[color:var(--card)]"
+                            >
+                              {p.group ? (
+                                <Pill tone="mute" className="cursor-pointer hover:bg-[color:var(--blue-soft)] hover:text-[color:var(--blue)] transition">
+                                  {p.group}
+                                </Pill>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-dim)] hover:text-[color:var(--blue)] transition cursor-pointer">
+                                  <Plus className="size-3" />
+                                  Add group
+                                </span>
+                              )}
+                            </button>
+                          ) : (
+                            p.group ? <Pill tone="mute">{p.group}</Pill> : <span className="text-[color:var(--ink-mute)]">—</span>
+                          )}
                         </Td>
                         <Td><span className="mono text-[12px] text-[color:var(--ink-mute)]">{prettyPhone(p.phone_e164)}</span></Td>
                         {isAdmin && (
@@ -228,6 +268,17 @@ export default function PlayersPage() {
           )}
         </section>
       </main>
+      {editTarget && (
+        <EditAthleteDialog
+          open={Boolean(editTarget)}
+          onOpenChange={(open) => { if (!open) setEditTarget(null); }}
+          player={{ id: editTarget.id, name: editTarget.name, group: editTarget.group }}
+          knownGroups={groups}
+          hasLinkedMembership={editTarget.has_linked_membership}
+          membershipRole={editTarget.membership_role}
+          onSaved={() => { void load(); }}
+        />
+      )}
     </>
   );
 }
