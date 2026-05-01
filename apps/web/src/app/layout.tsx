@@ -1,6 +1,7 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import { Montserrat, JetBrains_Mono } from 'next/font/google';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 import type { ReactNode } from 'react';
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <html lang="en" className={`${montserrat.variable} ${jetbrains.variable}`}>
         <body>
           <TooltipProvider delayDuration={120}>{children}</TooltipProvider>
+          <SpeedInsights />
         </body>
       </html>
     </ClerkProvider>
