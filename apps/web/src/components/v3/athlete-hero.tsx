@@ -6,7 +6,7 @@
 // "Generate" button. The freshness chip + refresh icon expose the cache.
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, RefreshCw } from 'lucide-react';
+import { Sparkles, RefreshCw, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 import { Pill } from '@/components/v3/pill';
 import { PeriodToggle } from '@/components/v3/period-toggle';
 import { ReadinessBar } from '@/components/v3/readiness-bar';
@@ -95,6 +95,7 @@ export function AthleteHero({
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const inFlightRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -258,71 +259,96 @@ export function AthleteHero({
             {err && !summary && (
               <p className="text-[13px]" style={{ color: 'var(--red)' }}>{err}</p>
             )}
-            {summary && (
-              <>
-                <p className="text-[14px] leading-relaxed text-[color:var(--ink)]">
-                  {summary.summary}
-                </p>
-                {summary.observations && summary.observations.length > 0 && (
-                  <div className="mt-3">
-                    <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--ink-mute)] mb-1.5">
-                      Observations
+            {summary && (() => {
+              const hasObs = (summary.observations?.length ?? 0) > 0;
+              const hasRecs = (summary.recommendations?.length ?? 0) > 0;
+              const hasDetail = hasObs || hasRecs;
+              return (
+                <>
+                  <p className="text-[14px] leading-relaxed text-[color:var(--ink)]">
+                    {summary.summary}
+                  </p>
+                  {hasDetail && detailsOpen && (
+                    <div className="mt-3 space-y-3">
+                      {hasObs && (
+                        <div>
+                          <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--ink-mute)] mb-1.5">
+                            Observations
+                          </div>
+                          <ul className="space-y-1">
+                            {summary.observations!.map((o, i) => (
+                              <li
+                                key={i}
+                                className="flex items-start gap-2 text-[13px] leading-snug text-[color:var(--ink-soft)]"
+                              >
+                                <span className="mt-[7px] size-1 rounded-full bg-[color:var(--blue)] shrink-0" />
+                                <span>{o}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {hasRecs && (
+                        <div>
+                          <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--ink-mute)] mb-1.5">
+                            Recommended actions
+                          </div>
+                          <ul className="space-y-1">
+                            {summary.recommendations!.map((r, i) => (
+                              <li
+                                key={i}
+                                className="flex items-start gap-2 text-[13px] leading-snug text-[color:var(--ink-soft)]"
+                              >
+                                <ArrowRight className="size-3 mt-[3px] shrink-0 text-[color:var(--blue)]" />
+                                <span>{r}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
-                    <ul className="space-y-1">
-                      {summary.observations.map((o, i) => (
-                        <li
-                          key={i}
-                          className="text-[13px] leading-snug text-[color:var(--ink-soft)] pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-[color:var(--blue)]"
-                        >
-                          {o}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {summary.recommendations && summary.recommendations.length > 0 && (
-                  <div className="mt-3">
-                    <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--ink-mute)] mb-1.5">
-                      Recommended actions
-                    </div>
-                    <ul className="space-y-1">
-                      {summary.recommendations.map((r, i) => (
-                        <li
-                          key={i}
-                          className="text-[13px] leading-snug text-[color:var(--ink-soft)] pl-3 relative before:content-['→'] before:absolute before:left-0 before:text-[color:var(--blue)]"
-                        >
-                          {r}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="mt-3 flex items-center gap-2 flex-wrap">
-                  <Pill tone={summary.generated_by === 'llm' ? 'blue' : 'mute'}>
-                    {summary.generated_by === 'llm' ? 'LLM' : 'Rules'}
-                  </Pill>
-                  <Pill tone={summary.confidence === 'high' ? 'green' : summary.confidence === 'medium' ? 'amber' : 'mute'}>
-                    {summary.confidence} confidence
-                  </Pill>
-                  {summary.error && <Pill tone="amber">Fallback</Pill>}
-                  {cachedAge && (
-                    <span className="text-[11.5px] text-[color:var(--ink-mute)]">
-                      Generated {cachedAge}
-                    </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => forceRegen()}
-                    disabled={loading}
-                    aria-label="Regenerate summary"
-                    className="ml-auto inline-flex items-center justify-center rounded-md border p-1 text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] disabled:opacity-50"
-                    style={{ borderColor: 'var(--border)' }}
-                  >
-                    <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
-              </>
-            )}
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <Pill tone={summary.generated_by === 'llm' ? 'blue' : 'mute'}>
+                      {summary.generated_by === 'llm' ? 'LLM' : 'Rules'}
+                    </Pill>
+                    <Pill tone={summary.confidence === 'high' ? 'green' : summary.confidence === 'medium' ? 'amber' : 'mute'}>
+                      {summary.confidence} confidence
+                    </Pill>
+                    {summary.error && <Pill tone="amber">Fallback</Pill>}
+                    {cachedAge && (
+                      <span className="text-[11.5px] text-[color:var(--ink-mute)]">
+                        Generated {cachedAge}
+                      </span>
+                    )}
+                    {hasDetail && (
+                      <button
+                        type="button"
+                        onClick={() => setDetailsOpen((v) => !v)}
+                        aria-expanded={detailsOpen}
+                        className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]"
+                      >
+                        {detailsOpen ? (
+                          <>Hide analysis <ChevronUp className="size-3" /></>
+                        ) : (
+                          <>View analysis <ChevronDown className="size-3" /></>
+                        )}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => forceRegen()}
+                      disabled={loading}
+                      aria-label="Regenerate summary"
+                      className="ml-auto inline-flex items-center justify-center rounded-md border p-1 text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] disabled:opacity-50"
+                      style={{ borderColor: 'var(--border)' }}
+                    >
+                      <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 
