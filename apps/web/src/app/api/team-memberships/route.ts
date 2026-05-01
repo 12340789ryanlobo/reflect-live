@@ -85,21 +85,60 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'team_not_open' }, { status: 400 });
   }
 
-  // Prevent duplicate requests on the same team.
+  // Existing-row gate. The (clerk_user_id, team_id) pair is unique, so
+  // we either have no row (fresh request → INSERT) or a row in some
+  // status. Three buckets:
+  //   - 'requested' / 'active': block — already pending or already in.
+  //   - 'invited': block — coach pre-invited; the athlete should claim
+  //     via that flow rather than re-request.
+  //   - 'left' / 'denied' / 'removed': terminal states the user can
+  //     return from. UPDATE the row back to 'requested' with fresh
+  //     details and a new requested_at.
   const { data: existing } = await sb
     .from('team_memberships')
     .select('clerk_user_id, status')
     .eq('clerk_user_id', userId)
     .eq('team_id', teamId)
     .maybeSingle<{ status: string }>();
-  if (existing) {
+
+  const now = new Date().toISOString();
+  const reRequestable = new Set(['left', 'denied', 'removed']);
+
+  if (existing && !reRequestable.has(existing.status)) {
     return NextResponse.json(
       { error: 'already_member_or_pending', status: existing.status },
       { status: 400 },
     );
   }
 
-  const now = new Date().toISOString();
+  if (existing && reRequestable.has(existing.status)) {
+    // Reset the row to a fresh request. Keep clerk_user_id + team_id
+    // (the unique pair); overwrite the request fields, status, and the
+    // decision audit columns so the row reads cleanly to a coach.
+    const { data, error } = await sb
+      .from('team_memberships')
+      .update({
+        role: 'athlete',
+        status: 'requested',
+        requested_name: name,
+        requested_email: email || null,
+        requested_phone: phone,
+        requested_at: now,
+        decided_at: null,
+        decided_by: null,
+        deny_reason: null,
+        // player_id intentionally left as-is: if the legacy auto-link
+        // fired previously, that link survives the cancel and the next
+        // approve will reuse it. If null, the approve waterfall reruns.
+      })
+      .eq('clerk_user_id', userId)
+      .eq('team_id', teamId)
+      .select()
+      .single();
+    if (error) return NextResponse.json({ error: 'update_failed', detail: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, membership: data, reset_from: existing.status });
+  }
+
   const { data, error } = await sb
     .from('team_memberships')
     .insert({

@@ -270,9 +270,10 @@
 
 ---
 
-_Updated 2026-05-01: multi-phone support via new `player_phones` table.
-International students with US + home-country numbers now have all of
-them on file with one starred as default. Worker matcher + approve
-waterfall both read from the new table. Manage-phones dialog on the
-athlete page (click the phone row) lets coach/admin/self add, star,
-delete. Migration 0022 must be applied before this works in prod._
+_Updated 2026-05-01: re-requesting after cancel/deny/removed now
+works. POST /api/team-memberships used to 400 'already_member_or_pending'
+for any existing row regardless of status. Now it splits the gate:
+'requested' / 'active' / 'invited' still block; 'left' / 'denied' /
+'removed' UPDATE the existing row back to 'requested' with fresh
+details. (clerk_user_id, team_id) is the unique pair, so we reset
+in place rather than INSERT a duplicate._
