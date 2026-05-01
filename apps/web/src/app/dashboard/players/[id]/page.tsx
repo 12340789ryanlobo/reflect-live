@@ -1,10 +1,13 @@
 'use client';
 import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Pencil } from 'lucide-react';
 import { PageHeader, useDashboard } from '@/components/dashboard-shell';
 import { AthleteHero, type ActionVerb } from '@/components/v3/athlete-hero';
 import { HeatmapTabs, type InjurySideRow } from '@/components/v3/heatmap-tabs';
 import { UnifiedTimeline } from '@/components/v3/unified-timeline';
+import { EditAthleteDialog } from '@/components/v3/edit-athlete-dialog';
+import { Button } from '@/components/ui/button';
 import { type Period, periodSinceIso } from '@/lib/period';
 import { parseAllRegions } from '@/lib/injury-aliases';
 import { regionToMuscles } from '@/lib/region-to-muscle';
@@ -74,6 +77,17 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // mention them. Shared across all 3 heatmap tabs so the filter
   // persists when the user flips between Injury / Activity / Rehab.
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+
+  // Roster-edit state. knownGroups feeds the group dropdown; linked
+  // membership drives whether the captain toggle is enabled.
+  const [editOpen, setEditOpen] = useState(false);
+  const [knownGroups, setKnownGroups] = useState<string[]>([]);
+  const [linkedMembership, setLinkedMembership] = useState<{
+    hasLink: boolean;
+    role: 'captain' | 'athlete' | null;
+  }>({ hasLink: false, role: null });
+  // Bump to force a re-fetch of the roster data after the dialog saves.
+  const [rosterTick, setRosterTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -152,6 +166,42 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     return () => { alive = false; };
   }, [sb, playerId]);
 
+  // Roster-edit support: pull the team's existing groups for the
+  // dropdown, the player's linked membership for the captain toggle,
+  // and the player's own row (so a group/role change reflects in the
+  // identity card without a hard reload). Refetches on rosterTick so
+  // the dialog's onSaved callback can ask for fresh data.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [{ data: teamPlayers }, { data: linkRow }, { data: freshPlayer }] = await Promise.all([
+        sb.from('players').select('group').eq('team_id', team.id),
+        sb
+          .from('team_memberships')
+          .select('clerk_user_id, role, status')
+          .eq('team_id', team.id)
+          .eq('player_id', playerId)
+          .eq('status', 'active')
+          .maybeSingle<{ clerk_user_id: string; role: string; status: string }>(),
+        sb.from('players').select('*').eq('id', playerId).maybeSingle(),
+      ]);
+      if (!alive) return;
+      const set = new Set<string>();
+      for (const row of (teamPlayers ?? []) as Array<{ group: string | null }>) {
+        if (row.group) set.add(row.group);
+      }
+      setKnownGroups(Array.from(set).sort());
+      if (linkRow) {
+        const role = linkRow.role === 'captain' ? 'captain' : 'athlete';
+        setLinkedMembership({ hasLink: true, role });
+      } else {
+        setLinkedMembership({ hasLink: false, role: null });
+      }
+      if (freshPlayer) setPlayer(freshPlayer as Player);
+    })();
+    return () => { alive = false; };
+  }, [sb, team.id, playerId, rosterTick]);
+
   const injuryCounts = useMemo<Record<string, number>>(() => {
     const c: Record<string, number> = {};
     for (const r of injuries) {
@@ -228,6 +278,10 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const viewerIsSelf =
     !prefs.is_platform_admin &&
     prefs.impersonate_player_id === player.id;
+  // Roster edits — coach on this team, or platform admin. Mirrors the
+  // server-side requireRosterManager check on PATCH /api/players/[id].
+  const viewerCanEdit =
+    prefs.is_platform_admin === true || prefs.role === 'coach' || prefs.role === 'admin';
   // Phone is always visible: when viewer is the athlete it's their own
   // number; when viewer is a coach/captain/admin they have legit access.
   const showPhone = true;
@@ -254,8 +308,33 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
 
   return (
     <>
-      <PageHeader eyebrow="Athlete" title={player.name} />
+      <PageHeader
+        eyebrow="Athlete"
+        title={player.name}
+        actions={viewerCanEdit ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditOpen(true)}
+            className="gap-1.5"
+          >
+            <Pencil className="size-3.5" />
+            Edit
+          </Button>
+        ) : undefined}
+      />
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {viewerCanEdit && (
+          <EditAthleteDialog
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            player={{ id: player.id, name: player.name, group: player.group }}
+            knownGroups={knownGroups}
+            hasLinkedMembership={linkedMembership.hasLink}
+            membershipRole={linkedMembership.role}
+            onSaved={() => setRosterTick((n) => n + 1)}
+          />
+        )}
         <AthleteHero
           player={player}
           derived={derived}
