@@ -76,6 +76,19 @@
   (every athlete moves) or delete a group (every member ungrouped).
   Backed by `PATCH /api/teams/[id]/groups`.
 
+### Manual logging from the web (D3, partial)
+- **Log workout / Log rehab** dialog from the athlete-hero action row.
+  Kind toggle, free-form description (heatmap auto-tags regions from
+  the text), optional "Notes for coach" field surfaced only when the
+  athlete is logging for themselves. Posts to a new
+  `POST /api/activity-logs` endpoint that gates self-vs-other on
+  `prefs.impersonate_player_id` and team coach status.
+- **Report injury** dialog from the same action row. Free-form
+  description + optional 1-5 severity radio with tone color. Reuses the
+  existing `POST /api/injury-reports`.
+- Both dialogs bump a local `dataTick` so the page's timeline + heatmap
+  re-fetch on save — no hard reload.
+
 ### Heatmap + body taxonomy
 - One slug ↔ one canonical region rule across the whole map
 - bicep / tricep / abs / obliques split out, joints (elbow, wrist, achilles)
@@ -135,15 +148,20 @@
 - Schedule page (events) → real CRUD UX, not just a read-only grid
 
 ### Athlete-side features
-- **Manual self-report on the web** (D3 follow-up). Buttons already exist
-  on the athlete hero but `self_report` / `log_workout` / `report_injury`
-  alert "Coming soon". This is the next functional gap. Include a
-  "notes for coach" field on Log workout per the brainstorm.
+- **Self-report on the web** (last D3 leg). Workout + injury are now
+  shipped; self-report (web equivalent of the SMS readiness reply)
+  still needs a synthetic-survey-row writer. Either insert into
+  `twilio_messages` with a `web-…` sid + `category='survey'`, or push
+  through the new sessions/responses path. Button currently alerts
+  "Self-report on web is still in progress."
 - Athlete dashboard surface: upcoming events / competitions / start-of-
   season dates pulled from coach-inputted schedule. Model after
   reflect's existing athlete view.
 - Show inbound-SMS images: `twilio_messages` may carry a media URL;
   surface those in the timeline if present.
+- Optional photo upload on Log workout (storage bucket + signed URL).
+- Backdate option on Log workout / Report injury (date+time picker
+  defaulting to now; useful for "logged it the next morning").
 
 ### AI as the centerpiece (Phase 4 — once polish settles)
 - AI chat assistant scoped to a player's data
@@ -184,7 +202,8 @@
 
 ---
 
-_Updated 2026-04-30: Manage-groups dialog on the roster page —
-coach/admin can bulk rename or delete a whole group. Backed by
-`PATCH /api/teams/[id]/groups`. Bulk rename moved out of the backlog
-since it's now shipped together with delete._
+_Updated 2026-04-30: D3 partial — Log workout / Log rehab and Report
+injury dialogs now wired up on the athlete page action row, replacing
+the previous "Coming soon" alerts. New `POST /api/activity-logs`
+endpoint handles self vs coach-on-behalf gating. Self-report on the
+web is the only D3 leg still pending._

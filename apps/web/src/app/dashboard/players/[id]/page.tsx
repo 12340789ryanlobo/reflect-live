@@ -7,6 +7,8 @@ import { AthleteHero, type ActionVerb } from '@/components/v3/athlete-hero';
 import { HeatmapTabs, type InjurySideRow } from '@/components/v3/heatmap-tabs';
 import { UnifiedTimeline } from '@/components/v3/unified-timeline';
 import { EditAthleteDialog } from '@/components/v3/edit-athlete-dialog';
+import { LogActivityDialog } from '@/components/v3/log-activity-dialog';
+import { ReportInjuryDialog } from '@/components/v3/report-injury-dialog';
 import { Button } from '@/components/ui/button';
 import { type Period, periodSinceIso } from '@/lib/period';
 import { parseAllRegions } from '@/lib/injury-aliases';
@@ -88,6 +90,13 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   }>({ hasLink: false, role: null });
   // Bump to force a re-fetch of the roster data after the dialog saves.
   const [rosterTick, setRosterTick] = useState(0);
+  // Bump to force a re-fetch of the period-scoped data (msgs/logs/injuries)
+  // when a manual log/injury lands. Goes into the first effect's deps so
+  // the timeline + heatmap updates without a hard reload.
+  const [dataTick, setDataTick] = useState(0);
+  const [logActivityOpen, setLogActivityOpen] = useState(false);
+  const [logActivityKind, setLogActivityKind] = useState<'workout' | 'rehab'>('workout');
+  const [reportInjuryOpen, setReportInjuryOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -126,7 +135,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       setInjuries((inj ?? []) as InjuryRow[]);
     })();
     return () => { alive = false; };
-  }, [sb, playerId, period]);
+  }, [sb, playerId, period, dataTick]);
 
   // Independent of `period` — competition rank reflects the season the
   // coach configured (team.competition_start_date), not the visible
@@ -294,14 +303,18 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       case 'mark_injury_resolved':
         router.push('/dashboard/heatmap');
         return;
-      case 'self_report':
       case 'log_workout':
+        setLogActivityKind('workout');
+        setLogActivityOpen(true);
+        return;
       case 'report_injury':
-        // TODO route — implementation lands in D3 follow-up.
-        // log_workout is shared by both viewers (coach logs on behalf of
-        // athlete; athlete logs for self) and will land with the
-        // "notes for coach" field as part of that work.
-        alert(`Coming soon: ${verb.replace('_', ' ')}`);
+        setReportInjuryOpen(true);
+        return;
+      case 'self_report':
+        // Self-report (web equivalent of the SMS readiness reply) needs
+        // a synthetic survey-row writer that doesn't exist yet — keeping
+        // the placeholder while the rest of D3 ships.
+        alert('Self-report on web is still in progress.');
         return;
     }
   }
@@ -335,6 +348,22 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             onSaved={() => setRosterTick((n) => n + 1)}
           />
         )}
+        <LogActivityDialog
+          open={logActivityOpen}
+          onOpenChange={setLogActivityOpen}
+          playerId={player.id}
+          playerName={player.name}
+          viewerIsSelf={viewerIsSelf}
+          defaultKind={logActivityKind}
+          onSaved={() => setDataTick((n) => n + 1)}
+        />
+        <ReportInjuryDialog
+          open={reportInjuryOpen}
+          onOpenChange={setReportInjuryOpen}
+          playerId={player.id}
+          viewerIsSelf={viewerIsSelf}
+          onSaved={() => setDataTick((n) => n + 1)}
+        />
         <AthleteHero
           player={player}
           derived={derived}
