@@ -414,7 +414,12 @@ function RoleSwitcher({ current }: { current: UserRole }) {
   // Until we know whether the user can switch, render the static pill
   // (avoids a flash of "switchable then locked"). Non-switchers get the
   // pill permanently with no chevron and no menu.
-  if (canSwitch !== true) {
+  // prefsCache is also required — without it, the POST has no team_id
+  // to send and switchTo silently no-ops. That's the pending-state
+  // edge case (bootstrap admin email but no user_preferences row yet):
+  // canSwitch is true, but there's nothing to switch against, so the
+  // dropdown would just look broken. Render the static pill instead.
+  if (canSwitch !== true || !prefsCache) {
     return <Pill tone={tone}>{ROLE_PILL[current].label}</Pill>;
   }
 
