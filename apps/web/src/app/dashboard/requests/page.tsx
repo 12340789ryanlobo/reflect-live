@@ -13,8 +13,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Pill } from '@/components/v3/pill';
-import { Check, X } from 'lucide-react';
-import { relativeTime } from '@/lib/format';
+import { Check, X, Link2, AlertTriangle } from 'lucide-react';
+import { relativeTime, prettyPhone } from '@/lib/format';
+
+interface RosterMatch {
+  id: number;
+  name: string;
+  phone_e164: string | null;
+}
 
 interface RequestRow {
   clerk_user_id: string;
@@ -23,6 +29,14 @@ interface RequestRow {
   requested_email: string | null;
   requested_phone: string | null;
   requested_at: string;
+  /** Server-side suggestion: a single unlinked roster player whose name
+   *  matches this request's name (case-insensitive, trimmed). The
+   *  approve endpoint will silently re-use this row instead of creating
+   *  a duplicate; we surface it inline so the coach knows. */
+  roster_match?: RosterMatch | null;
+  /** When > 1, multiple roster players match by name — approve will
+   *  fail until a coach disambiguates manually. */
+  ambiguous_match_count?: number;
 }
 
 export default function RequestsPage() {
@@ -92,8 +106,13 @@ export default function RequestsPage() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'approve' }),
     });
-    const j = res.ok ? await res.json().catch(() => null) : null;
     setActingOn(null);
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      showFlash('warn', j.detail ?? j.error ?? `Approve failed (${res.status}).`);
+      return;
+    }
+    const j = await res.json().catch(() => null);
     const f = describeSmsResult(req.requested_name, 'approved', j?.sms);
     showFlash(f.tone, f.text);
     await load();
@@ -177,6 +196,46 @@ export default function RequestsPage() {
                       {r.requested_phone && r.requested_email && <span className="mx-1.5 text-[color:var(--ink-mute)]">·</span>}
                       {r.requested_email && <span>{r.requested_email}</span>}
                     </p>
+                    {r.roster_match && (
+                      <div
+                        className="mt-2 inline-flex items-start gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px]"
+                        style={{
+                          borderColor: 'color-mix(in srgb, var(--blue) 35%, transparent)',
+                          background: 'color-mix(in srgb, var(--blue) 6%, transparent)',
+                          color: 'var(--ink)',
+                        }}
+                      >
+                        <Link2 className="size-3.5 shrink-0 mt-0.5" style={{ color: 'var(--blue)' }} />
+                        <span>
+                          Will link to existing roster row{' '}
+                          <span className="font-semibold">{r.roster_match.name}</span>
+                          {r.roster_match.phone_e164 && (
+                            <>
+                              {' '}
+                              <span className="mono text-[color:var(--ink-mute)]">
+                                ({prettyPhone(r.roster_match.phone_e164)})
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {!!r.ambiguous_match_count && r.ambiguous_match_count > 1 && (
+                      <div
+                        className="mt-2 inline-flex items-start gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px]"
+                        style={{
+                          borderColor: 'color-mix(in srgb, var(--amber) 40%, transparent)',
+                          background: 'color-mix(in srgb, var(--amber) 8%, transparent)',
+                          color: 'var(--ink)',
+                        }}
+                      >
+                        <AlertTriangle className="size-3.5 shrink-0 mt-0.5" style={{ color: 'var(--amber)' }} />
+                        <span>
+                          {r.ambiguous_match_count} roster players named{' '}
+                          <span className="font-semibold">{r.requested_name}</span> — approve will fail until you link manually at <span className="mono">/dashboard/admin/users</span>.
+                        </span>
+                      </div>
+                    )}
                     <p className="mt-1 mono text-[11px] text-[color:var(--ink-mute)] tabular">
                       requested {relativeTime(r.requested_at)}
                     </p>

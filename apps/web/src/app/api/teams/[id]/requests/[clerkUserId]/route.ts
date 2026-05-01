@@ -152,20 +152,54 @@ export async function PATCH(
     return NextResponse.json({ error: 'request_missing_name_or_phone' }, { status: 400 });
   }
 
-  // Defensive: if a players row already exists with this phone on this team
-  // (e.g. coach pre-rostered them but the auto-link missed for some reason),
-  // re-use it. Otherwise create a new one.
-  const { data: existingPlayer } = await sb
+  // Linkage waterfall — try the cheapest, most reliable match first:
+  //   1. Phone match: same team_id + phone_e164. The CSV-seeded roster
+  //      typically has phones, and athletes signing up with the same
+  //      phone are almost certainly the same person.
+  //   2. Name match (fallback): exactly one UNLINKED roster player on
+  //      the team has the same case-insensitive trimmed name. This
+  //      catches the legacy case where the seeded phone format differs
+  //      from what the athlete enters. Multiple matches → fail loudly
+  //      so a coach has to disambiguate via /dashboard/admin/users.
+  //   3. Otherwise: create a fresh players row.
+  let playerId: number | null = null;
+
+  const { data: phoneMatch } = await sb
     .from('players')
     .select('id')
     .eq('team_id', teamId)
     .eq('phone_e164', request.requested_phone)
     .maybeSingle<{ id: number }>();
+  if (phoneMatch) playerId = phoneMatch.id;
 
-  let playerId: number;
-  if (existingPlayer) {
-    playerId = existingPlayer.id;
-  } else {
+  if (playerId == null) {
+    // Name-match fallback. Pull all players + linked memberships and do
+    // the unlink + name comparison in JS so case-insensitive 'ilike' on
+    // a small per-team set stays simple. (A few hundred rows max.)
+    const [{ data: teamPlayers }, { data: linkedMems }] = await Promise.all([
+      sb.from('players').select('id, name').eq('team_id', teamId),
+      sb.from('team_memberships').select('player_id').eq('team_id', teamId).eq('status', 'active').not('player_id', 'is', null),
+    ]);
+    const linkedSet = new Set<number>(
+      ((linkedMems ?? []) as Array<{ player_id: number | null }>).map((r) => r.player_id!).filter(Boolean),
+    );
+    const wanted = request.requested_name.trim().toLowerCase();
+    const nameMatches = ((teamPlayers ?? []) as Array<{ id: number; name: string }>)
+      .filter((p) => !linkedSet.has(p.id) && p.name.trim().toLowerCase() === wanted);
+    if (nameMatches.length === 1) {
+      playerId = nameMatches[0].id;
+    } else if (nameMatches.length > 1) {
+      return NextResponse.json(
+        {
+          error: 'ambiguous_name_match',
+          detail: `${nameMatches.length} unlinked players named '${request.requested_name}' on this team — link manually via /dashboard/admin/users.`,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  if (playerId == null) {
     const { data: created, error: insErr } = await sb
       .from('players')
       .insert({

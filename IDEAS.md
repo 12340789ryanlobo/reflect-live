@@ -95,9 +95,18 @@
 - `/dashboard/admin/users` removed from sidebar nav, admin landing
   tile, and command palette. The page + endpoint stay routable so
   admins can fix one-off legacy linkage edge cases by typing the URL,
-  but it's no longer a discovery surface — new athletes auto-link via
-  phone in the request approve flow, so the manual tool is only ever
-  needed for pre-seeded rosters from before the membership system.
+  but it's no longer a discovery surface.
+- **Approve waterfall** on `/api/teams/[id]/requests/[clerkUserId]`
+  now does phone-match → name-match (case-insensitive, trimmed,
+  exactly one unlinked roster player) → create new. Catches the
+  legacy case where a CSV-seeded athlete signs up with a slightly
+  different phone but the same name. Multiple matches return 409
+  with a helpful detail so the coach can disambiguate via the
+  hidden /dashboard/admin/users tool.
+- **Requests inbox** surfaces a "Will link to existing roster row …"
+  hint inline on each request when the server detected a single
+  unlinked match, and a yellow warning when multiple matches exist
+  (so the coach knows approve will fail before clicking).
 
 ### Manual logging from the web (D3 — complete)
 - **Log workout / Log rehab** dialog from the athlete-hero action row.
@@ -222,9 +231,12 @@
 
 ---
 
-_Updated 2026-04-30: pulled `/dashboard/admin/users` out of the
-sidebar, admin landing tile, and command palette. New athletes
-auto-link by phone in the approve flow; the manual linker page is
-now only reachable by typing the URL (kept for one-off legacy roster
-fixes). Coach+admin polish backlog item about minimising that page
-is closed._
+_Updated 2026-04-30: legacy roster linkage now mostly auto-resolves.
+Approve waterfall: phone match → name match (single unlinked roster
+player, case-insensitive trimmed) → create new. Inbox shows
+"Will link to existing roster row …" hint inline so the coach sees
+the decision before clicking. Multiple-name-match returns 409 with a
+helpful detail and a yellow inline warning, pointing to the hidden
+/dashboard/admin/users tool for disambiguation. Onboarding still
+takes a single full-name string (pre-filled from Clerk's fullName)
+which matches the players.name shape — no first/last split needed._
