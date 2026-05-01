@@ -175,6 +175,71 @@ html { color-scheme: light; }
 }
 
 /* ==========================================================
+   react-phone-number-input theme overrides. Library handles
+   country selector + per-country length cap; we restyle the
+   input + flag button to match our existing form fields.
+   ========================================================== */
+.phone-input.PhoneInput {
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 0;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.phone-input.PhoneInput:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 20%, transparent);
+}
+.phone-input[data-invalid="true"].PhoneInput {
+  border-color: var(--red);
+}
+.phone-input[data-invalid="true"].PhoneInput:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 20%, transparent);
+}
+.phone-input .PhoneInputCountry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-right: 1px solid var(--border);
+  background: var(--paper-2);
+  cursor: pointer;
+}
+.phone-input .PhoneInputCountryIcon {
+  width: 22px;
+  height: 16px;
+  box-shadow: none;
+  background: transparent;
+}
+.phone-input .PhoneInputCountrySelectArrow {
+  width: 6px;
+  height: 6px;
+  margin-left: 2px;
+  border-style: solid;
+  border-color: var(--ink-mute);
+  border-width: 0 1.5px 1.5px 0;
+  opacity: 1;
+}
+.phone-input .PhoneInputInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ink);
+}
+.phone-input .PhoneInputInput::placeholder {
+  color: var(--ink-dim);
+}
+
+/* ==========================================================
    Legacy rl-* classes — kept (untouched) so any straggler
    that still uses them doesn't crash. They are NOT used in
    v3-redesigned pages.

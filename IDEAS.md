@@ -54,11 +54,14 @@
   `toE164` normalizer the OTP + Twilio sender use — live preview
   ('Will be saved as +1…') and red-bordered error if the input
   can't be normalized. Submit disabled until phone is valid.
-- **Phone input is strict at the source:** onChange filter strips
-  everything that isn't a digit or a single leading `+`, so users
-  literally can't type letters / spaces / dashes / parens. Server
-  still runs `toE164` as a backstop. International numbers come
-  through cleanly via the `+` prefix (e.g. `+442079460958`).
+- **Phone input is now a proper international widget**
+  (`react-phone-number-input` + `libphonenumber-js`): country flag
+  selector on the left, digit-only field on the right that hard-caps
+  at the country's max length (10 for US, varies by country). User
+  can't type more digits than the format allows. Auto-formats as
+  they type. Output is already E.164. `isValidPhoneNumber` from the
+  library validates digit count + national prefix rules. Server
+  still runs `toE164` as a backstop for tampered clients.
 
 ### Athlete page (C1 — design-language anchor)
 - Hero: readiness bar + AI sentence + period toggle + inline action row
@@ -243,7 +246,10 @@
 
 ---
 
-_Updated 2026-05-01: phone input on /onboarding is now strict at
-the source — onChange filter blocks every character except digits
-and a single leading `+`. International still works via the `+`
-prefix; toE164 normalizes on submit. Hint copy updated to match._
+_Updated 2026-05-01: phone input on /onboarding swapped to
+`react-phone-number-input` — country flag selector on the left,
+hard-capped digit field on the right, auto-format per-country,
+output is E.164. `isValidPhoneNumber` validates digit count for
+the selected country, so submit stays disabled until the format is
+exactly right (e.g. exactly 10 digits for US). Theme overrides for
+the library live in globals.css under `.phone-input.PhoneInput`._

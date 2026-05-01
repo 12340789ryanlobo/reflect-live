@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
+import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Brand } from '@/components/v3/brand';
-import { toE164 } from '@/lib/phone';
 
 interface DiscoverableTeam {
   id: number;
@@ -36,9 +37,10 @@ export default function Onboarding() {
   // Athlete identity captured for the request. Email is sourced from
   // Clerk and not editable — Clerk owns auth identity, the server
   // re-reads it from currentUser() on submit so a tampered body is
-  // ignored anyway.
+  // ignored anyway. `phone` is whatever react-phone-number-input
+  // produces — already E.164 (e.g. '+15551234567') or undefined.
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState<string | undefined>(undefined);
   const clerkEmail = user?.primaryEmailAddress?.emailAddress ?? '';
 
   const [submitting, setSubmitting] = useState(false);
@@ -50,17 +52,17 @@ export default function Onboarding() {
     if (!name) setName(user.fullName ?? user.firstName ?? '');
     if (!phone) {
       const verifiedPhone = user.phoneNumbers?.find((p) => p.verification?.status === 'verified');
-      if (verifiedPhone) setPhone(verifiedPhone.phoneNumber);
+      if (verifiedPhone?.phoneNumber) setPhone(verifiedPhone.phoneNumber);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Live phone validation using the same E.164 normalizer the server
-  // uses on submit, so what the user sees in the preview chip is
-  // exactly what gets stored.
-  const phoneNormalized = useMemo(() => toE164(phone), [phone]);
-  const phoneEmpty = phone.trim().length === 0;
-  const phoneInvalid = !phoneEmpty && phoneNormalized == null;
+  // The library returns undefined while empty, the country E.164 once
+  // valid digits start appearing, but only `isValidPhoneNumber` confirms
+  // the digit count fits the selected country (e.g. exactly 10 for US).
+  const phoneEmpty = !phone;
+  const phoneValid = !!phone && isValidPhoneNumber(phone);
+  const phoneInvalid = !phoneEmpty && !phoneValid;
 
   // Load browseable teams
   useEffect(() => {
@@ -95,8 +97,8 @@ export default function Onboarding() {
 
   async function submit() {
     if (!selectedTeam) return;
-    if (phoneNormalized == null) {
-      setSubmitErr('Enter a valid phone number — international format ok.');
+    if (!phone || !phoneValid) {
+      setSubmitErr('Enter a valid phone number for the selected country.');
       return;
     }
     setSubmitting(true); setSubmitErr(null);
@@ -107,7 +109,8 @@ export default function Onboarding() {
         team_id: selectedTeam.id,
         name: name.trim(),
         // email is intentionally omitted — server pulls from Clerk.
-        phone: phoneNormalized,
+        // phone is already E.164 from react-phone-number-input.
+        phone,
       }),
     });
     setSubmitting(false);
@@ -224,44 +227,31 @@ export default function Onboarding() {
                   </div>
                   <div className="grid gap-1.5">
                     <label className="text-[11.5px] font-semibold text-[color:var(--ink)]" htmlFor="phone">Phone</label>
-                    <Input
+                    <PhoneInput
                       id="phone"
-                      type="tel"
+                      international
+                      defaultCountry="US"
+                      countryCallingCodeEditable={false}
                       value={phone}
-                      onChange={(e) => {
-                        // Strict input: digits only, with a single leading
-                        // '+' allowed for international numbers. Letters,
-                        // dashes, parens, spaces, etc. are stripped at the
-                        // source so the user literally can't type bs. The
-                        // server still runs toE164 as a backstop.
-                        const raw = e.target.value;
-                        const digitsOnly = raw.replace(/[^\d+]/g, '');
-                        const normalized = digitsOnly.startsWith('+')
-                          ? '+' + digitsOnly.slice(1).replace(/\+/g, '')
-                          : digitsOnly.replace(/\+/g, '');
-                        setPhone(normalized);
-                      }}
-                      placeholder="+15551234567 or 5551234567"
+                      onChange={(v) => setPhone(v)}
+                      placeholder="555 123 4567"
                       autoComplete="tel"
-                      inputMode="tel"
-                      aria-invalid={phoneInvalid || undefined}
-                      style={phoneInvalid ? { borderColor: 'var(--red)' } : undefined}
+                      className="phone-input"
+                      data-invalid={phoneInvalid ? 'true' : undefined}
                     />
                     {phoneInvalid ? (
                       <p className="text-[11px]" style={{ color: 'var(--red)' }}>
-                        Doesn&rsquo;t look like a valid number. 10 digits for US,
-                        or full international format with a&nbsp;
-                        <span className="mono">+</span> prefix
-                        (e.g. <span className="mono">+442079460958</span>).
+                        Number doesn&rsquo;t fit the selected country&rsquo;s format. Pick the
+                        right country flag and the field will only accept the right digit count.
                       </p>
-                    ) : phoneNormalized ? (
+                    ) : phoneValid ? (
                       <p className="text-[11px] text-[color:var(--ink-mute)]">
-                        Will be saved as <span className="mono text-[color:var(--ink-soft)]">{phoneNormalized}</span>.
+                        Will be saved as <span className="mono text-[color:var(--ink-soft)]">{phone}</span>.
                       </p>
                     ) : (
                       <p className="text-[11px] text-[color:var(--ink-mute)]">
-                        Numbers only. Use <span className="mono">+</span> for international.
-                        So your coach can reach you and link you to surveys.
+                        Pick your country, then type only the local number. So your coach
+                        can reach you and link you to surveys.
                       </p>
                     )}
                   </div>
@@ -274,7 +264,7 @@ export default function Onboarding() {
 
               <Button
                 onClick={submit}
-                disabled={!selectedTeam || !name.trim() || phoneNormalized == null || submitting}
+                disabled={!selectedTeam || !name.trim() || !phoneValid || submitting}
                 className="mt-6 w-full rounded-xl font-bold"
                 style={{ background: 'var(--blue)' }}
               >
