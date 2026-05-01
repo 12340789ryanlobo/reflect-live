@@ -10,6 +10,7 @@ import { EditAthleteDialog } from '@/components/v3/edit-athlete-dialog';
 import { LogActivityDialog } from '@/components/v3/log-activity-dialog';
 import { ReportInjuryDialog } from '@/components/v3/report-injury-dialog';
 import { SelfReportDialog } from '@/components/v3/self-report-dialog';
+import { UpcomingMeets } from '@/components/v3/upcoming-meets';
 import { Button } from '@/components/ui/button';
 import { type Period, periodSinceIso } from '@/lib/period';
 import { parseAllRegions } from '@/lib/injury-aliases';
@@ -402,6 +403,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             setSelectedRegions(same ? [] : next);
           }}
         />
+        <UpcomingMeets teamId={team.id} />
         <UnifiedTimeline
           logs={logs}
           messages={msgs}

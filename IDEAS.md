@@ -76,6 +76,13 @@
   (every athlete moves) or delete a group (every member ungrouped).
   Backed by `PATCH /api/teams/[id]/groups`.
 
+### Athlete dashboard surface
+- "Next meets" card on `/dashboard/players/[id]`. Shows up to 3
+  upcoming `locations` rows where `kind='meet'` and `event_date >= now`,
+  with days-until + formatted date + a Schedule → link. Same component
+  ready to drop into other surfaces if we want consistency. Hidden when
+  no upcoming meets exist (no empty card noise).
+
 ### Manual logging from the web (D3 — complete)
 - **Log workout / Log rehab** dialog from the athlete-hero action row.
   Kind toggle, free-form description (heatmap auto-tags regions from
@@ -156,9 +163,6 @@
 - Schedule page (events) → real CRUD UX, not just a read-only grid
 
 ### Athlete-side features
-- Athlete dashboard surface: upcoming events / competitions / start-of-
-  season dates pulled from coach-inputted schedule. Model after
-  reflect's existing athlete view.
 - Show inbound-SMS images: `twilio_messages` may carry a media URL;
   surface those in the timeline if present.
 - Optional photo upload on Log workout (storage bucket + signed URL).
@@ -205,9 +209,9 @@
 
 ---
 
-_Updated 2026-04-30: every player-name row across the dashboards now
-links to the athlete's `/dashboard/players/[id]` page. Was previously
-clickable on the leaderboard, NeedsAttention, and LiveFeed; missing
-from dashboard root recent-activity, captain follow-up list, and
-/dashboard/live activity timeline. Fixed all three with consistent
-hover treatment (paper-2 row bg + ink → blue name)._
+_Updated 2026-04-30: athletes now see "Next meets" on their own
+`/dashboard/players/[id]` page — up to 3 upcoming meet locations with
+days-until + formatted date. New reusable `<UpcomingMeets>` component
+auto-hides when there's nothing on the calendar so it doesn't add
+empty noise. Closes the "athletes should see upcoming events"
+backlog item._
