@@ -5,11 +5,13 @@ import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { Pill } from '@/components/v3/pill';
 import { EditAthleteDialog } from '@/components/v3/edit-athlete-dialog';
+import { ManageGroupsDialog, type GroupCount } from '@/components/v3/manage-groups-dialog';
+import { Button } from '@/components/ui/button';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player } from '@reflect-live/shared';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Search, Plus } from 'lucide-react';
+import { Trash2, Search, Plus, Tags } from 'lucide-react';
 import { prettyPhone, relativeTime } from '@/lib/format';
 
 interface PlayerRow extends Player {
@@ -38,6 +40,7 @@ export default function PlayersPage() {
   const [group, setGroup] = useState<string>('all');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [editTarget, setEditTarget] = useState<PlayerRow | null>(null);
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const isAdmin = role === 'admin';
   // Coach-or-better can edit roster (group + captain). Mirrors the
   // server-side requireRosterManager gate on PATCH /api/players/[id].
@@ -106,6 +109,14 @@ export default function PlayersPage() {
     return Array.from(s).sort();
   }, [rows]);
 
+  const groupCounts = useMemo<GroupCount[]>(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) if (r.group) counts.set(r.group, (counts.get(r.group) ?? 0) + 1);
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
@@ -159,6 +170,19 @@ export default function PlayersPage() {
                   {groups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {canEditRoster && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setGroupsOpen(true)}
+                  className="gap-1.5 h-9"
+                  disabled={groupCounts.length === 0}
+                  title={groupCounts.length === 0 ? 'No groups yet' : 'Rename or delete groups'}
+                >
+                  <Tags className="size-3.5" />
+                  Manage groups
+                </Button>
+              )}
             </div>
           </header>
 
@@ -276,6 +300,15 @@ export default function PlayersPage() {
           knownGroups={groups}
           hasLinkedMembership={editTarget.has_linked_membership}
           membershipRole={editTarget.membership_role}
+          onSaved={() => { void load(); }}
+        />
+      )}
+      {canEditRoster && (
+        <ManageGroupsDialog
+          open={groupsOpen}
+          onOpenChange={setGroupsOpen}
+          teamId={prefs.team_id}
+          groups={groupCounts}
           onSaved={() => { void load(); }}
         />
       )}

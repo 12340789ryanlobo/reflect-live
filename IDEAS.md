@@ -14,7 +14,20 @@
 > entry into the structured sections below on the next update and clear
 > it from this list. Leave a `-` bullet per thought.
 
--
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
 
 ---
 
@@ -59,6 +72,9 @@
   affected user's `user_preferences.role` so the change is immediate
 - Coaches (was admin-only) can now edit name/group/phone/active/gender;
   delete remains admin-only
+- **Manage groups** dialog on the roster page: bulk rename a group
+  (every athlete moves) or delete a group (every member ungrouped).
+  Backed by `PATCH /api/teams/[id]/groups`.
 
 ### Heatmap + body taxonomy
 - One slug ↔ one canonical region rule across the whole map
@@ -137,10 +153,6 @@
 
 ### Coach + admin polish
 - "All athletes" view (coach) → tighter card grid, filter by group
-- Bulk group rename — change the *label* of an existing group across
-  every player at once (current edit dialog only changes one player at
-  a time; clicking + New group on each is fine for moves but a true
-  rename needs a server-side bulk update)
 - Admin "users" page — keep it minimal: name, team, role. Drop or
   rename the "Roster link (player)" column to something the admin
   actually understands
@@ -172,7 +184,7 @@
 
 ---
 
-_Updated 2026-04-30: per-athlete edit dialog (group + captain toggle)
-launched from athlete page header AND from clicking the group pill on
-`/dashboard/players`. Inbox section added — drop thoughts there and
-they'll be folded in on the next update._
+_Updated 2026-04-30: Manage-groups dialog on the roster page —
+coach/admin can bulk rename or delete a whole group. Backed by
+`PATCH /api/teams/[id]/groups`. Bulk rename moved out of the backlog
+since it's now shipped together with delete._
