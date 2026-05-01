@@ -796,40 +796,44 @@ export default function SettingsPage() {
 
         {/* Preferences + Account */}
         <div className="reveal reveal-3 grid gap-6 lg:grid-cols-2">
-          {/* Preferences */}
-          <section className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold text-[color:var(--ink)] mb-5">Preferences</h2>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label>Default group filter</Label>
-                <Select
-                  value={groupFilter || 'all'}
-                  onValueChange={(v) => setGroupFilter(v === 'all' ? '' : v)}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All groups</SelectItem>
-                    {groups.map((g) => (
-                      <SelectItem key={g} value={g}>{g}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[12px] text-[color:var(--ink-mute)]">
-                  Applies when your role is captain, or always if you pick one as coach.
-                </p>
+          {/* Preferences — coach/captain/admin only. The group filter
+              narrows team-wide views by group, so it has no effect for
+              athletes (who only see themselves). */}
+          {currentRole !== 'athlete' && (
+            <section className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)] mb-5">Preferences</h2>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label>Default group filter</Label>
+                  <Select
+                    value={groupFilter || 'all'}
+                    onValueChange={(v) => setGroupFilter(v === 'all' ? '' : v)}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All groups</SelectItem>
+                      {groups.map((g) => (
+                        <SelectItem key={g} value={g}>{g}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[12px] text-[color:var(--ink-mute)]">
+                    Applies when your role is captain, or always if you pick one as coach.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button onClick={save} disabled={saving}>
+                    {saving ? 'Saving…' : 'Save preferences'}
+                  </Button>
+                  {status && (
+                    <span className="text-[12px] text-[color:var(--ink-mute)]">{status}</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button onClick={save} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save preferences'}
-                </Button>
-                {status && (
-                  <span className="text-[12px] text-[color:var(--ink-mute)]">{status}</span>
-                )}
-              </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           {/* Account */}
           <section className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
