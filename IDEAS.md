@@ -49,6 +49,11 @@
 - Coach can self-serve a new team; platform admin can configure
   `require_team_approval` globally
 - Per-user team switcher in the sidebar header
+- **Onboarding form hardened:** email is locked + sourced from Clerk
+  (server ignores body.email entirely), phone uses the same
+  `toE164` normalizer the OTP + Twilio sender use — live preview
+  ('Will be saved as +1…') and red-bordered error if the input
+  can't be normalized. Submit disabled until phone is valid.
 
 ### Athlete page (C1 — design-language anchor)
 - Hero: readiness bar + AI sentence + period toggle + inline action row
@@ -233,9 +238,11 @@
 
 ---
 
-_Updated 2026-04-30: /dashboard/admin/users is back in the nav as a
-clean read-only platform overview (every account, role, linked
-athlete, joined-on). Stripped the link-athlete dropdown — that
-interaction is now inline on the requests inbox where the auto-match
-hint surfaces it before the coach clicks Approve. Role editor still
-works for the rare promote/demote case._
+_Updated 2026-05-01: onboarding form hardened. Email is now
+read-only and sourced from Clerk (server ignores body.email — auth
+identity is the source of truth so a tampered client can't
+impersonate). Phone uses the shared `toE164` normalizer with live
+inline preview / red-bordered error; submit disabled until phone
+normalizes. `toE164` extracted from twilio-sms.ts to a new
+dependency-free `lib/phone.ts` so it's safe to import in client
+components without pulling Twilio + Supabase SDKs into the bundle._

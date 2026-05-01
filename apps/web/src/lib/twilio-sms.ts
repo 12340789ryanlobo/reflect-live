@@ -98,20 +98,7 @@ export async function sendSms(cfg: TwilioConfig, toE164: string, body: string): 
   throw new Error(msg);
 }
 
-/**
- * Normalize a user-supplied phone to E.164. Accepts common formats:
- *  - "(321) 406-2958" → "+13214062958" (assumes US if 10 digits)
- *  - "+61 452 543 234" → "+61452543234"
- *  - "13214062958" → "+13214062958"
- */
-export function toE164(raw: string): string | null {
-  if (!raw) return null;
-  const cleaned = raw.replace(/[^\d+]/g, '');
-  if (cleaned.startsWith('+')) {
-    return /^\+\d{8,15}$/.test(cleaned) ? cleaned : null;
-  }
-  if (cleaned.length === 10) return '+1' + cleaned;
-  if (cleaned.length === 11 && cleaned.startsWith('1')) return '+' + cleaned;
-  if (cleaned.length >= 8) return '+' + cleaned;
-  return null;
-}
+// `toE164` lives in '@/lib/phone' (dependency-free) so it can be
+// imported from client components without pulling this module's
+// Supabase + Twilio runtime deps. Re-exported here for back-compat.
+export { toE164 } from './phone';

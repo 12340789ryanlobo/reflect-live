@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Brand } from '@/components/v3/brand';
+import { toE164 } from '@/lib/phone';
 
 interface DiscoverableTeam {
   id: number;
@@ -32,25 +33,34 @@ export default function Onboarding() {
   const [codeLookup, setCodeLookup] = useState<DiscoverableTeam | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
 
-  // Athlete identity captured for the request
+  // Athlete identity captured for the request. Email is sourced from
+  // Clerk and not editable — Clerk owns auth identity, the server
+  // re-reads it from currentUser() on submit so a tampered body is
+  // ignored anyway.
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const clerkEmail = user?.primaryEmailAddress?.emailAddress ?? '';
 
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
 
-  // Pre-fill name/email/phone from Clerk
+  // Pre-fill name + phone from Clerk on first render.
   useEffect(() => {
     if (!user) return;
     if (!name) setName(user.fullName ?? user.firstName ?? '');
-    if (!email) setEmail(user.primaryEmailAddress?.emailAddress ?? '');
     if (!phone) {
       const verifiedPhone = user.phoneNumbers?.find((p) => p.verification?.status === 'verified');
       if (verifiedPhone) setPhone(verifiedPhone.phoneNumber);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Live phone validation using the same E.164 normalizer the server
+  // uses on submit, so what the user sees in the preview chip is
+  // exactly what gets stored.
+  const phoneNormalized = useMemo(() => toE164(phone), [phone]);
+  const phoneEmpty = phone.trim().length === 0;
+  const phoneInvalid = !phoneEmpty && phoneNormalized == null;
 
   // Load browseable teams
   useEffect(() => {
@@ -85,6 +95,10 @@ export default function Onboarding() {
 
   async function submit() {
     if (!selectedTeam) return;
+    if (phoneNormalized == null) {
+      setSubmitErr('Enter a valid phone number — international format ok.');
+      return;
+    }
     setSubmitting(true); setSubmitErr(null);
     const res = await fetch('/api/team-memberships', {
       method: 'POST',
@@ -92,8 +106,8 @@ export default function Onboarding() {
       body: JSON.stringify({
         team_id: selectedTeam.id,
         name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
+        // email is intentionally omitted — server pulls from Clerk.
+        phone: phoneNormalized,
       }),
     });
     setSubmitting(false);
@@ -102,7 +116,7 @@ export default function Onboarding() {
       return;
     }
     const j = await res.json().catch(() => ({}));
-    setSubmitErr(j.error ?? 'Could not submit request');
+    setSubmitErr(j.detail ?? j.error ?? 'Could not submit request');
   }
 
   return (
@@ -190,16 +204,23 @@ export default function Onboarding() {
 
                   <div className="grid gap-1.5">
                     <label className="text-[11.5px] font-semibold text-[color:var(--ink)]" htmlFor="name">Your name</label>
-                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
                   </div>
                   <div className="grid gap-1.5">
-                    <label className="text-[11.5px] font-semibold text-[color:var(--ink)]" htmlFor="email">Email</label>
+                    <label className="text-[11.5px] font-semibold text-[color:var(--ink)]" htmlFor="email">
+                      Email <span className="text-[color:var(--ink-mute)] font-normal">(from your account)</span>
+                    </label>
                     <Input
                       id="email"
                       type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      value={clerkEmail}
+                      readOnly
+                      disabled
+                      className="cursor-not-allowed bg-[color:var(--paper-2)]"
                     />
+                    <p className="text-[11px] text-[color:var(--ink-mute)]">
+                      Locked to your sign-in email. Change it via your account settings if needed.
+                    </p>
                   </div>
                   <div className="grid gap-1.5">
                     <label className="text-[11.5px] font-semibold text-[color:var(--ink)]" htmlFor="phone">Phone</label>
@@ -210,10 +231,24 @@ export default function Onboarding() {
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="+1 555 555 5555"
                       autoComplete="tel"
+                      inputMode="tel"
+                      aria-invalid={phoneInvalid || undefined}
+                      style={phoneInvalid ? { borderColor: 'var(--red)' } : undefined}
                     />
-                    <p className="text-[11px] text-[color:var(--ink-mute)]">
-                      So your coach can reach you and link you to surveys.
-                    </p>
+                    {phoneInvalid ? (
+                      <p className="text-[11px]" style={{ color: 'var(--red)' }}>
+                        Doesn&rsquo;t look like a valid number. Use international format
+                        (e.g. <span className="mono">+1 555 555 5555</span>) or 10 digits for US.
+                      </p>
+                    ) : phoneNormalized ? (
+                      <p className="text-[11px] text-[color:var(--ink-mute)]">
+                        Will be saved as <span className="mono text-[color:var(--ink-soft)]">{phoneNormalized}</span>.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-[color:var(--ink-mute)]">
+                        So your coach can reach you and link you to surveys.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -224,7 +259,7 @@ export default function Onboarding() {
 
               <Button
                 onClick={submit}
-                disabled={!selectedTeam || !name.trim() || !phone.trim() || submitting}
+                disabled={!selectedTeam || !name.trim() || phoneNormalized == null || submitting}
                 className="mt-6 w-full rounded-xl font-bold"
                 style={{ background: 'var(--blue)' }}
               >

@@ -2,11 +2,13 @@
 // GET  /api/team-memberships    — current user lists their own memberships
 //
 // On POST:
-//   body: { team_id, name, email }
+//   body: { team_id, name, phone }
 //   Creates a team_memberships row at status='requested' for this user
-//   on this team. If the user already has a row on this team, returns
-//   400 (don't double-request, don't auto-flip from denied/left back to
-//   requested without an explicit reset action).
+//   on this team. Phone is normalized to E.164 (toE164); body shape that
+//   doesn't pass the normalizer returns 400. Email is NEVER read from the
+//   body — pulled directly from Clerk's currentUser() so a tampered
+//   client can't impersonate. If the user already has a row on this
+//   team, returns 400.
 //
 // On GET:
 //   returns rows where clerk_user_id = current user. RLS allows this
@@ -16,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { toE164 } from '@/lib/phone';
 
 function serviceClient() {
   return createClient(
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  let body: { team_id?: unknown; name?: unknown; email?: unknown; phone?: unknown };
+  let body: { team_id?: unknown; name?: unknown; phone?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
 
   const teamId = Number(body.team_id);
@@ -52,21 +55,22 @@ export async function POST(req: NextRequest) {
   if (!name) return NextResponse.json({ error: 'name_required' }, { status: 400 });
   if (name.length > 120) return NextResponse.json({ error: 'name_too_long' }, { status: 400 });
 
-  // Light phone normalization — strip whitespace and dashes; keep leading '+'.
-  const phoneRaw = typeof body.phone === 'string' ? body.phone.trim() : '';
-  const phone = phoneRaw.replace(/[\s\-().]/g, '');
-  if (!phone) return NextResponse.json({ error: 'phone_required' }, { status: 400 });
-  if (!/^\+?\d{7,15}$/.test(phone)) {
-    return NextResponse.json({ error: 'bad_phone' }, { status: 400 });
+  // Strict E.164 normalization — same helper the OTP + Twilio sender use,
+  // so a phone that survives this round-trip is also send-able.
+  const phoneRaw = typeof body.phone === 'string' ? body.phone : '';
+  const phone = toE164(phoneRaw);
+  if (!phone) {
+    return NextResponse.json(
+      { error: 'bad_phone', detail: 'Provide a valid phone number — international format ok.' },
+      { status: 400 },
+    );
   }
 
-  let email = typeof body.email === 'string' ? body.email.trim() : '';
-  if (!email) {
-    // Pull from Clerk if the client didn't pass one (defensive — the form
-    // pre-fills from Clerk profile, but if it's stripped we fall back).
-    const u = await currentUser();
-    email = u?.primaryEmailAddress?.emailAddress ?? '';
-  }
+  // Email is sourced from Clerk only — auth identity is the source of
+  // truth. We intentionally ignore any 'email' field on the body so a
+  // tampered client can't impersonate.
+  const u = await currentUser();
+  const email = u?.primaryEmailAddress?.emailAddress ?? '';
 
   const sb = serviceClient();
 
