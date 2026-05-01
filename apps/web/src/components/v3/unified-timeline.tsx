@@ -275,23 +275,35 @@ export function UnifiedTimeline({
                           <Pill tone="red">{flag}/10</Pill>
                         )}
                       </div>
+                      {e.pairedQuestion && (
+                        <div className="mt-1.5 text-[12.5px] leading-snug text-[color:var(--ink-mute)] italic">
+                          <span className="not-italic font-semibold mr-1.5">Q:</span>
+                          {e.pairedQuestion}
+                        </div>
+                      )}
                       {e.body && (() => {
                         // Survey replies that are just a bare number
                         // get a slightly larger / mono treatment so a
                         // stranded '10' reads as the intentional answer
-                        // it is, not a typo. We can't infer WHICH
-                        // question (readiness vs energy vs effort etc.)
-                        // without joining to the survey schedule, so we
-                        // don't label it — just present the answer.
+                        // it is, not a typo. The paired question above
+                        // (when found) gives the context — readiness vs
+                        // energy vs effort etc.
+                        const isAnswer = e.kind === 'survey' && !!e.pairedQuestion;
                         if (e.kind === 'survey' && isBareNumericReply(e.body)) {
                           return (
-                            <div className="mt-1.5 mono text-[18px] font-semibold tabular text-[color:var(--ink)]">
+                            <div className={`mono ${isAnswer ? 'mt-0.5' : 'mt-1.5'} text-[18px] font-semibold tabular text-[color:var(--ink)]`}>
+                              {isAnswer && (
+                                <span className="font-semibold mr-1.5 text-[color:var(--ink-mute)] text-[14px] not-italic">A:</span>
+                              )}
                               {e.body.trim()}
                             </div>
                           );
                         }
                         return (
-                          <div className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--ink-soft)]">
+                          <div className={`text-[14px] leading-relaxed text-[color:var(--ink-soft)] ${isAnswer ? 'mt-0.5' : 'mt-1.5'}`}>
+                            {isAnswer && (
+                              <span className="font-semibold mr-1.5 text-[color:var(--ink-mute)]">A:</span>
+                            )}
                             {e.body}
                           </div>
                         );

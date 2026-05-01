@@ -35,6 +35,11 @@ export interface TimelineEntry {
    *  activity_logs.media_sids by the worker so logs have direct
    *  access without a JOIN). */
   mediaSids: string[] | null;
+  /** For inbound survey replies: the question that was sent
+   *  immediately before this reply (most recent outbound to the
+   *  same player within a 24h window). Lets the timeline render
+   *  the row as 'Q: How ready? / A: 10' rather than just '10'. */
+  pairedQuestion: string | null;
   /** Per-source extras for the row renderer. */
   meta:
     | { source: 'log'; logId: number }
@@ -74,6 +79,7 @@ function logToEntry(l: ActivityLog): TimelineEntry {
     regions: parseAllRegions(body),
     messageSid: l.source_sid ?? null,
     mediaSids: l.media_sids ?? null,
+    pairedQuestion: null,
     meta: { source: 'log', logId: l.id },
   };
 }
@@ -97,8 +103,55 @@ function msgToEntry(m: TwilioMessage): TimelineEntry {
     regions: parseAllRegions(body),
     messageSid: m.sid,
     mediaSids: m.media_sids ?? null,
+    pairedQuestion: null,
     meta: { source: 'msg', sid: m.sid, direction: m.direction },
   };
+}
+
+const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Pair each inbound survey reply with the most recent outbound message
+// to the same player within PAIR_WINDOW_MS. Survey questions arrive as
+// outbound system SMS and replies arrive as inbound — the most-recent-
+// outbound-before-inbound is reliably the question being answered, even
+// without a formal sessions/responses linkage. Mutates entries in place.
+function attachSurveyQuestions(
+  entries: TimelineEntry[],
+  msgs: TwilioMessage[],
+): void {
+  // Index outbound messages by player_id, sorted asc by date_sent.
+  const outboundByPlayer = new Map<number, TwilioMessage[]>();
+  for (const m of msgs) {
+    if (m.direction !== 'outbound' || m.player_id == null || !m.body) continue;
+    const arr = outboundByPlayer.get(m.player_id) ?? [];
+    arr.push(m);
+    outboundByPlayer.set(m.player_id, arr);
+  }
+  for (const arr of outboundByPlayer.values()) {
+    arr.sort((a, b) => a.date_sent.localeCompare(b.date_sent));
+  }
+  // For each inbound survey reply, walk back through that player's
+  // outbounds to find the most recent question within the window.
+  for (const e of entries) {
+    if (e.kind !== 'survey') continue;
+    if (e.meta.source !== 'msg' || e.meta.direction !== 'inbound') continue;
+    const sid = e.meta.sid;
+    const orig = msgs.find((m) => m.sid === sid);
+    if (!orig || orig.player_id == null) continue;
+    const candidates = outboundByPlayer.get(orig.player_id);
+    if (!candidates) continue;
+    const replyTs = new Date(e.ts).getTime();
+    let best: TwilioMessage | null = null;
+    for (let i = candidates.length - 1; i >= 0; i--) {
+      const c = candidates[i];
+      const cTs = new Date(c.date_sent).getTime();
+      if (cTs >= replyTs) continue; // must be before
+      if (replyTs - cTs > PAIR_WINDOW_MS) break; // too old, stop walking
+      best = c;
+      break;
+    }
+    if (best?.body) e.pairedQuestion = best.body.trim();
+  }
 }
 
 export function buildTimeline(
@@ -146,5 +199,6 @@ export function buildTimeline(
   }
 
   entries.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+  attachSurveyQuestions(entries, msgs);
   return entries;
 }
