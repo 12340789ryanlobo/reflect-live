@@ -1,10 +1,13 @@
 'use client';
 
-// Compact "Next meets" card. Shows up to N upcoming meet locations
-// (kind='meet', event_date >= today) for a team, with days-until +
-// the formatted event date. Used on the individual athlete page so
-// athletes see what's coming without leaving the page; the coach
-// dashboards have their own variants.
+// Compact "Next competitions" card. Shows up to N upcoming
+// competition locations (data column stays kind='meet' to avoid a
+// migration; the user-facing copy says 'competition' for
+// generalisability across sports). event_date >= today, sorted by
+// days-until, with the formatted event date below the count. Used
+// on the individual athlete page so athletes see what's coming
+// without leaving the page; the coach dashboards have their own
+// variants.
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -64,7 +67,7 @@ export function UpcomingMeets({ teamId, limit = 3, hideWhenEmpty = true }: Props
         className="flex items-center justify-between gap-3 px-6 py-4 border-b"
         style={{ borderColor: 'var(--border)' }}
       >
-        <h2 className="text-base font-bold text-[color:var(--ink)]">Next meets</h2>
+        <h2 className="text-base font-bold text-[color:var(--ink)]">Next competitions</h2>
         <Link
           href="/dashboard/events"
           className="text-[12px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition"

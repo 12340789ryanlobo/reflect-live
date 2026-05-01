@@ -85,14 +85,19 @@ export async function PATCH(req: Request) {
     patch.role = role;
   }
 
+  // The 'linked athlete' is canonically stored on team_memberships.player_id
+  // for the user's *active* membership; user_preferences.impersonate_player_id
+  // is a denormalized mirror that dashboard-shell auto-heals from the
+  // membership on every load. Writing only to prefs would silently revert
+  // on the next render for non-admins. So we write to BOTH, with the
+  // membership row as the source of truth.
+  let targetTeamId: number | null = null;
   if (impersonate_player_id !== undefined) {
-    // Nullable: pass null to unlink.
     if (impersonate_player_id === null) {
       patch.impersonate_player_id = null;
     } else if (typeof impersonate_player_id !== 'number') {
       return NextResponse.json({ error: 'impersonate_player_id must be a number or null' }, { status: 400 });
     } else {
-      // Validate the player exists AND belongs to the target user's team.
       const { data: target } = await sb.from('user_preferences').select('team_id').eq('clerk_user_id', clerk_user_id).maybeSingle();
       if (!target) return NextResponse.json({ error: 'target user has no preferences row' }, { status: 400 });
       const { data: player } = await sb.from('players').select('id,team_id').eq('id', impersonate_player_id).maybeSingle();
@@ -101,10 +106,38 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: 'player is on a different team than the user' }, { status: 400 });
       }
       patch.impersonate_player_id = impersonate_player_id;
+      targetTeamId = target.team_id as number;
     }
   }
 
   const { error } = await sb.from('user_preferences').update(patch).eq('clerk_user_id', clerk_user_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Mirror to team_memberships.player_id so the heal cascade preserves the
+  // link instead of nulling it. impersonate_player_id === undefined means
+  // 'role-only update' — leave the membership untouched.
+  if (impersonate_player_id !== undefined) {
+    // Look up the team scope when we're unlinking — we still need to
+    // know which membership row to clear.
+    if (targetTeamId === null && impersonate_player_id === null) {
+      const { data: target } = await sb.from('user_preferences').select('team_id').eq('clerk_user_id', clerk_user_id).maybeSingle();
+      targetTeamId = (target?.team_id as number | undefined) ?? null;
+    }
+    if (targetTeamId != null) {
+      const { error: memErr } = await sb
+        .from('team_memberships')
+        .update({ player_id: impersonate_player_id })
+        .eq('clerk_user_id', clerk_user_id)
+        .eq('team_id', targetTeamId)
+        .eq('status', 'active');
+      if (memErr) {
+        return NextResponse.json(
+          { error: 'membership_update_failed', detail: memErr.message },
+          { status: 500 },
+        );
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }

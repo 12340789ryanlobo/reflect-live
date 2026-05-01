@@ -69,11 +69,11 @@ export default function EventsPage() {
         <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
             <div className="p-6">
-              <StatCell label="Upcoming" value={future.length} sub="meets" tone="blue" />
+              <StatCell label="Upcoming" value={future.length} sub="competitions" tone="blue" />
             </div>
             <div className="p-6">
               <StatCell
-                label="Next meet"
+                label="Next competition"
                 value={future[0] ? `${future[0].daysUntil}d` : '—'}
                 sub={future[0]?.name ?? 'none scheduled'}
                 tone="blue"
@@ -83,7 +83,7 @@ export default function EventsPage() {
               <StatCell label="Training" value={training.length} sub="live weather" tone="green" />
             </div>
             <div className="p-6">
-              <StatCell label="Archived" value={past.length} sub="past meets" />
+              <StatCell label="Archived" value={past.length} sub="past competitions" />
             </div>
           </div>
         </section>
@@ -99,14 +99,14 @@ export default function EventsPage() {
           </div>
         </section>
 
-        {/* Upcoming meets */}
+        {/* Upcoming competitions */}
         <section className="reveal reveal-3 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
           <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold text-[color:var(--ink)]">Upcoming meets</h2>
+            <h2 className="text-base font-bold text-[color:var(--ink)]">Upcoming competitions</h2>
           </header>
           {future.length === 0 ? (
             <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">
-              — no upcoming meets scheduled —
+              — no upcoming competitions scheduled —
             </p>
           ) : (
             <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-3">

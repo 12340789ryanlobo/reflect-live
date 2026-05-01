@@ -184,7 +184,7 @@ export default function Dashboard() {
           <div className="lg:col-span-2"><NeedsAttention teamId={prefs.team_id} /></div>
           <div className="rounded-2xl bg-[color:var(--card)] border p-6 flex flex-col" style={{ borderColor: 'var(--border)' }}>
             <header className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-[color:var(--ink)]">Next meet</h2>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Next competition</h2>
               <Link href="/dashboard/events" className="text-[12px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition">
                 Schedule →
               </Link>
@@ -205,7 +205,7 @@ export default function Dashboard() {
                 )}
               </>
             ) : (
-              <p className="text-[13px] text-[color:var(--ink-mute)]">— no upcoming meets —</p>
+              <p className="text-[13px] text-[color:var(--ink-mute)]">— no upcoming competitions —</p>
             )}
           </div>
         </section>

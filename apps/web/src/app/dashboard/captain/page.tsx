@@ -236,7 +236,7 @@ export default function CaptainHome() {
         {meets.length > 0 && (
           <section className="reveal reveal-4 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
             <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <h2 className="text-base font-bold text-[color:var(--ink)]">Next meets</h2>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Next competitions</h2>
             </header>
             <div className="grid gap-0 md:grid-cols-3 divide-x" style={{ borderColor: 'var(--border)' }}>
               {meets.map((m) => (

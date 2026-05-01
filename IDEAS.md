@@ -77,11 +77,21 @@
   Backed by `PATCH /api/teams/[id]/groups`.
 
 ### Athlete dashboard surface
-- "Next meets" card on `/dashboard/players/[id]`. Shows up to 3
-  upcoming `locations` rows where `kind='meet'` and `event_date >= now`,
-  with days-until + formatted date + a Schedule → link. Same component
-  ready to drop into other surfaces if we want consistency. Hidden when
-  no upcoming meets exist (no empty card noise).
+- **Next competitions** card on `/dashboard/players/[id]`. Shows up to
+  3 upcoming `locations` rows where `kind='meet'` (kept the data
+  column; the user-facing copy says "competition" so it generalises
+  past swimming) and `event_date >= now`, with days-until + formatted
+  date + a Schedule → link. Component is reusable and hides when no
+  upcoming events exist (no empty card noise).
+- Coach dashboards + events page also moved to "competition" copy.
+
+### Roster linking fix
+- `/api/users` PATCH (admin "linked athlete" tool) now writes to
+  `team_memberships.player_id` in addition to
+  `user_preferences.impersonate_player_id`. dashboard-shell heals
+  prefs from memberships on every load, so writing only to prefs
+  silently reverted the link for non-admin users. The membership row
+  is now the source of truth.
 
 ### Manual logging from the web (D3 — complete)
 - **Log workout / Log rehab** dialog from the athlete-hero action row.
@@ -209,9 +219,9 @@
 
 ---
 
-_Updated 2026-04-30: athletes now see "Next meets" on their own
-`/dashboard/players/[id]` page — up to 3 upcoming meet locations with
-days-until + formatted date. New reusable `<UpcomingMeets>` component
-auto-hides when there's nothing on the calendar so it doesn't add
-empty noise. Closes the "athletes should see upcoming events"
-backlog item._
+_Updated 2026-04-30: "meets" → "competitions" everywhere user-facing
+(data column stays kind='meet'). And: fixed the admin linked-athlete
+tool — it was only writing to user_preferences.impersonate_player_id,
+which dashboard-shell auto-heals from team_memberships, so the link
+silently reverted on every page load for non-admin users. Now writes
+both, membership row authoritative._
