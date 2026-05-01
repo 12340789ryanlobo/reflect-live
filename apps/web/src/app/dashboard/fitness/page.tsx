@@ -6,6 +6,7 @@ import { StatCell } from '@/components/v3/stat-cell';
 import { Pill } from '@/components/v3/pill';
 import { Leaderboard } from '@/components/v3/leaderboard';
 import { TwilioMediaStrip } from '@/components/v3/twilio-media-strip';
+import { stripProtocolPrefix } from '@/lib/timeline';
 import { useSupabase } from '@/lib/supabase-browser';
 import { computeLeaderboard, weekStartCT, type LeaderboardRow } from '@/lib/scoring';
 import type { ActivityLog, Player, Location } from '@reflect-live/shared';
@@ -329,7 +330,9 @@ export default function FitnessPage() {
                         </td>
                         <td className="px-4 py-3 text-[14px] leading-snug text-[color:var(--ink-soft)]">
                           <div className="flex items-start gap-3">
-                            <span className="flex-1 min-w-0">{l.description}</span>
+                            <span className="flex-1 min-w-0">
+                              {stripProtocolPrefix(l.description)}
+                            </span>
                             <TwilioMediaStrip
                               messageSid={l.source_sid}
                               mediaSids={l.media_sids}

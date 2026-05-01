@@ -9,6 +9,7 @@ import { NeedsAttention } from '@/components/v3/needs-attention';
 import { Pill } from '@/components/v3/pill';
 import { PeriodToggle } from '@/components/v3/period-toggle';
 import { type Period, periodLabel, periodSinceIso } from '@/lib/period';
+import { stripProtocolPrefix } from '@/lib/timeline';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Location, WeatherSnapshot, ActivityLog, Player } from '@reflect-live/shared';
 import { prettyDate, relativeTime } from '@/lib/format';
@@ -234,7 +235,7 @@ export default function Dashboard() {
                       <div className="text-[14px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--blue)] transition">
                         {l.player?.name ?? 'Unknown'}
                       </div>
-                      <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed line-clamp-2">{l.description}</div>
+                      <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed line-clamp-2">{stripProtocolPrefix(l.description)}</div>
                     </div>
                   </>
                 );

@@ -6,6 +6,7 @@ import { useSupabase } from '@/lib/supabase-browser';
 import { Pill } from './v3/pill';
 import { prettyDate } from '@/lib/format';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { stripProtocolPrefix } from '@/lib/timeline';
 
 export function ActivityLogTimeline({ teamId }: { teamId: number }) {
   const sb = useSupabase();
@@ -54,7 +55,7 @@ export function ActivityLogTimeline({ teamId }: { teamId: number }) {
                     <div className="text-[14px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--blue)] transition">
                       {player?.name ?? 'Unknown'}
                     </div>
-                    <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed">{l.description}</div>
+                    <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed">{stripProtocolPrefix(l.description)}</div>
                   </div>
                 </>
               );

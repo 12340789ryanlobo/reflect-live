@@ -36,7 +36,9 @@ export interface TimelineEntry {
 // Strip the SMS protocol prefix ("Workout: " / "Rehab: " / "Recovery: ")
 // from descriptions so the row body reads as content, not protocol noise.
 // Also used to fingerprint messages and logs for content-based dedup.
-function stripProtocolPrefix(text: string): string {
+// Exported for any view that already shows the kind as a Pill — the
+// 'Workout:' / 'Rehab:' prefix is redundant in that context.
+export function stripProtocolPrefix(text: string): string {
   return text.replace(/^\s*(workout|rehab|recovery)\s*:\s*/i, '').trim();
 }
 
