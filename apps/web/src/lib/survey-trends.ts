@@ -120,14 +120,14 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
     g.points.sort((a, b) => a.ts.localeCompare(b.ts));
   }
 
-  // Return groups sorted by recency of the most-recent reply (most-
-  // recently-asked questions float to the top), with a minimum-2-replies
-  // threshold so a one-off doesn't get its own chart.
-  return Array.from(groups.values())
-    .filter((g) => g.points.length >= 2)
-    .sort((a, b) => {
-      const aTs = a.points[a.points.length - 1].ts;
-      const bTs = b.points[b.points.length - 1].ts;
-      return bTs.localeCompare(aTs);
-    });
+  // Sort by reply count desc (most-history questions first), then
+  // by recency of the latest reply as a tiebreaker. Threshold is 1
+  // — even a single reply is informative as a starting datapoint;
+  // hiding it leaves the user wondering why the card is empty.
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.points.length !== b.points.length) return b.points.length - a.points.length;
+    const aTs = a.points[a.points.length - 1].ts;
+    const bTs = b.points[b.points.length - 1].ts;
+    return bTs.localeCompare(aTs);
+  });
 }
