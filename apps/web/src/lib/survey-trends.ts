@@ -104,8 +104,16 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
       questionBody = c.body;
       break;
     }
-    if (!questionBody) continue;
-    const { display, key } = normalizeQuestion(questionBody);
+    // No paired question (no outbound at all, outbound >24h earlier,
+    // or outbound didn't match looksLikeQuestion). Fall back to a
+    // generic 'Score' bucket so the reply still surfaces — the chart
+    // is still informative as a wellness trend, just without the
+    // question label. Without this, players whose questions sit
+    // outside the 24h window or use phrasing the heuristic misses
+    // would see an empty card despite having real data.
+    const { display, key } = questionBody
+      ? normalizeQuestion(questionBody)
+      : { display: 'Score (unmatched question)', key: '__unmatched__' };
     if (!key) continue;
     let g = groups.get(key);
     if (!g) {
