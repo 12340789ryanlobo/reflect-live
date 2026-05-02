@@ -71,11 +71,20 @@ function normalizeQuestion(raw: string): { display: string; key: string } {
   return { display: t, key: t.toLowerCase() };
 }
 
+// Twilio reports outbound messages with the literal direction string
+// 'outbound-api' (sent via the API) or 'outbound-reply' (auto-reply
+// flow). Anything that isn't 'inbound' is outbound from our point of
+// view; checking for the bare 'outbound' literal silently drops 100%
+// of outbound rows and made every athlete's trends card look empty.
+function isOutbound(direction: string): boolean {
+  return direction !== 'inbound';
+}
+
 export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
   // Index outbound questions per player.
   const outboundByPlayer = new Map<number, TwilioMessage[]>();
   for (const m of msgs) {
-    if (m.direction !== 'outbound' || m.player_id == null || !m.body) continue;
+    if (!isOutbound(m.direction) || m.player_id == null || !m.body) continue;
     if (!looksLikeQuestion(m.body)) continue;
     const arr = outboundByPlayer.get(m.player_id) ?? [];
     arr.push(m);
@@ -93,16 +102,17 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
     const score = bareScore(m.body);
     if (score == null) continue;
     const candidates = outboundByPlayer.get(m.player_id);
-    if (!candidates) continue;
     const replyTs = new Date(m.date_sent).getTime();
     let questionBody: string | null = null;
-    for (let i = candidates.length - 1; i >= 0; i--) {
-      const c = candidates[i];
-      const cTs = new Date(c.date_sent).getTime();
-      if (cTs >= replyTs) continue;
-      if (replyTs - cTs > PAIR_WINDOW_MS) break;
-      questionBody = c.body;
-      break;
+    if (candidates) {
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        const c = candidates[i];
+        const cTs = new Date(c.date_sent).getTime();
+        if (cTs >= replyTs) continue;
+        if (replyTs - cTs > PAIR_WINDOW_MS) break;
+        questionBody = c.body;
+        break;
+      }
     }
     // No paired question (no outbound at all, outbound >24h earlier,
     // or outbound didn't match looksLikeQuestion). Fall back to a

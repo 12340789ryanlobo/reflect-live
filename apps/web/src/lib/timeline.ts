@@ -99,7 +99,7 @@ function msgToEntry(m: TwilioMessage): TimelineEntry {
   if (m.category === 'survey') kind = 'survey';
   else if (m.category === 'workout') kind = 'workout';
   else if (m.category === 'rehab') kind = 'rehab';
-  else kind = m.direction === 'outbound' ? 'outbound' : 'inbound';
+  else kind = m.direction !== 'inbound' ? 'outbound' : 'inbound';
 
   const body = m.body ?? '';
   return {
@@ -156,9 +156,14 @@ function attachQuestionPairings(
   msgs: TwilioMessage[],
 ): void {
   // Index outbound questions by player_id, sorted asc by date_sent.
+  // Twilio's outbound direction string is 'outbound-api' (or
+  // 'outbound-reply'), never the bare 'outbound' — so check for
+  // 'inbound' inverted to capture both flavors. The earlier
+  // `direction !== 'outbound'` guard silently dropped 100% of outbound
+  // rows and the timeline never paired any question with its reply.
   const outboundByPlayer = new Map<number, TwilioMessage[]>();
   for (const m of msgs) {
-    if (m.direction !== 'outbound' || m.player_id == null || !m.body) continue;
+    if (m.direction === 'inbound' || m.player_id == null || !m.body) continue;
     if (!looksLikeQuestion(m.body)) continue;
     const arr = outboundByPlayer.get(m.player_id) ?? [];
     arr.push(m);
@@ -190,9 +195,11 @@ function attachQuestionPairings(
     }
   }
 
-  // Mark paired outbound question entries as hidden.
+  // Mark paired outbound question entries as hidden. meta.direction is
+  // the raw Twilio direction string ('outbound-api', not 'outbound'),
+  // so guard against the inbound side instead.
   for (const e of entries) {
-    if (e.meta.source !== 'msg' || e.meta.direction !== 'outbound') continue;
+    if (e.meta.source !== 'msg' || e.meta.direction === 'inbound') continue;
     if (pairedOutboundSids.has(e.meta.sid)) {
       e.pairedWithReply = true;
     }
