@@ -109,7 +109,6 @@ function MiniChart({ trend }: { trend: QuestionTrend }) {
 }
 
 export function SurveyTrendsCard({ trends, initialLimit = 4 }: Props) {
-  if (trends.length === 0) return null;
   const visible = trends.slice(0, initialLimit);
   return (
     <section
@@ -122,24 +121,37 @@ export function SurveyTrendsCard({ trends, initialLimit = 4 }: Props) {
       >
         <h2 className="text-base font-bold text-[color:var(--ink)]">Score trends</h2>
         <span className="text-[11.5px] text-[color:var(--ink-mute)] tabular">
-          {visible.length} of {trends.length} questions
+          {trends.length === 0
+            ? '0 questions'
+            : `${visible.length} of ${trends.length} questions`}
         </span>
       </header>
-      <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-        {visible.map((t) => (
-          <li key={t.key} className="px-6 py-4">
-            <div className="flex items-baseline justify-between gap-3 mb-2">
-              <h3 className="text-[13px] font-semibold text-[color:var(--ink)] line-clamp-2">
-                {t.question}
-              </h3>
-              <span className="mono text-[11px] text-[color:var(--ink-mute)] tabular shrink-0">
-                {t.points.length} replies
-              </span>
-            </div>
-            <MiniChart trend={t} />
-          </li>
-        ))}
-      </ul>
+      {trends.length === 0 ? (
+        <div className="px-6 py-10 text-center">
+          <p className="text-[13px] text-[color:var(--ink-mute)]">
+            — no survey replies in this window —
+          </p>
+          <p className="mt-1 text-[11.5px] text-[color:var(--ink-mute)]">
+            Replies that look like a 0–10 score will group by question and chart here.
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          {visible.map((t) => (
+            <li key={t.key} className="px-6 py-4">
+              <div className="flex items-baseline justify-between gap-3 mb-2">
+                <h3 className="text-[13px] font-semibold text-[color:var(--ink)] line-clamp-2">
+                  {t.question}
+                </h3>
+                <span className="mono text-[11px] text-[color:var(--ink-mute)] tabular shrink-0">
+                  {t.points.length} replies
+                </span>
+              </div>
+              <MiniChart trend={t} />
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
