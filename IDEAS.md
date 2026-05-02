@@ -299,10 +299,10 @@
 
 ---
 
-_Updated 2026-05-01: media backfill executed against prod —
-4947 messages scanned, 473 had photos, 293 mirrored onto
-activity_logs. Past-activity feed should now show thumbnails on
-historical workout/rehab rows that still have media on Twilio's
-side. Script's offset-pagination skip bug (each UPDATE shrunk the
-IS NULL filter) was patched mid-run; fixed version uses .limit()
-from-the-top so future re-runs converge in one pass._
+_Updated 2026-05-01: per-question score-trends card on the athlete
+page. Groups bare-numeric survey replies by their paired question
+(strips '[Session - Date]' prefix + 'Hey {name}!' lead-in to merge
+sends), renders one mini SVG chart per question (red/amber/green
+dots, dashed midline at 5, last-score callout, avg label). Reminder-
+nudge SMS now noise-filtered + excluded from question detection so
+a 'Reply to continue' nudge doesn't pair as a Q with a later answer._

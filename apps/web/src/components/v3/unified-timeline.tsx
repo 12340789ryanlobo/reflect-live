@@ -103,6 +103,11 @@ const NOISE_BODY_PATTERNS: RegExp[] = [
   /setup-password\?token=/i,
   // Auto thank-you replies the worker sends after a check-in
   /^thanks for checking in/i,
+  // Survey reminder nudges — '[Session] Hey {first}! Reminder to
+  // finish your check-in. Reply to continue where you left off.'
+  // These are scaffolding, not questions.
+  /reminder to finish your check-in/i,
+  /where you left off/i,
 ];
 
 // Bare-probe replies (single-word chat that's almost always noise).

@@ -127,6 +127,12 @@ const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
 function looksLikeQuestion(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
+  // Reject scaffolding nudges that match 'reply' but aren't real
+  // questions ('Reminder to finish your check-in. Reply to continue
+  // where you left off.'). Without this guard, these would pair with
+  // the next inbound reply and mislabel its Q.
+  if (/reminder to finish your check-in/i.test(t)) return false;
+  if (/where you left off/i.test(t)) return false;
   if (t.endsWith('?')) return true;
   if (/\breply\b/i.test(t)) return true;
   if (/\benter\s+\d/i.test(t)) return true;
