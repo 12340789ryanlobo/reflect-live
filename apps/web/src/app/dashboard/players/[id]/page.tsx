@@ -114,25 +114,29 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     (async () => {
       const since = periodSinceIso(period);
 
+      // Limit bumped from 200 → 1000 so the 'all' period actually
+      // captures every reply for athletes with longer histories. The
+      // Score trends heatmap was undercounting on 'all' because rows
+      // 201+ were being dropped silently.
       const msgQ = sb
         .from('twilio_messages')
         .select('*')
         .eq('player_id', playerId)
         .order('date_sent', { ascending: false })
-        .limit(200);
+        .limit(1000);
       const logQ = sb
         .from('activity_logs')
         .select('*')
         .eq('player_id', playerId)
         .eq('hidden', false)
         .order('logged_at', { ascending: false })
-        .limit(200);
+        .limit(1000);
       const injQ = sb
         .from('injury_reports')
         .select('id,regions,severity,description,reported_at,resolved_at')
         .eq('player_id', playerId)
         .order('reported_at', { ascending: false })
-        .limit(200);
+        .limit(1000);
 
       const [{ data: p }, { data: m }, { data: l }, { data: inj }] = await Promise.all([
         sb.from('players').select('*').eq('id', playerId).single(),

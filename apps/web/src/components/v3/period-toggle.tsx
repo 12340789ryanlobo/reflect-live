@@ -2,7 +2,7 @@
 
 // Reusable rolling-window picker — used anywhere a page slices data
 // by date (player summaries, sessions list, activity log, etc.).
-// Default options are 7d / 14d / 30d / All; pass `options` to override.
+// Default options are 7d / 14d / 30d / 90d / All; pass `options` to override.
 
 import type { Period } from '@/lib/period';
 import { periodShortLabel } from '@/lib/period';
@@ -15,7 +15,7 @@ interface Props {
   className?: string;
 }
 
-const DEFAULT_OPTIONS: readonly Period[] = [7, 14, 30, 'all'] as const;
+const DEFAULT_OPTIONS: readonly Period[] = [7, 14, 30, 90, 'all'] as const;
 
 export function PeriodToggle({
   value,
