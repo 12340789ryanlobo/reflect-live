@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Twilio } from 'twilio';
+import {
+  extractDerivedInjuries,
+  type DerivedInjury,
+  type TwilioMessage,
+} from '@reflect-live/shared';
 import { PhoneCache } from './phone-cache';
 import { toRow, type TwilioMessageLike } from './twilio-row';
 import { getWorkerState, updateWorkerState } from './state';
@@ -93,6 +98,23 @@ export async function pollOnce(deps: PollDeps): Promise<number> {
       if (actErr) throw actErr;
     }
 
+    // Derive injury_reports rows from paired SMS Pain+body-area
+    // exchanges. The athlete's standard reflect/sport-pulse check-in
+    // already captures injury data implicitly (Pain=yes followed by
+    // 'which body area is bothering you?'). Materialise it so the
+    // heatmap injury tab + LLM player summary can read it as a real
+    // injury list. Idempotent via injury_reports.source_sid unique
+    // index — replaying the same body-area reply just upserts the
+    // same row.
+    //
+    // Strategy: for each player who got a new message in this batch,
+    // re-extract their last 30 days of survey data. Cheap (one query
+    // per affected player) and handles the case where a session
+    // straddled the previous poll cycle — the body-area reply might
+    // have arrived in this batch but the pain question came in the
+    // previous one.
+    await refreshSurveyInjuries(sb, rows);
+
     const newest = msgs.reduce((acc, m) => {
       const t = m.dateSent?.getTime() ?? 0;
       return t > acc ? t : acc;
@@ -110,4 +132,56 @@ export async function pollOnce(deps: PollDeps): Promise<number> {
   });
 
   return msgs.length;
+}
+
+// Re-run the SMS-survey injury extractor for every player whose
+// messages just landed in this poll batch. Looks back 30 days so a
+// session split across two poll cycles still pairs correctly.
+async function refreshSurveyInjuries(
+  sb: SupabaseClient,
+  justUpserted: Array<{ player_id: number | null; team_id: number | null }>,
+): Promise<void> {
+  const affected = new Map<number, number>(); // player_id → team_id
+  for (const r of justUpserted) {
+    if (r.player_id != null && r.team_id != null) {
+      affected.set(r.player_id, r.team_id);
+    }
+  }
+  if (affected.size === 0) return;
+
+  const SINCE = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+
+  for (const [playerId, teamId] of affected) {
+    const { data: msgs, error } = await sb
+      .from('twilio_messages')
+      .select('sid,direction,body,date_sent,player_id,team_id,from_number,to_number,status,category,media_sids')
+      .eq('player_id', playerId)
+      .gte('date_sent', SINCE)
+      .order('date_sent', { ascending: true })
+      .limit(2000);
+    if (error) {
+      console.error(`[injury] fetch failed for player ${playerId}: ${error.message}`);
+      continue;
+    }
+    if (!msgs || msgs.length === 0) continue;
+    const derived = extractDerivedInjuries(msgs as TwilioMessage[], playerId, teamId);
+    if (derived.length === 0) continue;
+    const injRows = derived.map((d: DerivedInjury) => ({
+      player_id: d.player_id,
+      team_id: d.team_id,
+      regions: d.regions,
+      severity: null as number | null,
+      description: d.description,
+      reported_at: d.reported_at,
+      resolved_at: null as string | null,
+      reported_by: 'survey:auto',
+      source_sid: d.source_sid,
+    }));
+    const { error: upErr } = await sb
+      .from('injury_reports')
+      .upsert(injRows, { onConflict: 'source_sid' });
+    if (upErr) {
+      console.error(`[injury] upsert failed for player ${playerId}: ${upErr.message}`);
+    }
+  }
 }

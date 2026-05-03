@@ -8,7 +8,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'node:fs';
-import { extractSurveyInjuries } from '../apps/web/src/lib/survey-injuries';
+// Use the shared extractor so backfill + live worker share one
+// implementation. The web's apps/web/src/lib/survey-injuries.ts
+// version still exists for any future on-the-fly UI computation; the
+// worker + backfill pair both read from packages/shared so they
+// stay in lockstep.
+import { extractDerivedInjuries } from '../packages/shared/src/injury-extract';
 
 for (const line of readFileSync('apps/web/.env.local', 'utf8').split('\n')) {
   const trimmed = line.trim();
@@ -63,7 +68,7 @@ for (const p of players as Player[]) {
     .order('date_sent', { ascending: true })
     .limit(2000);
   if (!msgs || msgs.length === 0) continue;
-  const derived = extractSurveyInjuries(msgs, p.id, p.team_id);
+  const derived = extractDerivedInjuries(msgs, p.id, p.team_id);
   if (derived.length === 0) continue;
   totalDerived += derived.length;
   console.log(`\n  #${p.id} ${p.name}: ${derived.length} derived injuries`);
