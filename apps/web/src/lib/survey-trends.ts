@@ -253,37 +253,70 @@ function isOutbound(direction: string): boolean {
   return direction !== 'inbound';
 }
 
-// A survey "session" is a cluster of messages with the same player
-// where consecutive messages are within SESSION_GAP_MS of each other.
-// Outside this window, a new session begins. Empirically, athletes
-// finish a check-in within a few minutes; gaps over 30 minutes mean
-// a separate occasion.
-const SESSION_GAP_MS = 30 * 60 * 1000;
+// A survey "session" is one logical check-in flow: the coach's worker
+// sends a sequence of questions, the athlete answers them. We don't
+// have an explicit session_id on twilio_messages, so we infer
+// boundaries from the message stream.
+//
+// A new session starts when ANY of the following is true:
+//   - This is the very first message
+//   - The previous session was explicitly ended by a system ack
+//     ('Thanks for checking in!', 'Got it, thanks!', 'All done!',
+//     'Noted, thanks!', 'appreciate the input')
+//   - More than HARD_GAP_MS has passed since the last message
+//
+// IMPORTANT: gap-based splits used to be 30 minutes, which broke
+// real surveys. Athletes legitimately reply hours after a question
+// is sent (woke up late, busy day) — the survey is still ongoing,
+// the worker resumes asking remaining questions after the reply
+// arrives. The previous 30-min rule split that into two sessions,
+// throwing off the index alignment by one slot for the rest of the
+// survey. 12 hours is comfortably longer than any normal
+// reply-then-resume cycle but still shorter than 'next day'.
+const HARD_GAP_MS = 12 * 60 * 60 * 1000;
 
 interface Session {
   outbound: TwilioMessage[]; // questions, in chronological order
   inbound: TwilioMessage[];  // replies (numeric or text), in chronological order
+  ended: boolean;            // a system ack closed the session
 }
 
-// Walk a player's chronologically-sorted messages and group them into
-// sessions by 30-minute gaps. Within each session, outbound questions
-// (filtered through looksLikeQuestion to skip system acks/re-prompts)
-// and inbound replies are kept in their original time order so
-// downstream pairing can match Q[i] to R[i].
+// Worker-generated confirmations that indicate the survey flow is
+// complete. The next outbound question is unrelated and starts a new
+// session, even if it lands within HARD_GAP_MS.
+function isSessionEndingAck(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return (
+    /^thanks for checking in/.test(t) ||
+    /^got it[,!.]?\s*thanks/.test(t) ||
+    /^all done/.test(t) ||
+    /^noted[,!.]?\s*thanks/.test(t) ||
+    /\bappreciate the input/.test(t)
+  );
+}
+
 function buildSessions(playerMsgs: TwilioMessage[]): Session[] {
   const sessions: Session[] = [];
   let cur: Session | null = null;
   let lastTs = 0;
   for (const m of playerMsgs) {
     const ts = new Date(m.date_sent).getTime();
-    if (!cur || ts - lastTs > SESSION_GAP_MS) {
-      cur = { outbound: [], inbound: [] };
+    const longGap = ts - lastTs > HARD_GAP_MS;
+    const prevEnded = cur?.ended ?? false;
+    if (!cur || longGap || prevEnded) {
+      cur = { outbound: [], inbound: [], ended: false };
       sessions.push(cur);
     }
     if (m.direction === 'inbound') {
       if (m.body && m.body.trim()) cur.inbound.push(m);
     } else if (isOutbound(m.direction)) {
-      if (m.body && looksLikeQuestion(m.body)) cur.outbound.push(m);
+      if (!m.body) {
+        // skip
+      } else if (isSessionEndingAck(m.body)) {
+        cur.ended = true;
+      } else if (looksLikeQuestion(m.body)) {
+        cur.outbound.push(m);
+      }
     }
     lastTs = ts;
   }

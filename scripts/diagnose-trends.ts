@@ -122,21 +122,28 @@ for (const p of players) {
     continue;
   }
 
-  const SESSION_GAP_MS = 30 * 60 * 1000;
-  type Sess = { outbound: typeof msgs; inbound: typeof msgs };
+  const HARD_GAP_MS = 12 * 60 * 60 * 1000;
+  function isAck(t: string): boolean {
+    const x = t.trim().toLowerCase();
+    return /^thanks for checking in/.test(x) || /^got it[,!.]?\s*thanks/.test(x) || /^all done/.test(x) || /^noted[,!.]?\s*thanks/.test(x) || /\bappreciate the input/.test(x);
+  }
+  type Sess = { outbound: typeof msgs; inbound: typeof msgs; ended: boolean };
   const sessions: Sess[] = [];
   let cur: Sess | null = null;
   let lastTs = 0;
   for (const m of msgs) {
     const ts = new Date(m.date_sent).getTime();
-    if (!cur || ts - lastTs > SESSION_GAP_MS) {
-      cur = { outbound: [], inbound: [] };
+    const longGap = ts - lastTs > HARD_GAP_MS;
+    const prevEnded = cur?.ended ?? false;
+    if (!cur || longGap || prevEnded) {
+      cur = { outbound: [], inbound: [], ended: false };
       sessions.push(cur);
     }
     if (m.direction === 'inbound') {
       if (m.body && m.body.trim()) cur.inbound.push(m);
-    } else {
-      if (m.body && looksLikeQuestion(m.body)) cur.outbound.push(m);
+    } else if (m.body) {
+      if (isAck(m.body)) cur.ended = true;
+      else if (looksLikeQuestion(m.body)) cur.outbound.push(m);
     }
     lastTs = ts;
   }
