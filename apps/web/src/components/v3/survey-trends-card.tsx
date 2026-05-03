@@ -1,53 +1,41 @@
 'use client';
 
-// Wellness-trends chart for an athlete. Reset & rebuilt from scratch
-// after iterating on the per-question + bar + smoothed approaches.
+// Wellness-trends panel for an athlete. Built as "small multiples"
+// (Tufte): each question gets its OWN row with its own mini chart,
+// and they all share a single date axis at the bottom. Why:
 //
-// What's in vs out, and why:
-//   - Lib-side filter only includes questions whose text explicitly
-//     declares a 0/1–10 scale ('Reply 1-10') or a binary scale
-//     ('0=no, 1=yes'). Free-text questions ('one thing to work on
-//     next session?') are dropped — athletes answer those with rep
-//     counts, severity numbers, etc., and plotting those alongside
-//     wellness scores is misleading.
-//   - Lib-side aggregates raw replies into one point per day per
-//     metric (mean for scores, any-yes for binary). One point per
-//     day matches Whoop / Oura / Smartabase conventions.
+//   - 5+ overlapping lines on one canvas was unreadable. Cleveland's
+//     research caps useful multi-line charts around 4 series; beyond
+//     that, viewers can't track individual lines.
+//   - Sparse, irregular sampling across metrics means lone outliers
+//     (e.g. one reply 3 weeks after the rest) stretched the whole
+//     chart and produced misleading "trend" lines connecting distant
+//     samples.
+//   - Direct end-of-line labels collided when multiple metrics ended
+//     near the same x.
 //
-// What this component renders:
-//   - Score (0-10) questions: straight-line series with a faint area
-//     fill. Direct end-of-line labels — no busy legend taking up a
-//     fifth of the card.
-//   - Binary questions: a count band BELOW the line area, one row
-//     per question. Filled dot = yes, hollow tick = no.
-//   - Single shared date axis at the bottom.
+// One row per metric solves all three: each metric is in its own
+// lane, but they share the time axis so a coach can scan vertically
+// at any date to see "stress and pain both spiked the same week".
 //
-// Visual rules followed (Cleveland, Tufte, Few):
-//   - Soft palette over rainbow (data-ink ratio).
-//   - No bezier smoothing (don't invent values between samples).
-//   - Cap visible series at 4 to avoid line tangle.
-//   - Direct end labels > legend hunting.
+// Score rows render a line+area sparkline (0–10 y-scale, midline
+// gridline at 5). Binary rows render a dot strip — filled dot = yes,
+// hollow dot = no — so cadence is visible too.
 
-import { useMemo, useState } from 'react';
 import type { QuestionTrend, TrendPoint } from '@/lib/survey-trends';
 
 interface Props {
   trends: QuestionTrend[];
-  initialVisibleScores?: number;
 }
 
-// Curated palette: distinct hues, all readable on cream. Avoids pure
-// red so the value-tone red elsewhere in the app stays meaningful.
-const SCORE_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6'];
-const BINARY_COLORS = ['#ef4444', '#f97316', '#a855f7', '#0ea5e9'];
+const SCORE_COLOR = '#2563eb';   // blue for all score rows (no rainbow)
+const BINARY_COLOR = '#ef4444';  // red for yes events
 
 function shortDate(d: Date): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-// Strip 'Reply: …', '(…)' and similar scaffolding so the legend label
-// is the question, not the protocol. Keep it punchy.
-function shortLabel(q: string, max = 32): string {
+function shortLabel(q: string, max = 60): string {
   let s = q.replace(/\bReply\b[\s\S]*$/i, '').trim();
   s = s.replace(/\(.*\)\s*$/, '').trim();
   const firstQ = s.indexOf('?');
@@ -60,91 +48,267 @@ interface Prepared {
   key: string;
   label: string;
   full: string;
-  color: string;
   isBinary: boolean;
   points: TrendPoint[];
   binaryPoints: TrendPoint[];
   count: number;
   last: TrendPoint | null;
   avg: number | null;
+  yesCount: number;
 }
 
-export function SurveyTrendsCard({ trends, initialVisibleScores = 4 }: Props) {
-  const series = useMemo<Prepared[]>(() => {
-    const sorted = [...trends].sort((a, b) => b.points.length - a.points.length);
-    let scoreIdx = 0;
-    let binaryIdx = 0;
-    return sorted.map((t) => {
+function prepare(trends: QuestionTrend[]): Prepared[] {
+  return [...trends]
+    .sort((a, b) => b.points.length - a.points.length)
+    .map((t) => {
       const isBinary = t.kind === 'binary';
-      const color = isBinary
-        ? BINARY_COLORS[binaryIdx++ % BINARY_COLORS.length]
-        : SCORE_COLORS[scoreIdx++ % SCORE_COLORS.length];
       const binaryPoints = isBinary
         ? t.points.map((p) => ({ ts: p.ts, score: p.score >= 0.5 ? 1 : 0 }))
         : t.points;
-      const last = t.points.length ? t.points[t.points.length - 1] : null;
-      const avg = t.points.length
-        ? t.points.reduce((a, b) => a + b.score, 0) / t.points.length
-        : null;
       return {
         key: t.key,
         label: shortLabel(t.question),
         full: t.question,
-        color,
         isBinary,
         points: t.points,
         binaryPoints,
         count: t.points.length,
-        last,
-        avg,
+        last: t.points.length ? t.points[t.points.length - 1] : null,
+        avg: t.points.length
+          ? t.points.reduce((a, b) => a + b.score, 0) / t.points.length
+          : null,
+        yesCount: isBinary
+          ? binaryPoints.filter((p) => p.score === 1).length
+          : 0,
       };
     });
-  }, [trends]);
+}
 
-  const scoreAll = series.filter((s) => !s.isBinary);
-  const binaryAll = series.filter((s) => s.isBinary);
+const ROW_W = 760;
+const ROW_PAD_L = 14;
+const ROW_PAD_R = 14;
+const SCORE_ROW_H = 64;
+const BINARY_ROW_H = 28;
+const AXIS_H = 28;
 
-  const [hidden, setHidden] = useState<Set<string>>(() => {
-    // Default: top N score series + all binary series visible.
-    const s = new Set<string>();
-    scoreAll.slice(initialVisibleScores).forEach((x) => s.add(x.key));
-    return s;
-  });
-
-  const visibleScore = scoreAll.filter((s) => !hidden.has(s.key));
-  const visibleBinary = binaryAll.filter((s) => !hidden.has(s.key));
-
-  // Time domain across visible data.
-  const allTs: number[] = [];
-  for (const s of [...visibleScore, ...visibleBinary])
-    for (const p of s.points) allTs.push(new Date(p.ts).getTime());
-  const tMin = allTs.length ? Math.min(...allTs) : 0;
-  const tMax = allTs.length ? Math.max(...allTs) : 1;
-  // Tiny right-side padding so end-of-line labels have room to breathe.
-  const tRange = Math.max(tMax - tMin, 1);
-  const tMaxPadded = tMax + tRange * 0.02;
-  const fittedRange = Math.max(tMaxPadded - tMin, 1);
-
-  // Layout — in viewBox space; SVG scales responsively.
-  const W = 760;
-  const PAD_L = 32;
-  const PAD_R = 110; // wide right pad for end-of-line direct labels
-  const PAD_T = 14;
-  const PAD_B = 26;
-  const SCORE_H = 200;
-  const BAND_ROW_H = 22;
-  const BAND_GAP = visibleBinary.length ? 18 : 0;
-  const BAND_H = visibleBinary.length ? visibleBinary.length * BAND_ROW_H : 0;
-  const H = PAD_T + SCORE_H + BAND_GAP + BAND_H + PAD_B;
-
-  const innerW = W - PAD_L - PAD_R;
+function ScoreRow({
+  s,
+  tMin,
+  tRange,
+  showMidline,
+}: {
+  s: Prepared;
+  tMin: number;
+  tRange: number;
+  showMidline: boolean;
+}) {
+  const innerW = ROW_W - ROW_PAD_L - ROW_PAD_R;
+  const PAD_T = 6;
+  const PAD_B = 6;
+  const innerH = SCORE_ROW_H - PAD_T - PAD_B;
   const xOf = (ts: string) =>
-    PAD_L + ((new Date(ts).getTime() - tMin) / fittedRange) * innerW;
-  const yScore = (v: number) => PAD_T + ((10 - v) / 10) * SCORE_H;
+    ROW_PAD_L + ((new Date(ts).getTime() - tMin) / tRange) * innerW;
+  const yOf = (v: number) => PAD_T + ((10 - v) / 10) * innerH;
+  const sorted = [...s.points].sort((a, b) => a.ts.localeCompare(b.ts));
+  const coords = sorted.map((p) => ({ x: xOf(p.ts), y: yOf(p.score) }));
+  const linePath = coords
+    .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`)
+    .join(' ');
+  const firstX = coords[0]?.x ?? 0;
+  const lastX = coords[coords.length - 1]?.x ?? 0;
+  const areaPath =
+    coords.length > 1
+      ? `${linePath} L ${lastX} ${PAD_T + innerH} L ${firstX} ${PAD_T + innerH} Z`
+      : '';
 
-  // X-axis ticks — pick a sensible step so labels don't crowd. Prefer
-  // 5 ticks across any window from a week to a few months.
+  return (
+    <svg
+      viewBox={`0 0 ${ROW_W} ${SCORE_ROW_H}`}
+      className="block w-full"
+      preserveAspectRatio="none"
+      style={{ height: SCORE_ROW_H }}
+    >
+      {/* Top + bottom hair-line bounds */}
+      <line
+        x1={ROW_PAD_L}
+        x2={ROW_W - ROW_PAD_R}
+        y1={PAD_T}
+        y2={PAD_T}
+        stroke="var(--border)"
+        strokeWidth={0.5}
+        strokeOpacity={0.4}
+      />
+      <line
+        x1={ROW_PAD_L}
+        x2={ROW_W - ROW_PAD_R}
+        y1={PAD_T + innerH}
+        y2={PAD_T + innerH}
+        stroke="var(--border)"
+        strokeWidth={0.5}
+        strokeOpacity={0.4}
+      />
+      {showMidline && (
+        <line
+          x1={ROW_PAD_L}
+          x2={ROW_W - ROW_PAD_R}
+          y1={yOf(5)}
+          y2={yOf(5)}
+          stroke="var(--border)"
+          strokeWidth={0.5}
+          strokeDasharray="2 3"
+        />
+      )}
+      {/* y-axis labels at row edges */}
+      <text
+        x={ROW_PAD_L - 4}
+        y={PAD_T + 4}
+        textAnchor="end"
+        style={{ fontSize: 8, fill: 'var(--ink-mute)' }}
+        className="mono tabular"
+      >
+        10
+      </text>
+      <text
+        x={ROW_PAD_L - 4}
+        y={PAD_T + innerH + 2}
+        textAnchor="end"
+        style={{ fontSize: 8, fill: 'var(--ink-mute)' }}
+        className="mono tabular"
+      >
+        0
+      </text>
+      {areaPath && <path d={areaPath} fill={SCORE_COLOR} fillOpacity={0.08} />}
+      {coords.length > 1 && (
+        <path
+          d={linePath}
+          fill="none"
+          stroke={SCORE_COLOR}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      {coords.map((c, i) => (
+        <circle
+          key={i}
+          cx={c.x}
+          cy={c.y}
+          r={2.5}
+          fill="var(--card)"
+          stroke={SCORE_COLOR}
+          strokeWidth={1.5}
+        >
+          <title>
+            {shortDate(new Date(sorted[i].ts))}: {sorted[i].score.toFixed(1)}/10
+          </title>
+        </circle>
+      ))}
+    </svg>
+  );
+}
+
+function BinaryRow({
+  s,
+  tMin,
+  tRange,
+}: {
+  s: Prepared;
+  tMin: number;
+  tRange: number;
+}) {
+  const innerW = ROW_W - ROW_PAD_L - ROW_PAD_R;
+  const cy = BINARY_ROW_H / 2;
+  const xOf = (ts: string) =>
+    ROW_PAD_L + ((new Date(ts).getTime() - tMin) / tRange) * innerW;
+  const yesPts = s.binaryPoints.filter((p) => p.score === 1);
+  const noPts = s.binaryPoints.filter((p) => p.score === 0);
+
+  return (
+    <svg
+      viewBox={`0 0 ${ROW_W} ${BINARY_ROW_H}`}
+      className="block w-full"
+      preserveAspectRatio="none"
+      style={{ height: BINARY_ROW_H }}
+    >
+      <line
+        x1={ROW_PAD_L}
+        x2={ROW_W - ROW_PAD_R}
+        y1={cy}
+        y2={cy}
+        stroke="var(--border)"
+        strokeOpacity={0.5}
+        strokeWidth={0.5}
+      />
+      {noPts.map((p, i) => (
+        <circle
+          key={`n-${i}`}
+          cx={xOf(p.ts)}
+          cy={cy}
+          r={2.75}
+          fill="none"
+          stroke={BINARY_COLOR}
+          strokeOpacity={0.4}
+          strokeWidth={1}
+        >
+          <title>{shortDate(new Date(p.ts))}: no</title>
+        </circle>
+      ))}
+      {yesPts.map((p, i) => (
+        <circle
+          key={`y-${i}`}
+          cx={xOf(p.ts)}
+          cy={cy}
+          r={4.5}
+          fill={BINARY_COLOR}
+        >
+          <title>{shortDate(new Date(p.ts))}: yes</title>
+        </circle>
+      ))}
+    </svg>
+  );
+}
+
+function DateAxis({ tMin, tRange }: { tMin: number; tRange: number }) {
   const TICK_COUNT = 5;
+  const innerW = ROW_W - ROW_PAD_L - ROW_PAD_R;
+  return (
+    <svg
+      viewBox={`0 0 ${ROW_W} ${AXIS_H}`}
+      className="block w-full"
+      preserveAspectRatio="none"
+      style={{ height: AXIS_H }}
+    >
+      {Array.from({ length: TICK_COUNT }, (_, i) => {
+        const t = tMin + (tRange * i) / (TICK_COUNT - 1);
+        const x = ROW_PAD_L + (innerW * i) / (TICK_COUNT - 1);
+        return (
+          <g key={i}>
+            <line
+              x1={x}
+              x2={x}
+              y1={0}
+              y2={4}
+              stroke="var(--border)"
+              strokeWidth={0.5}
+            />
+            <text
+              x={x}
+              y={16}
+              textAnchor={i === 0 ? 'start' : i === TICK_COUNT - 1 ? 'end' : 'middle'}
+              style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
+              className="mono tabular"
+            >
+              {shortDate(new Date(t))}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+export function SurveyTrendsCard({ trends }: Props) {
+  const series = prepare(trends);
 
   if (series.length === 0) {
     return (
@@ -154,299 +318,123 @@ export function SurveyTrendsCard({ trends, initialVisibleScores = 4 }: Props) {
           <p className="text-[13px] text-[color:var(--ink-mute)]">
             — no scoreable replies in this window —
           </p>
-          <p className="mt-1 text-[11.5px] text-[color:var(--ink-mute)]">
-            Plots replies to questions that declare a 0–10 scale or a yes/no
-            response.
-          </p>
         </div>
       </Card>
     );
   }
 
+  // Shared time domain across ALL series so rows are date-aligned.
+  const allTs: number[] = [];
+  for (const s of series) for (const p of s.points) allTs.push(new Date(p.ts).getTime());
+  const tMin = Math.min(...allTs);
+  const tMax = Math.max(...allTs);
+  const tRange = Math.max(tMax - tMin, 1);
+
+  const scoreSeries = series.filter((s) => !s.isBinary);
+  const binarySeries = series.filter((s) => s.isBinary);
+
   return (
     <Card>
       <Header
         title="Score trends"
-        right={`${scoreAll.length} score · ${binaryAll.length} yes/no`}
+        right={`${scoreSeries.length} score · ${binarySeries.length} yes/no`}
       />
 
-      <div className="px-4 md:px-6 py-5">
-        {visibleScore.length === 0 && visibleBinary.length === 0 ? (
-          <p className="py-12 text-center text-[13px] text-[color:var(--ink-mute)]">
-            All series hidden — toggle one back on below.
-          </p>
-        ) : (
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="w-full h-auto"
-            preserveAspectRatio="none"
+      <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+        {scoreSeries.map((s, i) => (
+          <Row
+            key={s.key}
+            label={s.label}
+            full={s.full}
+            count={s.count}
+            metaLeft={s.avg != null ? `avg ${s.avg.toFixed(1)}` : ''}
+            metaRight={
+              s.last
+                ? `last ${s.last.score.toFixed(1)}/10 · ${shortDate(new Date(s.last.ts))}`
+                : ''
+            }
           >
-            {/* Y-axis labels + horizontal gridlines */}
-            {[0, 5, 10].map((v) => (
-              <g key={`y-${v}`}>
-                <line
-                  x1={PAD_L}
-                  x2={W - PAD_R + 4}
-                  y1={yScore(v)}
-                  y2={yScore(v)}
-                  stroke="var(--border)"
-                  strokeWidth={0.5}
-                  strokeDasharray={v === 5 ? '2 3' : undefined}
-                />
-                <text
-                  x={PAD_L - 6}
-                  y={yScore(v) + 3}
-                  textAnchor="end"
-                  style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
-                  className="mono tabular"
-                >
-                  {v}
-                </text>
-              </g>
-            ))}
+            <ScoreRow
+              s={s}
+              tMin={tMin}
+              tRange={tRange}
+              showMidline={i === 0}
+            />
+          </Row>
+        ))}
 
-            {/* Score series — soft area fill + straight line + dots */}
-            {visibleScore.map((s) => {
-              const sorted = [...s.points].sort((a, b) =>
-                a.ts.localeCompare(b.ts),
-              );
-              if (sorted.length === 0) return null;
-              const coords = sorted.map((p) => ({
-                x: xOf(p.ts),
-                y: yScore(p.score),
-              }));
-              const firstX = coords[0].x;
-              const lastX = coords[coords.length - 1].x;
-              const lastY = coords[coords.length - 1].y;
-              const linePath = coords
-                .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`)
-                .join(' ');
-              const areaPath =
-                coords.length > 1
-                  ? `${linePath} L ${lastX} ${PAD_T + SCORE_H} L ${firstX} ${PAD_T + SCORE_H} Z`
-                  : '';
-              return (
-                <g key={`line-${s.key}`}>
-                  {areaPath && (
-                    <path d={areaPath} fill={s.color} fillOpacity={0.06} />
-                  )}
-                  <path
-                    d={linePath}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth={1.75}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  {coords.map((c, i) => (
-                    <circle
-                      key={i}
-                      cx={c.x}
-                      cy={c.y}
-                      r={2.75}
-                      fill="var(--card)"
-                      stroke={s.color}
-                      strokeWidth={1.5}
-                    >
-                      <title>
-                        {s.label} — {shortDate(new Date(sorted[i].ts))}: {sorted[i].score.toFixed(1)}/10
-                      </title>
-                    </circle>
-                  ))}
-                  {/* Direct end-of-line label — replaces a busy
-                      legend with the right answer in the right place */}
-                  <text
-                    x={lastX + 8}
-                    y={lastY + 3}
-                    style={{
-                      fontSize: 11,
-                      fill: s.color,
-                      fontWeight: 600,
-                    }}
-                    className="mono tabular"
-                  >
-                    {sorted[sorted.length - 1].score.toFixed(1)}
-                  </text>
-                  <text
-                    x={lastX + 8}
-                    y={lastY + 15}
-                    style={{
-                      fontSize: 9.5,
-                      fill: 'var(--ink-mute)',
-                    }}
-                    className="line-clamp-1"
-                  >
-                    {s.label}
-                  </text>
-                </g>
-              );
-            })}
-
-            {/* Divider above the binary band */}
-            {visibleBinary.length > 0 && visibleScore.length > 0 && (
-              <line
-                x1={PAD_L}
-                x2={W - PAD_R + 4}
-                y1={PAD_T + SCORE_H + BAND_GAP / 2}
-                y2={PAD_T + SCORE_H + BAND_GAP / 2}
-                stroke="var(--border)"
-                strokeWidth={0.5}
-              />
-            )}
-
-            {/* Binary count-marker band */}
-            {visibleBinary.map((s, idx) => {
-              const rowY =
-                PAD_T +
-                SCORE_H +
-                BAND_GAP +
-                idx * BAND_ROW_H +
-                BAND_ROW_H / 2;
-              const yesPts = s.binaryPoints.filter((p) => p.score === 1);
-              const noPts = s.binaryPoints.filter((p) => p.score === 0);
-              const yesCount = yesPts.length;
-              const total = s.binaryPoints.length;
-              return (
-                <g key={`band-${s.key}`}>
-                  <line
-                    x1={PAD_L}
-                    x2={W - PAD_R + 4}
-                    y1={rowY}
-                    y2={rowY}
-                    stroke="var(--border)"
-                    strokeOpacity={0.5}
-                    strokeWidth={0.5}
-                  />
-                  {noPts.map((p, i) => (
-                    <circle
-                      key={`n-${i}`}
-                      cx={xOf(p.ts)}
-                      cy={rowY}
-                      r={2.5}
-                      fill="none"
-                      stroke={s.color}
-                      strokeOpacity={0.35}
-                      strokeWidth={1}
-                    >
-                      <title>
-                        {s.label} — {shortDate(new Date(p.ts))}: no
-                      </title>
-                    </circle>
-                  ))}
-                  {yesPts.map((p, i) => (
-                    <circle
-                      key={`y-${i}`}
-                      cx={xOf(p.ts)}
-                      cy={rowY}
-                      r={4}
-                      fill={s.color}
-                    >
-                      <title>
-                        {s.label} — {shortDate(new Date(p.ts))}: yes
-                      </title>
-                    </circle>
-                  ))}
-                  {/* Right-side label: 'yes 8/26' */}
-                  <text
-                    x={W - PAD_R + 8}
-                    y={rowY + 3}
-                    style={{
-                      fontSize: 10.5,
-                      fill: s.color,
-                      fontWeight: 600,
-                    }}
-                    className="mono tabular"
-                  >
-                    {yesCount}/{total}
-                  </text>
-                  <text
-                    x={W - PAD_R + 8}
-                    y={rowY + 14}
-                    style={{
-                      fontSize: 9,
-                      fill: 'var(--ink-mute)',
-                    }}
-                    className="line-clamp-1"
-                  >
-                    {s.label}
-                  </text>
-                </g>
-              );
-            })}
-
-            {/* X-axis date ticks */}
-            {Array.from({ length: TICK_COUNT }, (_, i) => {
-              const t = tMin + (fittedRange * i) / (TICK_COUNT - 1);
-              const x = PAD_L + (innerW * i) / (TICK_COUNT - 1);
-              return (
-                <g key={`x-${i}`}>
-                  <line
-                    x1={x}
-                    x2={x}
-                    y1={H - PAD_B}
-                    y2={H - PAD_B + 4}
-                    stroke="var(--border)"
-                    strokeWidth={0.5}
-                  />
-                  <text
-                    x={x}
-                    y={H - PAD_B + 14}
-                    textAnchor={i === 0 ? 'start' : i === TICK_COUNT - 1 ? 'end' : 'middle'}
-                    style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
-                    className="mono tabular"
-                  >
-                    {shortDate(new Date(t))}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-        )}
-
-        {/* Compact toggle row — minimal, just lets the user pick which
-            of the (already filtered + ranked) series they want to see */}
-        {series.length > 0 && (
-          <div
-            className="mt-4 flex flex-wrap gap-x-3 gap-y-2 pt-3 border-t"
-            style={{ borderColor: 'var(--border)' }}
+        {binarySeries.map((s) => (
+          <Row
+            key={s.key}
+            label={s.label}
+            full={s.full}
+            count={s.count}
+            metaLeft={`yes ${s.yesCount}/${s.count}`}
+            metaRight={
+              s.last
+                ? `last ${s.last.score >= 0.5 ? 'yes' : 'no'} · ${shortDate(new Date(s.last.ts))}`
+                : ''
+            }
+            tone="binary"
           >
-            {series.map((s) => {
-              const isHidden = hidden.has(s.key);
-              return (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() =>
-                    setHidden((prev) => {
-                      const next = new Set(prev);
-                      if (isHidden) next.delete(s.key);
-                      else next.add(s.key);
-                      return next;
-                    })
-                  }
-                  className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--ink-soft)] transition-opacity hover:opacity-80"
-                  style={{ opacity: isHidden ? 0.35 : 1 }}
-                  title={`${s.full}\n${s.count} replies, ${s.isBinary ? 'yes/no' : '0–10 score'}`}
-                >
-                  {s.isBinary ? (
-                    <span
-                      className="inline-block rounded-full"
-                      style={{ width: 7, height: 7, background: s.color }}
-                    />
-                  ) : (
-                    <span
-                      className="inline-block rounded-sm"
-                      style={{ width: 12, height: 2.5, background: s.color }}
-                    />
-                  )}
-                  <span className="line-clamp-1 max-w-[200px]">{s.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+            <BinaryRow s={s} tMin={tMin} tRange={tRange} />
+          </Row>
+        ))}
+
+        {/* Shared date axis at the bottom of the panel */}
+        <div className="px-6 pt-1 pb-3">
+          <DateAxis tMin={tMin} tRange={tRange} />
+        </div>
       </div>
     </Card>
+  );
+}
+
+function Row({
+  label,
+  full,
+  count,
+  metaLeft,
+  metaRight,
+  tone,
+  children,
+}: {
+  label: string;
+  full: string;
+  count: number;
+  metaLeft: string;
+  metaRight: string;
+  tone?: 'binary';
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="px-6 py-3">
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <h3
+          className="text-[13px] font-semibold text-[color:var(--ink)] line-clamp-1 flex-1 min-w-0"
+          title={full}
+        >
+          {label}
+        </h3>
+        <div className="flex items-baseline gap-3 shrink-0">
+          <span className="mono text-[10.5px] text-[color:var(--ink-mute)] tabular">
+            {count} replies
+          </span>
+          <span
+            className="mono text-[11px] tabular font-semibold"
+            style={{
+              color: tone === 'binary' ? BINARY_COLOR : SCORE_COLOR,
+            }}
+          >
+            {metaLeft}
+          </span>
+        </div>
+      </div>
+      {children}
+      <div className="mt-1 mono text-[10px] text-[color:var(--ink-mute)] tabular text-right">
+        {metaRight}
+      </div>
+    </div>
   );
 }
 
