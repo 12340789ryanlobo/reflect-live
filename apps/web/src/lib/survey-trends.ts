@@ -22,8 +22,27 @@ export interface QuestionTrend {
   key: string;
   /** Human-readable question text (first variant we saw, normalized). */
   question: string;
+  /**
+   * 'binary' when the question is semantically yes/no (e.g. 'Reply: 0
+   * = no, 1 = yes'), even if some athletes typed a severity number
+   * instead. The card clamps these to 0/1 and renders them as count
+   * markers below the line chart, matching how reflect handled it.
+   * 'score' is the default 0–10 line.
+   */
+  kind: 'binary' | 'score';
   /** All replies in this group, ascending by date. */
   points: TrendPoint[];
+}
+
+// Detect "0 = no, 1 = yes" and similar patterns in the raw question
+// text. This trumps the data distribution — the question is binary
+// even when athletes occasionally reply with a severity (a few "6"s).
+function questionIsBinary(rawQuestion: string): boolean {
+  const t = rawQuestion.toLowerCase();
+  // '0 = no, 1 = yes' / '0=no 1=yes' / '0 - no, 1 - yes'
+  if (/0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t)) return true;
+  if (/1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t)) return true;
+  return false;
 }
 
 const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -52,21 +71,32 @@ function bareScore(body: string | null): number | null {
 }
 
 // Normalize a question so two sends of the same template (different
-// session prefix, different greeting name) map to the same group.
+// session prefix, greeting name, or trailing reply scaffolding) map
+// to the same group. Without this, every micro-variant becomes its
+// own legend entry and the chart fragments into noise.
 //
 //   '[Morning Practice - Mar 13] Hey Ryan! How well did you sleep?'
-//   '[Evening Practice - Mar 14] Hey Ryan! How well did you sleep?'
+//   'Hi Ryan. How well did you sleep? Reply 1-10.'
+//   'How well did you sleep? Enter 0 to skip'
 //
-// → both normalize to: 'how well did you sleep?'
+// → all normalize to: 'how well did you sleep?'
 //
-// Returns { display, key }: display is title-cased for UI, key is
+// Returns { display, key }: display preserves casing for UI, key is
 // lowercased for grouping.
 function normalizeQuestion(raw: string): { display: string; key: string } {
   let t = raw.trim();
   // Strip leading '[…]' bracket prefix (session/date label).
   t = t.replace(/^\[[^\]]+\]\s*/, '');
-  // Strip 'Hey <name>!' / 'Hi <name>,' lead-in.
+  // Strip 'Hey <name>!' / 'Hi <name>,' / 'Hi <name>.' lead-in.
   t = t.replace(/^(?:hey|hi|hello)\s+\S+[!,.]?\s*/i, '');
+  // Strip reply scaffolding that varies across sends but doesn't
+  // change which question is being asked. Order matters — broader
+  // patterns first.
+  t = t.replace(/\bReply\s*(?:[:\-–])?\s*\d[\s\S]*$/i, '');
+  t = t.replace(/\b(?:Enter|Type)\s+\d[\s\S]*$/i, '');
+  t = t.replace(/\(\s*required\s*\)\.?\s*$/i, '');
+  t = t.replace(/\s*\(.*\)\s*$/, '');
+  t = t.replace(/[\s.]+$/, '');
   t = t.trim();
   return { display: t, key: t.toLowerCase() };
 }
@@ -114,20 +144,22 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
         break;
       }
     }
-    // No paired question (no outbound at all, outbound >24h earlier,
-    // or outbound didn't match looksLikeQuestion). Fall back to a
-    // generic 'Score' bucket so the reply still surfaces — the chart
-    // is still informative as a wellness trend, just without the
-    // question label. Without this, players whose questions sit
-    // outside the 24h window or use phrasing the heuristic misses
-    // would see an empty card despite having real data.
-    const { display, key } = questionBody
-      ? normalizeQuestion(questionBody)
-      : { display: 'Score (unmatched question)', key: '__unmatched__' };
+    // Drop replies we can't pair to a real question rather than
+    // bucketing them into a generic 'Score' label — the unmatched
+    // group cluttered the legend and mixed unrelated answers into one
+    // misleading line. With the outbound-direction fix we now pair
+    // ~95% of replies; the remainder are not worth showing.
+    if (!questionBody) continue;
+    const { display, key } = normalizeQuestion(questionBody);
     if (!key) continue;
     let g = groups.get(key);
     if (!g) {
-      g = { key, question: display, points: [] };
+      g = {
+        key,
+        question: display,
+        kind: questionIsBinary(questionBody) ? 'binary' : 'score',
+        points: [],
+      };
       groups.set(key, g);
     }
     g.points.push({ ts: m.date_sent, score });

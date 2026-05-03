@@ -148,6 +148,46 @@ for (const p of players) {
   console.log(`  paired: ${paired}   unpaired: ${unpaired}`);
   for (const s of sample) console.log(`    ex: Q=${JSON.stringify(s.q)} → ${s.reply} @ ${s.ts}`);
 
+  // Group paired replies by NORMALIZED question to see how grouping
+  // actually clusters and what the score distribution within each
+  // group looks like (binary vs continuous).
+  function normalize(q: string): string {
+    let s = q.trim();
+    s = s.replace(/^\[[^\]]+\]\s*/, '');
+    s = s.replace(/^(?:hey|hi|hello)\s+\S+[!,.]?\s*/i, '');
+    s = s.replace(/\bReply\s*(?:[:\-–])?\s*\d[\s\S]*$/i, '');
+    s = s.replace(/\b(?:Enter|Type)\s+\d[\s\S]*$/i, '');
+    s = s.replace(/\(\s*required\s*\)\.?\s*$/i, '');
+    s = s.replace(/\s*\(.*\)\s*$/, '');
+    s = s.replace(/[\s.]+$/, '');
+    return s.toLowerCase().trim();
+  }
+  function questionIsBinaryText(q: string): boolean {
+    const t = q.toLowerCase();
+    return /0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t) || /1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t);
+  }
+  const groups = new Map<string, { q: string; replies: number[] }>();
+  for (const r of numericReplies) {
+    const replyTs = new Date(r.date_sent).getTime();
+    const c = outboundQuestions
+      .map((q) => ({ q, ts: new Date(q.date_sent).getTime() }))
+      .filter((c) => c.ts < replyTs && replyTs - c.ts <= PAIR_WINDOW_MS)
+      .sort((a, b) => b.ts - a.ts)[0];
+    if (!c) continue;
+    const key = normalize(c.q.body ?? '');
+    if (!groups.has(key)) groups.set(key, { q: c.q.body ?? '', replies: [] });
+    groups.get(key)!.replies.push(bareScore(r.body)!);
+  }
+  console.log(`  --- distinct paired questions (${groups.size}) ---`);
+  for (const [k, g] of groups) {
+    const counts: Record<string, number> = {};
+    for (const r of g.replies) counts[r] = (counts[r] ?? 0) + 1;
+    const distrib = Object.entries(counts).sort((a, b) => Number(a[0]) - Number(b[0])).map(([s, n]) => `${s}×${n}`).join(' ');
+    const isBinary = questionIsBinaryText(g.q);
+    console.log(`    [${g.replies.length}] ${isBinary ? 'BINARY' : 'SCORE '} ${distrib}`);
+    console.log(`         "${g.q.slice(0, 110)}"`);
+  }
+
   // Look for outbound rows where to_number == this player's phone, even
   // if player_id wasn't backfilled (i.e. detect tagging gaps).
   if (p.phone_e164) {
