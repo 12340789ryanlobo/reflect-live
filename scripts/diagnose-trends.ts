@@ -162,6 +162,24 @@ for (const p of players) {
     s = s.replace(/[\s.]+$/, '');
     return s.toLowerCase().trim();
   }
+  const METRIC_BUCKETS = [
+    { key: 'readiness', label: 'Readiness', markers: ['readiness'] },
+    { key: 'sleep', label: 'Sleep', markers: ['sleep'] },
+    { key: 'focus', label: 'Focus', markers: ['focus', 'locked in', 'concentrat'] },
+    { key: 'rpe', label: 'RPE', markers: ['rpe', 'exertion', 'how hard', 'hard did'] },
+    { key: 'mental', label: 'Mental', markers: ['mental', 'stress', 'mood', 'overwhelmed', 'manageable'] },
+    { key: 'pain', label: 'Pain', markers: ['pain', 'soreness'] },
+    { key: 'recovery', label: 'Recovery', markers: ['recovery', 'recovered', 'fatigue', 'fatigued'] },
+    { key: 'energy', label: 'Energy', markers: ['energy'] },
+    { key: 'effort', label: 'Effort', markers: ['effort'] },
+  ];
+  function inferMetric(q: string): string {
+    const t = q.toLowerCase();
+    for (const b of METRIC_BUCKETS) {
+      if (b.markers.some((m) => t.includes(m))) return b.label;
+    }
+    return '(no bucket)';
+  }
   function questionIsBinaryText(q: string): boolean {
     const t = q.toLowerCase();
     return /0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t) || /1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t);
@@ -184,6 +202,13 @@ for (const p of players) {
     if (!groups.has(key)) groups.set(key, { q: c.q.body ?? '', replies: [] });
     groups.get(key)!.replies.push(bareScore(r.body)!);
   }
+  console.log(`  --- date range of inbound numeric replies ---`);
+  const sortedReplies = [...numericReplies].sort((a, b) => a.date_sent.localeCompare(b.date_sent));
+  if (sortedReplies.length > 0) {
+    console.log(`    first: ${sortedReplies[0].date_sent}  body=${sortedReplies[0].body}`);
+    console.log(`    last:  ${sortedReplies[sortedReplies.length - 1].date_sent}  body=${sortedReplies[sortedReplies.length - 1].body}`);
+  }
+
   console.log(`  --- distinct paired questions (${groups.size}) ---`);
   for (const [k, g] of groups) {
     const counts: Record<string, number> = {};
@@ -191,8 +216,12 @@ for (const p of players) {
     const distrib = Object.entries(counts).sort((a, b) => Number(a[0]) - Number(b[0])).map(([s, n]) => `${s}×${n}`).join(' ');
     const isBinary = questionIsBinaryText(g.q);
     const isScore = questionIsScoreText(g.q);
-    const tag = isBinary ? 'BINARY' : isScore ? 'SCORE ' : 'DROP  ';
-    console.log(`    [${g.replies.length}] ${tag} ${distrib}`);
+    const tag = isBinary ? 'BINARY' : isScore ? 'SCORE ' : 'SCORE*';
+    const sumRaw = g.replies.reduce((a, b) => a + b, 0);
+    const avgRaw = sumRaw / g.replies.length;
+    const yesRaw = g.replies.filter((s) => s >= 0.5).length;
+    const bucket = inferMetric(g.q);
+    console.log(`    [${g.replies.length}] ${tag} bucket=${bucket}  avgRaw=${avgRaw.toFixed(2)} yesRaw=${yesRaw}/${g.replies.length}`);
     console.log(`         "${g.q.slice(0, 110)}"`);
   }
 

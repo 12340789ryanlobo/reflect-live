@@ -67,6 +67,11 @@ function daysBetween(fromMs: number, toMs: number): string[] {
 
 interface Prepared {
   key: string;
+  /** Short label (bucket name 'Pain' / 'Readiness' / etc., or the
+   *  normalized question for unbucketed prompts). What the row shows. */
+  label: string;
+  /** Full original question text — fed into the title= tooltip so
+   *  hovering still surfaces the exact phrasing of the SMS prompt. */
   full: string;
   isBinary: boolean;
   rawCount: number;
@@ -89,7 +94,8 @@ function prepare(trends: QuestionTrend[]): Prepared[] {
       }
       return {
         key: t.key,
-        full: t.question,
+        label: t.question,
+        full: t.originalQuestion,
         isBinary,
         rawCount: t.rawCount,
         rawAvg: t.rawAvg,
@@ -122,7 +128,12 @@ function windowFor(period: Period, trends: Prepared[]): { from: number; to: numb
   return { from: Math.min(...allTs), to: now };
 }
 
-const ROW_H = 28;
+// Row height must be ≥ stats column's intrinsic height (title line +
+// secondary stat line + padding ≈ 40px). When ROW_H was 28 the stats
+// text overflowed into the next row's space, making it look like
+// labels were pinned to the wrong heatmap row. Set to 44 with explicit
+// padding so the visual alignment is exact.
+const ROW_H = 44;
 const STATS_W_PX = 300;
 
 export function SurveyTrendsCard({ trends, period }: Props) {
@@ -216,7 +227,10 @@ function Row({ series, days }: { series: Prepared; days: string[] }) {
     : `avg ${series.rawAvg.toFixed(1)} · ${series.rawCount} ${series.rawCount === 1 ? 'reply' : 'replies'}`;
 
   return (
-    <div className="flex items-center px-4">
+    <div
+      className="flex items-center px-4"
+      style={{ height: ROW_H }}
+    >
       {/* Stats column */}
       <div
         className="flex items-center gap-3 pr-4 shrink-0"
@@ -224,10 +238,10 @@ function Row({ series, days }: { series: Prepared; days: string[] }) {
       >
         <div className="min-w-0 flex-1">
           <div
-            className="text-[12.5px] font-semibold text-[color:var(--ink)] truncate leading-snug"
+            className="text-[13px] font-semibold text-[color:var(--ink)] truncate leading-tight"
             title={series.full}
           >
-            {series.full}
+            {series.label}
           </div>
           <div className="mono text-[10.5px] text-[color:var(--ink-mute)] tabular leading-snug">
             {stat}
@@ -242,12 +256,14 @@ function Row({ series, days }: { series: Prepared; days: string[] }) {
         </div>
       </div>
 
-      {/* Cell grid — CSS grid so cells stay properly sized */}
+      {/* Cell grid — CSS grid so cells stay properly sized.
+          Fixed height (24px) leaves padding above/below within the
+          row so cells don't visually crowd the stats text. */}
       <div
         className="flex-1 min-w-0 grid gap-[1.5px]"
         style={{
           gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
-          height: ROW_H,
+          height: 26,
         }}
       >
         {days.map((d) => (

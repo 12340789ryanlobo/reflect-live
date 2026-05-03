@@ -18,10 +18,17 @@ export interface TrendPoint {
 }
 
 export interface QuestionTrend {
-  /** Stable key used for React lists / dedup. Lowercased normalized text. */
+  /** Stable key used for React lists / dedup. Lowercased normalized text
+   *  OR a canonical metric-bucket key (readiness / pain / mental / …)
+   *  when the question matched one. */
   key: string;
-  /** Human-readable question text (first variant we saw, normalized). */
+  /** Short human-readable label for UI. For canonical buckets this is
+   *  the bucket label (e.g. 'Pain'); otherwise the normalized question. */
   question: string;
+  /** Full original question text, kept for hover tooltips and any
+   *  surface that wants to disambiguate (e.g. multiple questions
+   *  collapsed into the same bucket). */
+  originalQuestion: string;
   /**
    * 'binary' when the question is semantically yes/no (e.g. 'Reply: 0
    * = no, 1 = yes'), even if some athletes typed a severity number
@@ -57,6 +64,36 @@ function questionIsBinary(rawQuestion: string): boolean {
 
 
 const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Canonical wellness-metric buckets, ported from reflect's
+// _infer_chart_metric_identity (reflect/app/queries.py). Reflect groups
+// questions by keyword match into one of these buckets, then uses the
+// short bucket label everywhere (legend, summaries, alerts) instead of
+// the full question text. Doing the same here means our labels match
+// what coaches/athletes already know from reflect, and questions
+// phrased slightly differently across sessions still group together.
+//
+// The order matters — first bucket whose markers match wins. More
+// specific buckets (pain, sleep) come before broader ones.
+const METRIC_BUCKETS: Array<{ key: string; label: string; markers: string[] }> = [
+  { key: 'readiness', label: 'Readiness', markers: ['readiness'] },
+  { key: 'sleep', label: 'Sleep', markers: ['sleep'] },
+  { key: 'focus', label: 'Focus', markers: ['focus', 'locked in', 'concentrat'] },
+  { key: 'rpe', label: 'RPE', markers: ['rpe', 'exertion', 'how hard', 'hard did'] },
+  { key: 'mental', label: 'Mental', markers: ['mental', 'stress', 'mood', 'overwhelmed', 'manageable'] },
+  { key: 'pain', label: 'Pain', markers: ['pain', 'soreness'] },
+  { key: 'recovery', label: 'Recovery', markers: ['recovery', 'recovered', 'fatigue', 'fatigued'] },
+  { key: 'energy', label: 'Energy', markers: ['energy'] },
+  { key: 'effort', label: 'Effort', markers: ['effort'] },
+];
+
+function inferMetric(rawQuestion: string): { key: string; label: string } | null {
+  const t = rawQuestion.toLowerCase();
+  for (const b of METRIC_BUCKETS) {
+    if (b.markers.some((m) => t.includes(m))) return { key: b.key, label: b.label };
+  }
+  return null;
+}
 
 function looksLikeQuestion(text: string): boolean {
   const t = text.trim();
@@ -167,13 +204,23 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
     // becomes a score series.
     if (!questionBody) continue;
     const isBinary = questionIsBinary(questionBody);
-    const { display, key } = normalizeQuestion(questionBody);
+    // Group by canonical metric bucket if the question text matches
+    // one (Readiness / Pain / Mental / Sleep / etc.). Falls back to
+    // text-based normalization for questions that don't fit any
+    // bucket (custom team prompts). The canonical-bucket grouping is
+    // what reflect uses, so labels match what coaches/athletes
+    // already know from the SMS surveys.
+    const bucket = inferMetric(questionBody);
+    const norm = normalizeQuestion(questionBody);
+    const key = bucket ? bucket.key : norm.key;
+    const display = bucket ? bucket.label : norm.display;
     if (!key) continue;
     let g = groups.get(key);
     if (!g) {
       g = {
         key,
         question: display,
+        originalQuestion: questionBody,
         kind: isBinary ? 'binary' : 'score',
         points: [],
         rawCount: 0,
