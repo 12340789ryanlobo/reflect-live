@@ -161,7 +161,7 @@ function inferMetric(rawQuestion: string): { key: string; label: string } | null
 // and ends with ')', so the prior `endsWith('?')` test missed it,
 // stripping that question from the session and shifting every
 // subsequent answer onto the wrong prompt.
-function looksLikeQuestion(text: string): boolean {
+export function looksLikeQuestion(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
   // System acks — confirmations, not questions
@@ -189,7 +189,7 @@ function looksLikeQuestion(text: string): boolean {
 //   - case-insensitive yes/no/y/n (clamps to 1/0) — athletes often
 //     reply 'No' to a binary 0=no/1=yes question instead of '0', and
 //     dropping those silently hides real signal
-function parseReplyScore(body: string | null): number | null {
+export function parseReplyScore(body: string | null): number | null {
   if (!body) return null;
   const t = body.trim();
   const m = /^\s*(\d{1,2}(?:\.\d+)?)\s*$/.exec(t);
@@ -275,7 +275,7 @@ function isOutbound(direction: string): boolean {
 // reply-then-resume cycle but still shorter than 'next day'.
 const HARD_GAP_MS = 12 * 60 * 60 * 1000;
 
-interface Session {
+export interface Session {
   outbound: TwilioMessage[]; // questions, in chronological order
   inbound: TwilioMessage[];  // replies (numeric or text), in chronological order
   ended: boolean;            // a system ack closed the session
@@ -295,7 +295,7 @@ function isSessionEndingAck(text: string): boolean {
   );
 }
 
-function buildSessions(playerMsgs: TwilioMessage[]): Session[] {
+export function buildSessions(playerMsgs: TwilioMessage[]): Session[] {
   const sessions: Session[] = [];
   let cur: Session | null = null;
   let lastTs = 0;
