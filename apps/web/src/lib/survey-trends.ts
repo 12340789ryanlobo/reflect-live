@@ -11,10 +11,17 @@
 import type { TwilioMessage } from '@reflect-live/shared';
 
 export interface TrendPoint {
-  /** ISO timestamp of the reply. */
+  /** ISO timestamp of the reply (post-aggregation: noon UTC of the day). */
   ts: string;
-  /** 0-10 score the athlete sent. */
+  /** 0-10 score the athlete sent (mean of day for score, max for binary). */
   score: number;
+  /** Raw question body that produced this reply. For aggregated days,
+   *  the latest reply's question text wins. Used by the click-to-drill
+   *  dialog to show what the athlete was actually asked. */
+  questionBody: string;
+  /** Raw reply body the athlete sent (e.g. '7', 'Yes', 'No'). For
+   *  aggregated days this is the latest reply's text. */
+  replyBody: string;
 }
 
 export interface QuestionTrend {
@@ -350,7 +357,12 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
           };
           groups.set(key, g);
         }
-        g.points.push({ ts: r.date_sent, score });
+        g.points.push({
+          ts: r.date_sent,
+          score,
+          questionBody,
+          replyBody: r.body!,
+        });
       }
     }
   }
@@ -390,22 +402,42 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
   // wellness-tracking aggregation.
   for (const g of groups.values()) {
     g.points.sort((a, b) => a.ts.localeCompare(b.ts));
-    const byDay = new Map<string, { sum: number; n: number; max: number; lastTs: string }>();
+    interface DayAcc {
+      sum: number;
+      n: number;
+      max: number;
+      lastTs: string;
+      lastQuestion: string;
+      lastReply: string;
+    }
+    const byDay = new Map<string, DayAcc>();
     for (const p of g.points) {
-      const day = p.ts.slice(0, 10); // YYYY-MM-DD
+      const day = p.ts.slice(0, 10);
       const cur = byDay.get(day);
       if (cur) {
         cur.sum += p.score;
         cur.n += 1;
         cur.max = Math.max(cur.max, p.score);
+        // Latest-wins for question/reply text (points are sorted asc).
         cur.lastTs = p.ts;
+        cur.lastQuestion = p.questionBody;
+        cur.lastReply = p.replyBody;
       } else {
-        byDay.set(day, { sum: p.score, n: 1, max: p.score, lastTs: p.ts });
+        byDay.set(day, {
+          sum: p.score,
+          n: 1,
+          max: p.score,
+          lastTs: p.ts,
+          lastQuestion: p.questionBody,
+          lastReply: p.replyBody,
+        });
       }
     }
     g.points = Array.from(byDay.entries()).map(([day, v]) => ({
       ts: `${day}T12:00:00Z`,
       score: g.kind === 'binary' ? v.max : v.sum / v.n,
+      questionBody: v.lastQuestion,
+      replyBody: v.lastReply,
     }));
     g.points.sort((a, b) => a.ts.localeCompare(b.ts));
   }

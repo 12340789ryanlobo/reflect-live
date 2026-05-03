@@ -19,6 +19,13 @@
 //
 // See docs/superpowers/specs/2026-05-02-score-trends-heatmap-design.md
 
+import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import type { Period } from '@/lib/period';
 import type { QuestionTrend, TrendPoint } from '@/lib/survey-trends';
 
@@ -67,17 +74,16 @@ function daysBetween(fromMs: number, toMs: number): string[] {
 
 interface Prepared {
   key: string;
-  /** Short label (bucket name 'Pain' / 'Readiness' / etc., or the
-   *  normalized question for unbucketed prompts). What the row shows. */
   label: string;
-  /** Full original question text — fed into the title= tooltip so
-   *  hovering still surfaces the exact phrasing of the SMS prompt. */
   full: string;
   isBinary: boolean;
   rawCount: number;
   rawAvg: number;
   rawYesCount: number;
   byDay: Map<string, number>;
+  /** Per-day raw question + reply text (the latest reply on that day),
+   *  for the click-to-drill dialog. Mirrors `byDay` keys. */
+  pointsByDay: Map<string, TrendPoint>;
   lastReply: TrendPoint | null;
 }
 
@@ -86,11 +92,14 @@ function prepare(trends: QuestionTrend[]): Prepared[] {
     .map((t) => {
       const isBinary = t.kind === 'binary';
       const byDay = new Map<string, number>();
+      const pointsByDay = new Map<string, TrendPoint>();
       for (const p of t.points) {
         const k = dayKey(p.ts);
         const cur = byDay.get(k);
         if (cur == null) byDay.set(k, p.score);
         else byDay.set(k, isBinary ? Math.max(cur, p.score) : (cur + p.score) / 2);
+        // Lib already aggregates to one point per day; just index it.
+        pointsByDay.set(k, p);
       }
       return {
         key: t.key,
@@ -101,6 +110,7 @@ function prepare(trends: QuestionTrend[]): Prepared[] {
         rawAvg: t.rawAvg,
         rawYesCount: t.rawYesCount,
         byDay,
+        pointsByDay,
         lastReply: t.points.length ? t.points[t.points.length - 1] : null,
       };
     })
@@ -138,6 +148,8 @@ const STATS_W_PX = 300;
 
 export function SurveyTrendsCard({ trends, period }: Props) {
   const series = prepare(trends);
+  // Day in YYYY-MM-DD form, or null for closed.
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   if (series.length === 0) {
     return (
@@ -189,23 +201,47 @@ export function SurveyTrendsCard({ trends, period }: Props) {
         <div className="px-2 md:px-4 py-4 overflow-x-auto">
           <div className="min-w-[540px]">
             {scoreSeries.map((s) => (
-              <Row key={s.key} series={s} days={days} />
+              <Row
+                key={s.key}
+                series={s}
+                days={days}
+                onCellClick={(day) => setSelectedDay(day)}
+              />
             ))}
             {scoreSeries.length > 0 && binarySeries.length > 0 && (
               <div className="my-1 mx-6 border-t" style={{ borderColor: 'var(--border)' }} />
             )}
             {binarySeries.map((s) => (
-              <Row key={s.key} series={s} days={days} />
+              <Row
+                key={s.key}
+                series={s}
+                days={days}
+                onCellClick={(day) => setSelectedDay(day)}
+              />
             ))}
             <DateAxis days={days} />
           </div>
         </div>
       )}
+
+      <DayDetailDialog
+        series={series}
+        day={selectedDay}
+        onClose={() => setSelectedDay(null)}
+      />
     </Card>
   );
 }
 
-function Row({ series, days }: { series: Prepared; days: string[] }) {
+function Row({
+  series,
+  days,
+  onCellClick,
+}: {
+  series: Prepared;
+  days: string[];
+  onCellClick: (day: string) => void;
+}) {
   const last = series.lastReply;
   const lastTone = last
     ? series.isBinary
@@ -267,18 +303,28 @@ function Row({ series, days }: { series: Prepared; days: string[] }) {
         }}
       >
         {days.map((d) => (
-          <Cell key={d} day={d} series={series} />
+          <Cell key={d} day={d} series={series} onCellClick={onCellClick} />
         ))}
       </div>
     </div>
   );
 }
 
-function Cell({ day, series }: { day: string; series: Prepared }) {
+function Cell({
+  day,
+  series,
+  onCellClick,
+}: {
+  day: string;
+  series: Prepared;
+  onCellClick: (day: string) => void;
+}) {
   const v = series.byDay.get(day);
   const dateLabel = shortDate(new Date(`${day}T12:00:00Z`));
 
   if (v == null) {
+    // No reply: render a non-interactive faint dot. Clicking an empty
+    // day would open an empty dialog, which is dead UX.
     return (
       <div
         className="flex items-center justify-center"
@@ -300,9 +346,11 @@ function Cell({ day, series }: { day: string; series: Prepared }) {
   if (series.isBinary) {
     const isYes = v >= 0.5;
     return (
-      <div
-        className="flex items-center justify-center"
-        title={`${dateLabel}: ${isYes ? 'yes' : 'no'}`}
+      <button
+        type="button"
+        onClick={() => onCellClick(day)}
+        className="flex items-center justify-center cursor-pointer transition-transform hover:scale-110"
+        title={`${dateLabel}: ${isYes ? 'yes' : 'no'} — click for details`}
       >
         {isYes ? (
           <div
@@ -315,18 +363,18 @@ function Cell({ day, series }: { day: string; series: Prepared }) {
             style={{ width: 8, height: 8, borderColor: MUTE_BORDER }}
           />
         )}
-      </div>
+      </button>
     );
   }
 
   return (
-    <div
-      title={`${dateLabel}: ${v.toFixed(1)}/10`}
-      className="rounded-[3px]"
+    <button
+      type="button"
+      onClick={() => onCellClick(day)}
+      title={`${dateLabel}: ${v.toFixed(1)}/10 — click for details`}
+      className="rounded-[3px] cursor-pointer transition-transform hover:scale-110 hover:ring-1 hover:ring-[color:var(--ink)] hover:ring-offset-1"
       style={{
         background: scoreTone(v),
-        // Keep cells from getting absurdly tall in tight rows; they'll
-        // shrink horizontally with grid 1fr but always read as squares.
         margin: '2px 0',
         opacity: 0.92,
       }}
@@ -439,6 +487,100 @@ function ScaleLegend() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Dialog showing every Q+A captured for the athlete on the clicked
+// day, across all metrics. Same view for coach and athlete — both
+// only see this one athlete's responses, which the page-level RLS
+// guarantees they're permitted to view (athlete = self, coach =
+// their team's roster). Athletes don't have access to the full
+// /dashboard/sessions/[id] route, so we render the breakdown inline
+// instead of linking out — this works equally well for both roles.
+function DayDetailDialog({
+  series,
+  day,
+  onClose,
+}: {
+  series: Prepared[];
+  day: string | null;
+  onClose: () => void;
+}) {
+  const open = day !== null;
+  const matched = day
+    ? series
+        .map((s) => ({ s, p: s.pointsByDay.get(day) }))
+        .filter((x): x is { s: Prepared; p: TrendPoint } => x.p != null)
+    : [];
+  const dateLabel = day
+    ? new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '';
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-[15px]">
+            {dateLabel}
+          </DialogTitle>
+          <p className="mono text-[11px] text-[color:var(--ink-mute)] tabular">
+            {matched.length} {matched.length === 1 ? 'response' : 'responses'} captured
+          </p>
+        </DialogHeader>
+        {matched.length === 0 ? (
+          <p className="py-4 text-[13px] text-[color:var(--ink-mute)]">
+            No responses captured on this day.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {matched.map(({ s, p }) => {
+              const tone = s.isBinary
+                ? p.score >= 0.5
+                  ? RED
+                  : 'var(--ink-mute)'
+                : scoreTone(p.score);
+              return (
+                <li
+                  key={s.key}
+                  className="rounded-lg border p-3"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  <div className="flex items-baseline justify-between gap-3 mb-1.5">
+                    <h3 className="text-[12.5px] font-semibold text-[color:var(--ink)]">
+                      {s.label}
+                    </h3>
+                    <span
+                      className="mono text-[12px] font-semibold tabular"
+                      style={{ color: tone }}
+                    >
+                      {s.isBinary
+                        ? p.score >= 0.5
+                          ? 'yes'
+                          : 'no'
+                        : `${p.score.toFixed(1)}/10`}
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-[color:var(--ink-soft)] mb-1.5 leading-snug">
+                    {p.questionBody}
+                  </p>
+                  <div
+                    className="text-[12.5px] text-[color:var(--ink)] mono px-2 py-1 rounded"
+                    style={{ background: 'var(--paper)' }}
+                  >
+                    &ldquo;{p.replyBody}&rdquo;
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
