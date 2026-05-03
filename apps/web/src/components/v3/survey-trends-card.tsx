@@ -1,27 +1,27 @@
 'use client';
 
-// Per-question score-over-time chart for an athlete. Renders one
-// small SVG chart per distinct survey question, with dots colored by
-// score (red 1-4, amber 5-6, green 7-10). Designed to make trends
-// visible at a glance — coach can see "readiness has been declining
-// for three days" without parsing the timeline row by row.
+// Per-question score-over-time visualization for an athlete. Uses a
+// dense bar sparkline (one bar per reply, equal spacing, no connecting
+// line) instead of a dot-and-polyline chart — the polyline produced
+// jagged "lollipop" zigzags when binary 0/1 replies were mixed with
+// the occasional outlier (e.g. someone typing "6" to a yes/no q).
 //
-// Custom SVG instead of a chart lib because we don't have one
-// installed and the chart shape is dead simple — we just need
-// dots-on-a-line over a horizontal time axis.
+// Auto-detects two question shapes:
+//   - binary    (max reply ≤ 1) → label "yes 30%", y-scale 0..1
+//   - score     (otherwise)     → label "avg 6.1",  y-scale 0..10
+// Bars are colored by tone (red 1-4, amber 5-6, green 7-10, mute 0).
 
 import type { QuestionTrend, TrendPoint } from '@/lib/survey-trends';
 
 interface Props {
   trends: QuestionTrend[];
-  /** Display only the top N questions; rest collapse below a 'show more'. */
   initialLimit?: number;
 }
 
-const W = 480; // intrinsic SVG width (scales with viewBox)
-const H = 60;  // chart height (excluding label)
-const PAD_X = 8;
-const PAD_Y = 6;
+const W = 480;
+const H = 44;
+const PAD_X = 4;
+const PAD_Y = 4;
 
 function colorFor(score: number): string {
   if (score < 1) return 'var(--ink-mute)';
@@ -31,80 +31,138 @@ function colorFor(score: number): string {
   return 'var(--green)';
 }
 
-function MiniChart({ trend }: { trend: QuestionTrend }) {
+function shortDate(ts: string): string {
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function isBinaryTrend(points: TrendPoint[]): boolean {
+  // Treat as binary when every reply is 0 or 1 — typical of yes/no
+  // surveys ("Did pain start? 0=no, 1=yes"). A single outlier (e.g. an
+  // athlete misreads the prompt and types "6") would falsely scale the
+  // chart to 0..10 and squash the meaningful 0/1 dots into the floor;
+  // we only switch to the 0..10 scale when more than ~10% of replies
+  // exceed 1, which is a more reliable "this is actually a 1-10
+  // question" signal.
+  if (points.length === 0) return false;
+  const exceedsOne = points.filter((p) => p.score > 1).length;
+  return exceedsOne / points.length <= 0.1;
+}
+
+function MiniChart({ trend, isBinary }: { trend: QuestionTrend; isBinary: boolean }) {
   const points = trend.points;
   if (points.length === 0) return null;
-  const tsValues = points.map((p) => new Date(p.ts).getTime());
-  const tMin = Math.min(...tsValues);
-  const tMax = Math.max(...tsValues);
-  const tRange = tMax - tMin || 1;
+  const yMax = isBinary ? 1 : 10;
   const innerW = W - PAD_X * 2;
   const innerH = H - PAD_Y * 2;
-  function x(p: TrendPoint): number {
-    return PAD_X + ((new Date(p.ts).getTime() - tMin) / tRange) * innerW;
-  }
-  function y(score: number): number {
-    return PAD_Y + ((10 - score) / 10) * innerH;
-  }
-  const avg = points.reduce((s, p) => s + p.score, 0) / points.length;
-  const last = points[points.length - 1];
+  const N = points.length;
+  const gap = N <= 30 ? 2 : 1;
+  const barW = Math.max((innerW - (N - 1) * gap) / N, 1);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[60px]" preserveAspectRatio="none">
-      {/* Y gridlines at 5 (amber) and (visually) the chart bounds */}
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full h-[44px]"
+      preserveAspectRatio="none"
+    >
+      {/* Baseline track at the chart floor */}
       <line
         x1={PAD_X}
         x2={W - PAD_X}
-        y1={y(5)}
-        y2={y(5)}
+        y1={H - PAD_Y}
+        y2={H - PAD_Y}
         stroke="var(--border)"
-        strokeDasharray="2 3"
-        strokeWidth={1}
+        strokeWidth={0.5}
       />
-      {/* Connecting line through points */}
-      {points.length > 1 && (
-        <polyline
-          fill="none"
-          stroke="var(--ink-dim)"
-          strokeWidth={1}
-          points={points.map((p) => `${x(p)},${y(p.score)}`).join(' ')}
-        />
-      )}
-      {/* Dots */}
-      {points.map((p, i) => (
-        <circle
-          key={i}
-          cx={x(p)}
-          cy={y(p.score)}
-          r={3}
-          fill={colorFor(p.score)}
-        >
-          <title>
-            {new Date(p.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-            {' · '}{p.score}/10
-          </title>
-        </circle>
-      ))}
-      {/* Latest score callout, anchored to the last dot */}
-      <text
-        x={x(last)}
-        y={y(last.score) - 6}
-        textAnchor="end"
-        className="mono"
-        style={{ fontSize: 10, fontWeight: 600, fill: colorFor(last.score) }}
-      >
-        {last.score}
-      </text>
-      {/* Avg label, top-left corner */}
-      <text
-        x={PAD_X}
-        y={PAD_Y + 8}
-        className="mono"
-        style={{ fontSize: 9, fill: 'var(--ink-mute)' }}
-      >
-        avg {avg.toFixed(1)}
-      </text>
+      {points.map((p, i) => {
+        const x = PAD_X + i * (barW + gap);
+        // Even a 0 gets a tiny floor stub (1px) so it's still
+        // distinguishable from "no reply on this date".
+        const h = Math.max((p.score / yMax) * innerH, 1.5);
+        const y = H - PAD_Y - h;
+        return (
+          <rect
+            key={i}
+            x={x}
+            y={y}
+            width={barW}
+            height={h}
+            fill={colorFor(p.score)}
+            rx={Math.min(1, barW / 2)}
+          >
+            <title>
+              {shortDate(p.ts)}: {p.score}{isBinary ? '' : '/10'}
+            </title>
+          </rect>
+        );
+      })}
     </svg>
+  );
+}
+
+function TrendRow({ trend }: { trend: QuestionTrend }) {
+  const points = trend.points;
+  const scores = points.map((p) => p.score);
+  const isBinary = isBinaryTrend(points);
+  const sum = scores.reduce((a, b) => a + b, 0);
+  const avg = sum / scores.length;
+  const last = points[points.length - 1];
+  const first = points[0];
+  // Binary: report yes-rate (the meaningful summary) instead of avg.
+  const yesCount = scores.filter((s) => s >= 0.5).length;
+  const yesPct = Math.round((yesCount / scores.length) * 100);
+
+  const summary = isBinary ? `yes ${yesPct}%` : `avg ${avg.toFixed(1)}`;
+  const summaryTone = isBinary
+    ? yesPct >= 50
+      ? 'var(--red)'
+      : yesPct >= 25
+        ? 'var(--amber)'
+        : 'var(--green)'
+    : colorFor(avg);
+
+  const lastLabel = isBinary
+    ? last.score >= 0.5
+      ? 'yes'
+      : 'no'
+    : `${last.score}`;
+
+  const dateRange =
+    first.ts === last.ts
+      ? shortDate(last.ts)
+      : `${shortDate(first.ts)} → ${shortDate(last.ts)}`;
+
+  return (
+    <li className="px-6 py-4">
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <h3 className="text-[13px] font-semibold text-[color:var(--ink)] line-clamp-1 flex-1 min-w-0">
+          {trend.question}
+        </h3>
+        <span className="mono text-[11px] text-[color:var(--ink-mute)] tabular shrink-0">
+          {trend.points.length} {trend.points.length === 1 ? 'reply' : 'replies'}
+        </span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div
+          className="shrink-0 mono text-[12px] font-semibold tabular w-[70px]"
+          style={{ color: summaryTone }}
+        >
+          {summary}
+        </div>
+        <div className="flex-1 min-w-0">
+          <MiniChart trend={trend} isBinary={isBinary} />
+        </div>
+        <div
+          className="shrink-0 mono text-[11px] tabular w-[40px] text-right"
+          style={{ color: colorFor(last.score) }}
+          title={`last reply on ${shortDate(last.ts)}`}
+        >
+          {lastLabel}
+        </div>
+      </div>
+      <div className="mt-1 mono text-[10px] text-[color:var(--ink-mute)] tabular">
+        {dateRange}
+      </div>
+    </li>
   );
 }
 
@@ -138,17 +196,7 @@ export function SurveyTrendsCard({ trends, initialLimit = 4 }: Props) {
       ) : (
         <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
           {visible.map((t) => (
-            <li key={t.key} className="px-6 py-4">
-              <div className="flex items-baseline justify-between gap-3 mb-2">
-                <h3 className="text-[13px] font-semibold text-[color:var(--ink)] line-clamp-2">
-                  {t.question}
-                </h3>
-                <span className="mono text-[11px] text-[color:var(--ink-mute)] tabular shrink-0">
-                  {t.points.length} replies
-                </span>
-              </div>
-              <MiniChart trend={t} />
-            </li>
+            <TrendRow key={t.key} trend={t} />
           ))}
         </ul>
       )}
