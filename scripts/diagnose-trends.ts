@@ -166,6 +166,12 @@ for (const p of players) {
     const t = q.toLowerCase();
     return /0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t) || /1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t);
   }
+  function questionIsScoreText(q: string): boolean {
+    const t = q.toLowerCase();
+    if (/\b(?:reply|rate|score|enter|on a scale of?)\b[\s\S]{0,30}?(?:0|1)\s*[-–to]+\s*10\b/.test(t)) return true;
+    if (/\b(?:0|1)\s*[-–to]+\s*10\b/.test(t) && /\b(?:score|rate|rating|reply)\b/.test(t)) return true;
+    return false;
+  }
   const groups = new Map<string, { q: string; replies: number[] }>();
   for (const r of numericReplies) {
     const replyTs = new Date(r.date_sent).getTime();
@@ -184,7 +190,9 @@ for (const p of players) {
     for (const r of g.replies) counts[r] = (counts[r] ?? 0) + 1;
     const distrib = Object.entries(counts).sort((a, b) => Number(a[0]) - Number(b[0])).map(([s, n]) => `${s}×${n}`).join(' ');
     const isBinary = questionIsBinaryText(g.q);
-    console.log(`    [${g.replies.length}] ${isBinary ? 'BINARY' : 'SCORE '} ${distrib}`);
+    const isScore = questionIsScoreText(g.q);
+    const tag = isBinary ? 'BINARY' : isScore ? 'SCORE ' : 'DROP  ';
+    console.log(`    [${g.replies.length}] ${tag} ${distrib}`);
     console.log(`         "${g.q.slice(0, 110)}"`);
   }
 

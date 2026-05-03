@@ -39,9 +39,23 @@ export interface QuestionTrend {
 // even when athletes occasionally reply with a severity (a few "6"s).
 function questionIsBinary(rawQuestion: string): boolean {
   const t = rawQuestion.toLowerCase();
-  // '0 = no, 1 = yes' / '0=no 1=yes' / '0 - no, 1 - yes'
   if (/0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t)) return true;
   if (/1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t)) return true;
+  return false;
+}
+
+// Detect "Reply 1-10" / "score 1-10" / "rate 1-10" patterns. Athletes
+// answer many free-text prompts ("one thing to work on?", "which body
+// area bothers you?") with numbers (rep counts, severity ratings),
+// and we used to plot those as wellness scores — nonsense, since 7
+// reps and 7/10 readiness aren't the same scale. Only chart questions
+// whose text explicitly establishes a 0/1–10 numeric range.
+function questionIsScore(rawQuestion: string): boolean {
+  const t = rawQuestion.toLowerCase();
+  if (/\b(?:reply|rate|score|enter|on a scale of?)\b[\s\S]{0,30}?(?:0|1)\s*[-–to]+\s*10\b/.test(t))
+    return true;
+  if (/\b(?:0|1)\s*[-–to]+\s*10\b/.test(t) && /\b(?:score|rate|rating|reply)\b/.test(t))
+    return true;
   return false;
 }
 
@@ -144,12 +158,17 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
         break;
       }
     }
-    // Drop replies we can't pair to a real question rather than
-    // bucketing them into a generic 'Score' label — the unmatched
-    // group cluttered the legend and mixed unrelated answers into one
-    // misleading line. With the outbound-direction fix we now pair
-    // ~95% of replies; the remainder are not worth showing.
+    // Drop replies we can't pair to a real question. Also drop
+    // replies whose question is neither an explicit 0/1-10 score nor
+    // a 0=no, 1=yes binary — athletes answer free-text prompts
+    // ("one thing to work on?") with numbers (rep counts, severity
+    // ratings), and plotting those alongside wellness scores is
+    // misleading. The strict text-pattern filter is the only honest
+    // way to know what scale the number is actually on.
     if (!questionBody) continue;
+    const isBinary = questionIsBinary(questionBody);
+    const isScore = questionIsScore(questionBody);
+    if (!isBinary && !isScore) continue;
     const { display, key } = normalizeQuestion(questionBody);
     if (!key) continue;
     let g = groups.get(key);
@@ -157,7 +176,7 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
       g = {
         key,
         question: display,
-        kind: questionIsBinary(questionBody) ? 'binary' : 'score',
+        kind: isBinary ? 'binary' : 'score',
         points: [],
       };
       groups.set(key, g);
@@ -165,8 +184,33 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
     g.points.push({ ts: m.date_sent, score });
   }
 
-  // Sort each group's points ascending by date.
+  // Aggregate replies on the same calendar day:
+  //   - score:  mean of the day's replies (smooths jittery double-sends)
+  //   - binary: max (any 'yes' wins; clamped to 0/1 at the chart layer)
+  // The chart used to plot every raw reply, which produced visually
+  // alarming spikes when an athlete answered a survey twice within a
+  // few minutes (common when the original send timed out and the
+  // reminder went out). One point per day per metric is the standard
+  // wellness-tracking aggregation.
   for (const g of groups.values()) {
+    g.points.sort((a, b) => a.ts.localeCompare(b.ts));
+    const byDay = new Map<string, { sum: number; n: number; max: number; lastTs: string }>();
+    for (const p of g.points) {
+      const day = p.ts.slice(0, 10); // YYYY-MM-DD
+      const cur = byDay.get(day);
+      if (cur) {
+        cur.sum += p.score;
+        cur.n += 1;
+        cur.max = Math.max(cur.max, p.score);
+        cur.lastTs = p.ts;
+      } else {
+        byDay.set(day, { sum: p.score, n: 1, max: p.score, lastTs: p.ts });
+      }
+    }
+    g.points = Array.from(byDay.entries()).map(([day, v]) => ({
+      ts: `${day}T12:00:00Z`,
+      score: g.kind === 'binary' ? v.max : v.sum / v.n,
+    }));
     g.points.sort((a, b) => a.ts.localeCompare(b.ts));
   }
 
