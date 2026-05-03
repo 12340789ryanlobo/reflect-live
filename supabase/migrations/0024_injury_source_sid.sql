@@ -11,6 +11,23 @@
 ALTER TABLE injury_reports
   ADD COLUMN IF NOT EXISTS source_sid TEXT;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_injury_reports_source_sid_unique
-  ON injury_reports(source_sid)
-  WHERE source_sid IS NOT NULL;
+-- A UNIQUE CONSTRAINT (not a partial unique index) is what Postgres
+-- requires for INSERT ... ON CONFLICT (source_sid) DO UPDATE to work.
+-- A regular UNIQUE constraint already allows multiple NULL values
+-- (Postgres treats each NULL as distinct), so manual entries with
+-- source_sid=NULL still coexist fine. Earlier draft used a
+-- partial unique index `WHERE source_sid IS NOT NULL` which broke
+-- supabase-js's upsert helper.
+DROP INDEX IF EXISTS idx_injury_reports_source_sid_unique;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'injury_reports_source_sid_key'
+      AND conrelid = 'injury_reports'::regclass
+  ) THEN
+    ALTER TABLE injury_reports
+      ADD CONSTRAINT injury_reports_source_sid_key UNIQUE (source_sid);
+  END IF;
+END $$;
