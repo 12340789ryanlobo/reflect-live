@@ -1,6 +1,5 @@
-// Diagnose why Score trends shows empty for an athlete + the global
-// outbound picture (so we can tell whether outbound messages are being
-// captured at all and where they're going).
+// Verify session-based in-order pairing produces correct metric
+// buckets for an athlete. Mirrors the lib's buildSurveyTrends logic.
 //
 // Run: bun run scripts/diagnose-trends.ts <player-name-or-id>
 
@@ -26,213 +25,164 @@ const sb = createClient(url, key, { auth: { persistSession: false } });
 
 const arg = process.argv[2] ?? 'Ryan';
 
-// === GLOBAL OUTBOUND HEALTH ===
-console.log('=== GLOBAL OUTBOUND HEALTH ===');
-const { count: outboundCount } = await sb
-  .from('twilio_messages')
-  .select('sid', { count: 'exact', head: true })
-  .eq('direction', 'outbound-api');
-const { count: outboundReplyCount } = await sb
-  .from('twilio_messages')
-  .select('sid', { count: 'exact', head: true })
-  .eq('direction', 'outbound-reply');
-const { count: outboundPlainCount } = await sb
-  .from('twilio_messages')
-  .select('sid', { count: 'exact', head: true })
-  .eq('direction', 'outbound');
-const { count: inboundCount } = await sb
-  .from('twilio_messages')
-  .select('sid', { count: 'exact', head: true })
-  .eq('direction', 'inbound');
-
-console.log(`  inbound:         ${inboundCount}`);
-console.log(`  outbound-api:    ${outboundCount}`);
-console.log(`  outbound-reply:  ${outboundReplyCount}`);
-console.log(`  outbound:        ${outboundPlainCount}`);
-
-const { data: outboundSample } = await sb
-  .from('twilio_messages')
-  .select('sid,direction,from_number,to_number,body,player_id,date_sent')
-  .like('direction', 'outbound%')
-  .order('date_sent', { ascending: false })
-  .limit(5);
-console.log('  most recent outbound rows (any direction starting with "outbound"):');
-for (const m of outboundSample ?? []) {
-  console.log(`    [${m.direction}] player_id=${m.player_id} ${m.date_sent} from=${m.from_number} to=${m.to_number}`);
-  console.log(`       body=${JSON.stringify((m.body ?? '').slice(0, 120))}`);
-}
-console.log();
-
-// Mirror the (now fixed) buildSurveyTrends pairing logic.
-function isOutbound(d: string): boolean {
-  return d !== 'inbound';
-}
-function bareScore(body: string | null): number | null {
+// Mirror the lib filters/helpers exactly so this script tracks reality.
+function parseReplyScore(body: string | null): number | null {
   if (!body) return null;
-  const m = /^\s*(\d{1,2}(?:\.\d+)?)\s*$/.exec(body);
-  if (!m) return null;
-  const n = Number(m[1]);
-  if (!Number.isFinite(n) || n < 0 || n > 10) return null;
-  return n;
+  const t = body.trim();
+  const m = /^\s*(\d{1,2}(?:\.\d+)?)\s*$/.exec(t);
+  if (m) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n >= 0 && n <= 10) return n;
+    return null;
+  }
+  const tl = t.toLowerCase();
+  if (tl === 'yes' || tl === 'y') return 1;
+  if (tl === 'no' || tl === 'n') return 0;
+  return null;
 }
 function looksLikeQuestion(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
+  if (/^(noted|got it|all done|appreciate|thanks for|thank you for)\b/i.test(t)) return false;
+  if (/your coach has set up/i.test(t)) return false;
+  if (/^please reply\b/i.test(t)) return false;
+  if (/^(invalid|sorry|i didn'?t understand|that didn'?t look)/i.test(t)) return false;
   if (/reminder to finish your check-in/i.test(t)) return false;
   if (/where you left off/i.test(t)) return false;
-  if (t.endsWith('?')) return true;
+  if (/\?/.test(t)) return true;
   if (/\breply\b/i.test(t)) return true;
   if (/\benter\s+\d/i.test(t)) return true;
-  if (/1\s*[-–]\s*10\b/i.test(t)) return true;
-  if (/\(\s*\d+\s*=\s*\w+\s*,\s*\d+\s*=\s*\w+\s*\)/i.test(t)) return true;
+  if (/\(\s*\d+\s*=/.test(t)) return true;
   if (/\bprovide\s+your\b/i.test(t)) return true;
+  if (/\bon a scale of\b/i.test(t)) return true;
   return false;
 }
+const METRIC_BUCKETS = [
+  { key: 'readiness', label: 'Readiness', markers: ['readiness'] },
+  { key: 'sleep', label: 'Sleep', markers: ['sleep'] },
+  { key: 'focus', label: 'Focus', markers: ['focus', 'locked in', 'concentrat'] },
+  { key: 'rpe', label: 'RPE', markers: ['rpe', 'exertion', 'how hard', 'hard did'] },
+  { key: 'mental', label: 'Mental', markers: ['mental', 'stress', 'mood', 'overwhelmed', 'manageable'] },
+  { key: 'pain', label: 'Pain', markers: ['pain', 'soreness'] },
+  { key: 'recovery', label: 'Recovery', markers: ['recovery', 'recovered', 'fatigue', 'fatigued'] },
+  { key: 'energy', label: 'Energy', markers: ['energy'] },
+  { key: 'effort', label: 'Effort', markers: ['effort'] },
+];
+function inferMetric(q: string): string {
+  const t = q.toLowerCase();
+  for (const b of METRIC_BUCKETS) {
+    if (b.markers.some((m) => t.includes(m))) return b.label;
+  }
+  return '(custom)';
+}
+function isBinaryQ(q: string): boolean {
+  const t = q.toLowerCase();
+  return /0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t) || /1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t);
+}
 
-// === PER-PLAYER PICTURE ===
 const isNumeric = /^\d+$/.test(arg);
 const playerQ = isNumeric
-  ? sb.from('players').select('id,name,phone_e164').eq('id', Number(arg))
-  : sb.from('players').select('id,name,phone_e164').ilike('name', `%${arg}%`);
-
-const { data: players } = await playerQ.limit(10);
+  ? sb.from('players').select('id,name').eq('id', Number(arg))
+  : sb.from('players').select('id,name').ilike('name', `%${arg}%`);
+const { data: players } = await playerQ.limit(5);
 if (!players || players.length === 0) {
   console.log('no player found');
   process.exit(1);
 }
 
 for (const p of players) {
-  console.log(`=== player #${p.id} — ${p.name} (${p.phone_e164}) ===`);
-
+  console.log(`\n=== player #${p.id} ${p.name} ===`);
   const { data: msgs } = await sb
     .from('twilio_messages')
-    .select('sid,direction,from_number,to_number,body,category,date_sent')
+    .select('sid,direction,body,date_sent')
     .eq('player_id', p.id)
-    .order('date_sent', { ascending: false })
-    .limit(500);
-
+    .order('date_sent', { ascending: true })
+    .limit(2000);
   if (!msgs || msgs.length === 0) {
-    console.log('  no messages tagged with this player_id');
+    console.log('  no messages');
     continue;
   }
 
-  const directions: Record<string, number> = {};
-  for (const m of msgs) directions[m.direction] = (directions[m.direction] ?? 0) + 1;
-  console.log('  direction breakdown:', directions);
-
-  const inbound = msgs.filter((m) => m.direction === 'inbound');
-  const outbound = msgs.filter((m) => isOutbound(m.direction));
-  const numericReplies = inbound.filter((m) => bareScore(m.body) != null);
-  const outboundQuestions = outbound.filter((m) => m.body && looksLikeQuestion(m.body));
-  console.log(`  inbound numeric replies: ${numericReplies.length}`);
-  console.log(`  outbound that looksLikeQuestion: ${outboundQuestions.length}`);
-
-  const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
-  let paired = 0;
-  let unpaired = 0;
-  const sample: Array<{ q: string; reply: number; ts: string }> = [];
-  for (const r of numericReplies) {
-    const replyTs = new Date(r.date_sent).getTime();
-    const c = outboundQuestions
-      .map((q) => ({ q, ts: new Date(q.date_sent).getTime() }))
-      .filter((c) => c.ts < replyTs && replyTs - c.ts <= PAIR_WINDOW_MS)
-      .sort((a, b) => b.ts - a.ts)[0];
-    if (c) {
-      paired++;
-      if (sample.length < 3)
-        sample.push({ q: (c.q.body ?? '').slice(0, 80), reply: bareScore(r.body)!, ts: r.date_sent });
+  const SESSION_GAP_MS = 30 * 60 * 1000;
+  type Sess = { outbound: typeof msgs; inbound: typeof msgs };
+  const sessions: Sess[] = [];
+  let cur: Sess | null = null;
+  let lastTs = 0;
+  for (const m of msgs) {
+    const ts = new Date(m.date_sent).getTime();
+    if (!cur || ts - lastTs > SESSION_GAP_MS) {
+      cur = { outbound: [], inbound: [] };
+      sessions.push(cur);
+    }
+    if (m.direction === 'inbound') {
+      if (m.body && m.body.trim()) cur.inbound.push(m);
     } else {
-      unpaired++;
+      if (m.body && looksLikeQuestion(m.body)) cur.outbound.push(m);
+    }
+    lastTs = ts;
+  }
+  console.log(`  ${sessions.length} sessions`);
+
+  const groups = new Map<string, { label: string; isBinary: boolean; replies: number[]; example: string }>();
+  let totalNumeric = 0;
+  let totalText = 0;
+  let unmatched = 0;
+  for (const s of sessions) {
+    const len = Math.min(s.outbound.length, s.inbound.length);
+    for (let i = 0; i < len; i++) {
+      const q = s.outbound[i].body!;
+      const r = s.inbound[i].body!;
+      const sc = parseReplyScore(r);
+      if (sc == null) {
+        totalText++;
+        continue;
+      }
+      totalNumeric++;
+      const label = inferMetric(q);
+      if (label === '(custom)') unmatched++;
+      const key = label.toLowerCase();
+      let g = groups.get(key);
+      if (!g) {
+        g = { label, isBinary: isBinaryQ(q), replies: [], example: q.replace(/\s+/g, ' ').slice(0, 80) };
+        groups.set(key, g);
+      }
+      g.replies.push(sc);
     }
   }
-  console.log(`  paired: ${paired}   unpaired: ${unpaired}`);
-  for (const s of sample) console.log(`    ex: Q=${JSON.stringify(s.q)} → ${s.reply} @ ${s.ts}`);
 
-  // Group paired replies by NORMALIZED question to see how grouping
-  // actually clusters and what the score distribution within each
-  // group looks like (binary vs continuous).
-  function normalize(q: string): string {
-    let s = q.trim();
-    s = s.replace(/^\[[^\]]+\]\s*/, '');
-    s = s.replace(/^(?:hey|hi|hello)\s+\S+[!,.]?\s*/i, '');
-    s = s.replace(/\bReply\s*(?:[:\-–])?\s*\d[\s\S]*$/i, '');
-    s = s.replace(/\b(?:Enter|Type)\s+\d[\s\S]*$/i, '');
-    s = s.replace(/\(\s*required\s*\)\.?\s*$/i, '');
-    s = s.replace(/\s*\(.*\)\s*$/, '');
-    s = s.replace(/[\s.]+$/, '');
-    return s.toLowerCase().trim();
-  }
-  const METRIC_BUCKETS = [
-    { key: 'readiness', label: 'Readiness', markers: ['readiness'] },
-    { key: 'sleep', label: 'Sleep', markers: ['sleep'] },
-    { key: 'focus', label: 'Focus', markers: ['focus', 'locked in', 'concentrat'] },
-    { key: 'rpe', label: 'RPE', markers: ['rpe', 'exertion', 'how hard', 'hard did'] },
-    { key: 'mental', label: 'Mental', markers: ['mental', 'stress', 'mood', 'overwhelmed', 'manageable'] },
-    { key: 'pain', label: 'Pain', markers: ['pain', 'soreness'] },
-    { key: 'recovery', label: 'Recovery', markers: ['recovery', 'recovered', 'fatigue', 'fatigued'] },
-    { key: 'energy', label: 'Energy', markers: ['energy'] },
-    { key: 'effort', label: 'Effort', markers: ['effort'] },
-  ];
-  function inferMetric(q: string): string {
-    const t = q.toLowerCase();
-    for (const b of METRIC_BUCKETS) {
-      if (b.markers.some((m) => t.includes(m))) return b.label;
+  // Verbose per-session dump of the first 4 sessions so we can see
+  // what's happening in the pairing.
+  console.log(`  --- first 4 sessions detail ---`);
+  for (let si = 0; si < Math.min(4, sessions.length); si++) {
+    const s = sessions[si];
+    console.log(`  [session ${si}] outbound=${s.outbound.length} inbound=${s.inbound.length}`);
+    const len = Math.min(s.outbound.length, s.inbound.length);
+    for (let i = 0; i < len; i++) {
+      const q = s.outbound[i].body!.replace(/\s+/g, ' ').slice(0, 60);
+      const r = s.inbound[i].body!.replace(/\s+/g, ' ').slice(0, 30);
+      const bucket = inferMetric(q);
+      console.log(`    Q${i + 1}[${bucket}]: ${q}`);
+      console.log(`    R${i + 1}: ${r}`);
     }
-    return '(no bucket)';
+    if (s.outbound.length > len) {
+      for (let i = len; i < s.outbound.length; i++) {
+        console.log(`    Q${i + 1}[unanswered]: ${s.outbound[i].body!.replace(/\s+/g, ' ').slice(0, 60)}`);
+      }
+    }
+    if (s.inbound.length > len) {
+      for (let i = len; i < s.inbound.length; i++) {
+        console.log(`    R${i + 1}[unpaired]: ${s.inbound[i].body!.replace(/\s+/g, ' ').slice(0, 30)}`);
+      }
+    }
   }
-  function questionIsBinaryText(q: string): boolean {
-    const t = q.toLowerCase();
-    return /0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t) || /1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t);
-  }
-  function questionIsScoreText(q: string): boolean {
-    const t = q.toLowerCase();
-    if (/\b(?:reply|rate|score|enter|on a scale of?)\b[\s\S]{0,30}?(?:0|1)\s*[-–to]+\s*10\b/.test(t)) return true;
-    if (/\b(?:0|1)\s*[-–to]+\s*10\b/.test(t) && /\b(?:score|rate|rating|reply)\b/.test(t)) return true;
-    return false;
-  }
-  const groups = new Map<string, { q: string; replies: number[] }>();
-  for (const r of numericReplies) {
-    const replyTs = new Date(r.date_sent).getTime();
-    const c = outboundQuestions
-      .map((q) => ({ q, ts: new Date(q.date_sent).getTime() }))
-      .filter((c) => c.ts < replyTs && replyTs - c.ts <= PAIR_WINDOW_MS)
-      .sort((a, b) => b.ts - a.ts)[0];
-    if (!c) continue;
-    const key = normalize(c.q.body ?? '');
-    if (!groups.has(key)) groups.set(key, { q: c.q.body ?? '', replies: [] });
-    groups.get(key)!.replies.push(bareScore(r.body)!);
-  }
-  console.log(`  --- date range of inbound numeric replies ---`);
-  const sortedReplies = [...numericReplies].sort((a, b) => a.date_sent.localeCompare(b.date_sent));
-  if (sortedReplies.length > 0) {
-    console.log(`    first: ${sortedReplies[0].date_sent}  body=${sortedReplies[0].body}`);
-    console.log(`    last:  ${sortedReplies[sortedReplies.length - 1].date_sent}  body=${sortedReplies[sortedReplies.length - 1].body}`);
-  }
-
-  console.log(`  --- distinct paired questions (${groups.size}) ---`);
-  for (const [k, g] of groups) {
-    const counts: Record<string, number> = {};
-    for (const r of g.replies) counts[r] = (counts[r] ?? 0) + 1;
-    const distrib = Object.entries(counts).sort((a, b) => Number(a[0]) - Number(b[0])).map(([s, n]) => `${s}×${n}`).join(' ');
-    const isBinary = questionIsBinaryText(g.q);
-    const isScore = questionIsScoreText(g.q);
-    const tag = isBinary ? 'BINARY' : isScore ? 'SCORE ' : 'SCORE*';
-    const sumRaw = g.replies.reduce((a, b) => a + b, 0);
-    const avgRaw = sumRaw / g.replies.length;
-    const yesRaw = g.replies.filter((s) => s >= 0.5).length;
-    const bucket = inferMetric(g.q);
-    console.log(`    [${g.replies.length}] ${tag} bucket=${bucket}  avgRaw=${avgRaw.toFixed(2)} yesRaw=${yesRaw}/${g.replies.length}`);
-    console.log(`         "${g.q.slice(0, 110)}"`);
-  }
-
-  // Look for outbound rows where to_number == this player's phone, even
-  // if player_id wasn't backfilled (i.e. detect tagging gaps).
-  if (p.phone_e164) {
-    const { count: outboundToPhone } = await sb
-      .from('twilio_messages')
-      .select('sid', { count: 'exact', head: true })
-      .like('direction', 'outbound%')
-      .eq('to_number', p.phone_e164);
-    console.log(`  outbound rows TO this phone (regardless of player_id): ${outboundToPhone}`);
+  console.log();
+  console.log(`  paired numeric: ${totalNumeric}   paired text (ignored for chart): ${totalText}   custom: ${unmatched}`);
+  for (const [, g] of groups) {
+    const yes = g.replies.filter((s) => s >= 0.5).length;
+    const sum = g.replies.reduce((a, b) => a + b, 0);
+    const avg = sum / g.replies.length;
+    const tag = g.isBinary ? 'BINARY' : 'SCORE ';
+    console.log(`    ${tag} ${g.label.padEnd(10)} n=${String(g.replies.length).padEnd(3)} avg=${avg.toFixed(2)} yes=${yes}`);
+    console.log(`           ex: "${g.example}"`);
   }
 }

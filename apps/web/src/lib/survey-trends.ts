@@ -95,18 +95,59 @@ function inferMetric(rawQuestion: string): { key: string; label: string } | null
   return null;
 }
 
+// Identify outbound messages that are real survey questions (not
+// system acks, re-prompts, signup messages, or filler).
+//
+// Why this needs to be tight: the pairing logic walks a session's
+// outbound questions in order against inbound replies in order. If a
+// real question slips through (or a system ack slips in), the index
+// alignment breaks and every following reply gets stapled to the
+// wrong prompt. Specific bug it was hiding: 'How hard did practice
+// feel? (1 = very easy, 10 = maximal effort)' has '?' in the middle
+// and ends with ')', so the prior `endsWith('?')` test missed it,
+// stripping that question from the session and shifting every
+// subsequent answer onto the wrong prompt.
 function looksLikeQuestion(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
+  // System acks — confirmations, not questions
+  if (/^(noted|got it|all done|appreciate|thanks for|thank you for)\b/i.test(t))
+    return false;
+  if (/your coach has set up/i.test(t)) return false;
+  // Re-prompts / validation nudges (don't open a new pairing slot —
+  // they re-ask the previous question, which is already in the queue)
+  if (/^please reply\b/i.test(t)) return false;
+  if (/^(invalid|sorry|i didn'?t understand|that didn'?t look)/i.test(t)) return false;
   if (/reminder to finish your check-in/i.test(t)) return false;
   if (/where you left off/i.test(t)) return false;
-  if (t.endsWith('?')) return true;
+  // Real questions — '?' anywhere, OR explicit reply/scale scaffolding
+  if (/\?/.test(t)) return true;
   if (/\breply\b/i.test(t)) return true;
   if (/\benter\s+\d/i.test(t)) return true;
-  if (/1\s*[-–]\s*10\b/i.test(t)) return true;
-  if (/\(\s*\d+\s*=\s*\w+\s*,\s*\d+\s*=\s*\w+\s*\)/i.test(t)) return true;
+  if (/\(\s*\d+\s*=/.test(t)) return true; // '(1 = very easy, 10 = …)' — covers any descriptor
   if (/\bprovide\s+your\b/i.test(t)) return true;
+  if (/\bon a scale of\b/i.test(t)) return true;
   return false;
+}
+
+// Parse an inbound reply into a 0–10 score. Accepts:
+//   - bare numeric ('7', '6.5')
+//   - case-insensitive yes/no/y/n (clamps to 1/0) — athletes often
+//     reply 'No' to a binary 0=no/1=yes question instead of '0', and
+//     dropping those silently hides real signal
+function parseReplyScore(body: string | null): number | null {
+  if (!body) return null;
+  const t = body.trim();
+  const m = /^\s*(\d{1,2}(?:\.\d+)?)\s*$/.exec(t);
+  if (m) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n >= 0 && n <= 10) return n;
+    return null;
+  }
+  const tl = t.toLowerCase();
+  if (tl === 'yes' || tl === 'y') return 1;
+  if (tl === 'no' || tl === 'n') return 0;
+  return null;
 }
 
 function bareScore(body: string | null): number | null {
@@ -158,89 +199,124 @@ function isOutbound(direction: string): boolean {
   return direction !== 'inbound';
 }
 
-export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
-  // Index outbound questions per player.
-  const outboundByPlayer = new Map<number, TwilioMessage[]>();
-  for (const m of msgs) {
-    if (!isOutbound(m.direction) || m.player_id == null || !m.body) continue;
-    if (!looksLikeQuestion(m.body)) continue;
-    const arr = outboundByPlayer.get(m.player_id) ?? [];
-    arr.push(m);
-    outboundByPlayer.set(m.player_id, arr);
+// A survey "session" is a cluster of messages with the same player
+// where consecutive messages are within SESSION_GAP_MS of each other.
+// Outside this window, a new session begins. Empirically, athletes
+// finish a check-in within a few minutes; gaps over 30 minutes mean
+// a separate occasion.
+const SESSION_GAP_MS = 30 * 60 * 1000;
+
+interface Session {
+  outbound: TwilioMessage[]; // questions, in chronological order
+  inbound: TwilioMessage[];  // replies (numeric or text), in chronological order
+}
+
+// Walk a player's chronologically-sorted messages and group them into
+// sessions by 30-minute gaps. Within each session, outbound questions
+// (filtered through looksLikeQuestion to skip system acks/re-prompts)
+// and inbound replies are kept in their original time order so
+// downstream pairing can match Q[i] to R[i].
+function buildSessions(playerMsgs: TwilioMessage[]): Session[] {
+  const sessions: Session[] = [];
+  let cur: Session | null = null;
+  let lastTs = 0;
+  for (const m of playerMsgs) {
+    const ts = new Date(m.date_sent).getTime();
+    if (!cur || ts - lastTs > SESSION_GAP_MS) {
+      cur = { outbound: [], inbound: [] };
+      sessions.push(cur);
+    }
+    if (m.direction === 'inbound') {
+      if (m.body && m.body.trim()) cur.inbound.push(m);
+    } else if (isOutbound(m.direction)) {
+      if (m.body && looksLikeQuestion(m.body)) cur.outbound.push(m);
+    }
+    lastTs = ts;
   }
-  for (const arr of outboundByPlayer.values()) {
+  return sessions;
+}
+
+export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
+  // Bucket all messages by player so each athlete's flow is sessioned
+  // in isolation. Sort each player's stream chronologically.
+  const byPlayer = new Map<number, TwilioMessage[]>();
+  for (const m of msgs) {
+    if (m.player_id == null || !m.body) continue;
+    const arr = byPlayer.get(m.player_id) ?? [];
+    arr.push(m);
+    byPlayer.set(m.player_id, arr);
+  }
+  for (const arr of byPlayer.values()) {
     arr.sort((a, b) => a.date_sent.localeCompare(b.date_sent));
   }
 
-  // For each inbound numeric reply, pair with the most recent
-  // outbound question. Bucket into trend groups by normalized text.
   const groups = new Map<string, QuestionTrend>();
-  for (const m of msgs) {
-    if (m.direction !== 'inbound' || m.player_id == null || !m.body) continue;
-    const score = bareScore(m.body);
-    if (score == null) continue;
-    const candidates = outboundByPlayer.get(m.player_id);
-    const replyTs = new Date(m.date_sent).getTime();
-    let questionBody: string | null = null;
-    if (candidates) {
-      for (let i = candidates.length - 1; i >= 0; i--) {
-        const c = candidates[i];
-        const cTs = new Date(c.date_sent).getTime();
-        if (cTs >= replyTs) continue;
-        if (replyTs - cTs > PAIR_WINDOW_MS) break;
-        questionBody = c.body;
-        break;
+  for (const playerMsgs of byPlayer.values()) {
+    const sessions = buildSessions(playerMsgs);
+    for (const s of sessions) {
+      // In-order pairing: question[i] <-> reply[i]. This is correct
+      // because athletes answer surveys top-to-bottom in the same
+      // order the questions were sent. Most-recent-question pairing
+      // (the previous algorithm) was systematically wrong: it
+      // matched every reply to the LAST outbound question seen, even
+      // when 3 questions were sent in a row before any reply, so
+      // sleep / RPE scores ended up tagged as 'Mental' or 'Body
+      // area' answers.
+      const len = Math.min(s.outbound.length, s.inbound.length);
+      for (let i = 0; i < len; i++) {
+        const q = s.outbound[i];
+        const r = s.inbound[i];
+        const score = parseReplyScore(r.body);
+        if (score == null) continue; // text reply — not chartable
+        const questionBody = q.body!;
+        const isBinary = questionIsBinary(questionBody);
+        const bucket = inferMetric(questionBody);
+        const norm = normalizeQuestion(questionBody);
+        const key = bucket ? bucket.key : norm.key;
+        const display = bucket ? bucket.label : norm.display;
+        if (!key) continue;
+        let g = groups.get(key);
+        if (!g) {
+          g = {
+            key,
+            question: display,
+            originalQuestion: questionBody,
+            kind: isBinary ? 'binary' : 'score',
+            points: [],
+            rawCount: 0,
+            rawAvg: 0,
+            rawYesCount: 0,
+          };
+          groups.set(key, g);
+        }
+        g.points.push({ ts: r.date_sent, score });
       }
     }
-    // Drop replies we can't pair to a real question — those would
-    // bucket into a single 'unmatched' line that mixes unrelated
-    // answers. Anything else is fair game: if a paired question got
-    // a numeric reply, the user wants to see the trend, even when we
-    // can't be 100% certain it's a wellness score.
-    //
-    // Text-based binary detection still wins (so 'Did pain start?
-    // 0=no, 1=yes' doesn't get plotted as a chaotic line on the
-    // 0–10 axis when athletes typed severity), but everything else
-    // becomes a score series.
-    if (!questionBody) continue;
-    const isBinary = questionIsBinary(questionBody);
-    // Group by canonical metric bucket if the question text matches
-    // one (Readiness / Pain / Mental / Sleep / etc.). Falls back to
-    // text-based normalization for questions that don't fit any
-    // bucket (custom team prompts). The canonical-bucket grouping is
-    // what reflect uses, so labels match what coaches/athletes
-    // already know from the SMS surveys.
-    const bucket = inferMetric(questionBody);
-    const norm = normalizeQuestion(questionBody);
-    const key = bucket ? bucket.key : norm.key;
-    const display = bucket ? bucket.label : norm.display;
-    if (!key) continue;
-    let g = groups.get(key);
-    if (!g) {
-      g = {
-        key,
-        question: display,
-        originalQuestion: questionBody,
-        kind: isBinary ? 'binary' : 'score',
-        points: [],
-        rawCount: 0,
-        rawAvg: 0,
-        rawYesCount: 0,
-      };
-      groups.set(key, g);
-    }
-    g.points.push({ ts: m.date_sent, score });
   }
 
   // Compute raw stats BEFORE daily aggregation (so they reflect every
   // reply, not just unique-day rollups). Without this, "11/11 yes 100%"
   // would show for an athlete with 26 replies of which only 17 were yes.
+  //
+  // Also re-evaluate kind data-drivenly: some sessions ask the same
+  // yes/no question without the explicit "Reply: 0=no, 1=yes"
+  // scaffolding (e.g. just 'Did stress affect your training?'), which
+  // text-based questionIsBinary() can't catch. If ≥80% of paired
+  // replies are exactly 0 or 1 and nothing exceeds 1, treat as binary.
   for (const g of groups.values()) {
     g.rawCount = g.points.length;
     g.rawAvg = g.points.length
       ? g.points.reduce((a, b) => a + b.score, 0) / g.points.length
       : 0;
     g.rawYesCount = g.points.filter((p) => p.score >= 0.5).length;
+
+    if (g.kind === 'score' && g.points.length > 0) {
+      const exactly01 = g.points.filter((p) => p.score === 0 || p.score === 1).length;
+      const anyAbove1 = g.points.some((p) => p.score > 1);
+      if (!anyAbove1 && exactly01 / g.points.length >= 0.8) {
+        g.kind = 'binary';
+      }
+    }
   }
 
   // Aggregate replies on the same calendar day:
