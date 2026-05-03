@@ -75,9 +75,28 @@ function inferMetric(q: string): string {
   }
   return '(custom)';
 }
-function isBinaryQ(q: string): boolean {
-  const t = q.toLowerCase();
-  return /0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t) || /1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t);
+function inferAnswerType(qtext: string): 'score' | 'binary' | 'text' | 'unknown' {
+  const t = qtext.toLowerCase();
+  if (/0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t)) return 'binary';
+  if (/1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t)) return 'binary';
+  if (/\byes\s*\/\s*no\b/.test(t)) return 'binary';
+  if (/\(\s*1\s*=[^)]+,\s*10\s*=[^)]+\)/.test(t)) return 'score';
+  if (/\(\s*0\s*=[^)]+,\s*10\s*=[^)]+\)/.test(t)) return 'score';
+  if (/\b(?:reply|rate|score|enter)\b[^.?!]*?\b(?:0|1)\s*[-–to]+\s*10\b/.test(t)) return 'score';
+  if (/\bon\s+a\s+scale\s+of\b/.test(t)) return 'score';
+  if (/\bprovide\s+your\b.*\bscore\b/.test(t)) return 'score';
+  if (/^(what|which|where|how(?:'s| is| was)|describe|tell|explain|share|list|name)\b/.test(t)) return 'text';
+  if (/^if\s+yes\b/.test(t)) return 'text';
+  if (/^one\s+thing\b/.test(t)) return 'text';
+  if (/\benter\s+0\s+to\s+skip\b/.test(t)) return 'text';
+  if (/^(did|has|have|is|are|was|were|does|do)\b.*\?/.test(t)) return 'binary';
+  return 'unknown';
+}
+function scoreScaleStart(qtext: string): 0 | 1 {
+  const t = qtext.toLowerCase();
+  if (/\b1\s*[-=]\s*\w+/.test(t)) return 1;
+  if (/\b0\s*[-=]\s*\w+/.test(t)) return 0;
+  return 1;
 }
 
 const isNumeric = /^\d+$/.test(arg);
@@ -132,18 +151,21 @@ for (const p of players) {
     for (let i = 0; i < len; i++) {
       const q = s.outbound[i].body!;
       const r = s.inbound[i].body!;
+      const at = inferAnswerType(q);
+      if (at === 'text') continue;
       const sc = parseReplyScore(r);
       if (sc == null) {
         totalText++;
         continue;
       }
+      if (at === 'score' && sc === 0 && scoreScaleStart(q) === 1) continue;
       totalNumeric++;
       const label = inferMetric(q);
       if (label === '(custom)') unmatched++;
       const key = label.toLowerCase();
       let g = groups.get(key);
       if (!g) {
-        g = { label, isBinary: isBinaryQ(q), replies: [], example: q.replace(/\s+/g, ' ').slice(0, 80) };
+        g = { label, isBinary: at === 'binary', replies: [], example: q.replace(/\s+/g, ' ').slice(0, 80) };
         groups.set(key, g);
       }
       g.replies.push(sc);

@@ -52,14 +52,61 @@ export interface QuestionTrend {
   rawYesCount: number;
 }
 
-// Detect "0 = no, 1 = yes" and similar patterns in the raw question
-// text. This trumps the data distribution — the question is binary
-// even when athletes occasionally reply with a severity (a few "6"s).
-function questionIsBinary(rawQuestion: string): boolean {
-  const t = rawQuestion.toLowerCase();
-  if (/0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t)) return true;
-  if (/1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t)) return true;
-  return false;
+// Classify the EXPECTED answer type from the question text alone, so
+// we know whether to chart a reply at all and how. Pattern-driven
+// (not bucket-driven) so a coach who writes a new template doesn't
+// have to register it in a list — if the question phrasing follows
+// any of the conventions below, it's classified automatically:
+//
+//   'score'   — explicit numeric scale ('1-10', '1 = X, 10 = Y',
+//               'on a scale of', 'rate', 'score')
+//   'binary'  — yes/no scaffolding OR English yes/no question form
+//               ('did/has/is/are' + '?')
+//   'text'    — open-ended ('what', 'which', 'describe', 'one thing',
+//               'if yes, ...'). These NEVER chart, even when athletes
+//               reply with a stray '0' (skip attempt) or 'yes' (typo).
+//   'unknown' — we couldn't tell. Caller falls back to data-driven
+//               detection so a novel-but-numeric template still
+//               renders.
+//
+// Order of patterns matters — explicit score/binary scaffolding
+// trumps the looser 'starts with what/which' text test.
+type AnswerType = 'score' | 'binary' | 'text' | 'unknown';
+
+function inferAnswerType(qtext: string): AnswerType {
+  const t = qtext.toLowerCase();
+  // Explicit score scaffolding
+  if (/0\s*[-=]\s*no\b.*1\s*[-=]\s*yes\b/.test(t)) return 'binary';
+  if (/1\s*[-=]\s*yes\b.*0\s*[-=]\s*no\b/.test(t)) return 'binary';
+  if (/\byes\s*\/\s*no\b/.test(t)) return 'binary';
+  if (/\(\s*1\s*=[^)]+,\s*10\s*=[^)]+\)/.test(t)) return 'score';
+  if (/\(\s*0\s*=[^)]+,\s*10\s*=[^)]+\)/.test(t)) return 'score';
+  if (/\b(?:reply|rate|score|enter)\b[^.?!]*?\b(?:0|1)\s*[-–to]+\s*10\b/.test(t))
+    return 'score';
+  if (/\bon\s+a\s+scale\s+of\b/.test(t)) return 'score';
+  if (/\bprovide\s+your\b.*\bscore\b/.test(t)) return 'score';
+  // Open-ended text questions — don't chart these even if a stray
+  // numeric/yes-no reply slips through (skip attempts, typos).
+  if (/^(what|which|where|how(?:'s| is| was)|describe|tell|explain|share|list|name)\b/.test(t))
+    return 'text';
+  if (/^if\s+yes\b/.test(t)) return 'text';
+  if (/^one\s+thing\b/.test(t)) return 'text';
+  if (/\benter\s+0\s+to\s+skip\b/.test(t)) return 'text';
+  // English yes/no question form — caught after 'how' (since 'how'
+  // questions are open-ended) and after explicit text patterns.
+  if (/^(did|has|have|is|are|was|were|does|do)\b.*\?/.test(t)) return 'binary';
+  return 'unknown';
+}
+
+// Score questions whose scale starts at 1 ('1 = very poorly, 10 =
+// very well') treat a reply of '0' as invalid (athlete tried to skip
+// — the prompt didn't offer 0). Score questions with a 0-based scale
+// accept 0 normally.
+function scoreScaleStart(qtext: string): 0 | 1 {
+  const t = qtext.toLowerCase();
+  if (/\b1\s*[-=]\s*\w+/.test(t)) return 1;
+  if (/\b0\s*[-=]\s*\w+/.test(t)) return 0;
+  return 1; // safe default — most wellness scales are 1-based
 }
 
 
@@ -266,22 +313,36 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
       for (let i = 0; i < len; i++) {
         const q = s.outbound[i];
         const r = s.inbound[i];
-        const score = parseReplyScore(r.body);
-        if (score == null) continue; // text reply — not chartable
         const questionBody = q.body!;
-        const isBinary = questionIsBinary(questionBody);
+        const answerType = inferAnswerType(questionBody);
+        // Drop free-text questions from the chart entirely. Athletes
+        // sometimes reply with stray numbers ('0' to skip) or yes/no
+        // to text prompts, and charting those creates fake metrics
+        // ("One thing you want to work on" was showing 0/2 yes
+        // because two athletes typed 0 to skip).
+        if (answerType === 'text') continue;
+        const score = parseReplyScore(r.body);
+        if (score == null) continue; // text reply — nothing to chart
+        // For 1-based scale score questions, a reply of 0 is invalid
+        // (athlete tried to skip but the prompt didn't offer 0). Drop.
+        if (answerType === 'score' && score === 0 && scoreScaleStart(questionBody) === 1) {
+          continue;
+        }
         const bucket = inferMetric(questionBody);
         const norm = normalizeQuestion(questionBody);
         const key = bucket ? bucket.key : norm.key;
         const display = bucket ? bucket.label : norm.display;
         if (!key) continue;
+        // Initial kind: explicit answer-type wins; 'unknown' falls
+        // back to score and gets re-classified data-drivenly later.
+        const initialKind: 'binary' | 'score' = answerType === 'binary' ? 'binary' : 'score';
         let g = groups.get(key);
         if (!g) {
           g = {
             key,
             question: display,
             originalQuestion: questionBody,
-            kind: isBinary ? 'binary' : 'score',
+            kind: initialKind,
             points: [],
             rawCount: 0,
             rawAvg: 0,
