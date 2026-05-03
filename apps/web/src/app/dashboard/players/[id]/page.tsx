@@ -446,7 +446,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           }}
         />
         <UpcomingMeets teamId={team.id} />
-        <SurveyTrendsCard trends={surveyTrends} />
+        <SurveyTrendsCard trends={surveyTrends} period={period} />
         <UnifiedTimeline
           logs={logs}
           messages={msgs}

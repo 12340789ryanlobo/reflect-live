@@ -1,41 +1,44 @@
 'use client';
 
-// Wellness-trends panel for an athlete. Built as "small multiples"
-// (Tufte): each question gets its OWN row with its own mini chart,
-// and they all share a single date axis at the bottom. Why:
+// Calendar-heatmap visualization of an athlete's survey replies.
 //
-//   - 5+ overlapping lines on one canvas was unreadable. Cleveland's
-//     research caps useful multi-line charts around 4 series; beyond
-//     that, viewers can't track individual lines.
-//   - Sparse, irregular sampling across metrics means lone outliers
-//     (e.g. one reply 3 weeks after the rest) stretched the whole
-//     chart and produced misleading "trend" lines connecting distant
-//     samples.
-//   - Direct end-of-line labels collided when multiple metrics ended
-//     near the same x.
+// Each row is one question; each column is one calendar day in the
+// active window. Cells are colored by reply value:
+//   - score (0-10):  red 1-4 / amber 5-6 / green 7-10
+//   - binary (0/1):  filled red = yes, hollow ring = no
+//   - no reply:      faint background dot (so cadence + compliance
+//                    gaps stay visible — distinct from "they replied no")
 //
-// One row per metric solves all three: each metric is in its own
-// lane, but they share the time axis so a coach can scan vertically
-// at any date to see "stress and pain both spiked the same week".
+// Why a heatmap and not the line chart we kept iterating on:
+// 5 metrics with sparse irregular sampling kept producing overlapping
+// lines, lone-outlier axis-stretching, and label collisions. The
+// heatmap collapses all of that — every reply is one fixed-width
+// cell, dates align trivially across rows, gaps become visible, and
+// vertical scanning at any column shows cross-metric correlation
+// ('did pain spike the same week readiness dropped?').
 //
-// Score rows render a line+area sparkline (0–10 y-scale, midline
-// gridline at 5). Binary rows render a dot strip — filled dot = yes,
-// hollow dot = no — so cadence is visible too.
+// See docs/superpowers/specs/2026-05-02-score-trends-heatmap-design.md
+// for the full design rationale.
 
+import type { Period } from '@/lib/period';
 import type { QuestionTrend, TrendPoint } from '@/lib/survey-trends';
 
 interface Props {
   trends: QuestionTrend[];
+  /** Page-level period toggle. Drives the heatmap's horizontal extent. */
+  period: Period;
 }
 
-const SCORE_COLOR = '#2563eb';   // blue for all score rows (no rainbow)
-const BINARY_COLOR = '#ef4444';  // red for yes events
+const RED = '#ef4444';
+const AMBER = '#f59e0b';
+const GREEN = '#10b981';
+const MUTE = 'var(--ink-mute)';
 
 function shortDate(d: Date): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function shortLabel(q: string, max = 60): string {
+function shortLabel(q: string, max = 36): string {
   let s = q.replace(/\bReply\b[\s\S]*$/i, '').trim();
   s = s.replace(/\(.*\)\s*$/, '').trim();
   const firstQ = s.indexOf('?');
@@ -44,270 +47,114 @@ function shortLabel(q: string, max = 60): string {
   return s;
 }
 
+// Discrete tones at 4 buckets read better than a gradient at small
+// cell sizes. Matches the rest of the app's value-tone language.
+function scoreTone(v: number): string {
+  if (v < 1) return MUTE;
+  const f = Math.floor(v);
+  if (f <= 4) return RED;
+  if (f <= 6) return AMBER;
+  return GREEN;
+}
+
+function dayKey(ts: string): string {
+  return ts.slice(0, 10); // YYYY-MM-DD
+}
+
+// Build the inclusive list of calendar-day timestamps that the
+// heatmap grid spans, given an [from, to] window in ms.
+function daysBetween(fromMs: number, toMs: number): string[] {
+  const out: string[] = [];
+  const start = new Date(fromMs);
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(toMs);
+  end.setUTCHours(0, 0, 0, 0);
+  const cursor = new Date(start);
+  while (cursor.getTime() <= end.getTime()) {
+    out.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
 interface Prepared {
   key: string;
   label: string;
   full: string;
   isBinary: boolean;
-  points: TrendPoint[];
-  binaryPoints: TrendPoint[];
   count: number;
   last: TrendPoint | null;
   avg: number | null;
   yesCount: number;
+  // Reply value keyed by YYYY-MM-DD for fast cell lookup.
+  byDay: Map<string, number>;
 }
 
 function prepare(trends: QuestionTrend[]): Prepared[] {
-  return [...trends]
-    .sort((a, b) => b.points.length - a.points.length)
+  return trends
     .map((t) => {
       const isBinary = t.kind === 'binary';
-      const binaryPoints = isBinary
-        ? t.points.map((p) => ({ ts: p.ts, score: p.score >= 0.5 ? 1 : 0 }))
-        : t.points;
+      const byDay = new Map<string, number>();
+      for (const p of t.points) {
+        const k = dayKey(p.ts);
+        const cur = byDay.get(k);
+        if (cur == null) byDay.set(k, p.score);
+        else byDay.set(k, isBinary ? Math.max(cur, p.score) : (cur + p.score) / 2);
+      }
+      const last = t.points.length ? t.points[t.points.length - 1] : null;
+      const avg = t.points.length
+        ? t.points.reduce((a, b) => a + b.score, 0) / t.points.length
+        : null;
+      const yesCount = isBinary
+        ? t.points.filter((p) => p.score >= 0.5).length
+        : 0;
       return {
         key: t.key,
         label: shortLabel(t.question),
         full: t.question,
         isBinary,
-        points: t.points,
-        binaryPoints,
         count: t.points.length,
-        last: t.points.length ? t.points[t.points.length - 1] : null,
-        avg: t.points.length
-          ? t.points.reduce((a, b) => a + b.score, 0) / t.points.length
-          : null,
-        yesCount: isBinary
-          ? binaryPoints.filter((p) => p.score === 1).length
-          : 0,
+        last,
+        avg,
+        yesCount,
+        byDay,
       };
+    })
+    .sort((a, b) => {
+      // Score rows first, then binary; within each, descending by count.
+      if (a.isBinary !== b.isBinary) return a.isBinary ? 1 : -1;
+      return b.count - a.count;
     });
 }
 
-const ROW_W = 760;
-const ROW_PAD_L = 14;
-const ROW_PAD_R = 14;
-const SCORE_ROW_H = 64;
-const BINARY_ROW_H = 28;
-const AXIS_H = 28;
-
-function ScoreRow({
-  s,
-  tMin,
-  tRange,
-  showMidline,
-}: {
-  s: Prepared;
-  tMin: number;
-  tRange: number;
-  showMidline: boolean;
-}) {
-  const innerW = ROW_W - ROW_PAD_L - ROW_PAD_R;
-  const PAD_T = 6;
-  const PAD_B = 6;
-  const innerH = SCORE_ROW_H - PAD_T - PAD_B;
-  const xOf = (ts: string) =>
-    ROW_PAD_L + ((new Date(ts).getTime() - tMin) / tRange) * innerW;
-  const yOf = (v: number) => PAD_T + ((10 - v) / 10) * innerH;
-  const sorted = [...s.points].sort((a, b) => a.ts.localeCompare(b.ts));
-  const coords = sorted.map((p) => ({ x: xOf(p.ts), y: yOf(p.score) }));
-  const linePath = coords
-    .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`)
-    .join(' ');
-  const firstX = coords[0]?.x ?? 0;
-  const lastX = coords[coords.length - 1]?.x ?? 0;
-  const areaPath =
-    coords.length > 1
-      ? `${linePath} L ${lastX} ${PAD_T + innerH} L ${firstX} ${PAD_T + innerH} Z`
-      : '';
-
-  return (
-    <svg
-      viewBox={`0 0 ${ROW_W} ${SCORE_ROW_H}`}
-      className="block w-full"
-      preserveAspectRatio="none"
-      style={{ height: SCORE_ROW_H }}
-    >
-      {/* Top + bottom hair-line bounds */}
-      <line
-        x1={ROW_PAD_L}
-        x2={ROW_W - ROW_PAD_R}
-        y1={PAD_T}
-        y2={PAD_T}
-        stroke="var(--border)"
-        strokeWidth={0.5}
-        strokeOpacity={0.4}
-      />
-      <line
-        x1={ROW_PAD_L}
-        x2={ROW_W - ROW_PAD_R}
-        y1={PAD_T + innerH}
-        y2={PAD_T + innerH}
-        stroke="var(--border)"
-        strokeWidth={0.5}
-        strokeOpacity={0.4}
-      />
-      {showMidline && (
-        <line
-          x1={ROW_PAD_L}
-          x2={ROW_W - ROW_PAD_R}
-          y1={yOf(5)}
-          y2={yOf(5)}
-          stroke="var(--border)"
-          strokeWidth={0.5}
-          strokeDasharray="2 3"
-        />
-      )}
-      {/* y-axis labels at row edges */}
-      <text
-        x={ROW_PAD_L - 4}
-        y={PAD_T + 4}
-        textAnchor="end"
-        style={{ fontSize: 8, fill: 'var(--ink-mute)' }}
-        className="mono tabular"
-      >
-        10
-      </text>
-      <text
-        x={ROW_PAD_L - 4}
-        y={PAD_T + innerH + 2}
-        textAnchor="end"
-        style={{ fontSize: 8, fill: 'var(--ink-mute)' }}
-        className="mono tabular"
-      >
-        0
-      </text>
-      {areaPath && <path d={areaPath} fill={SCORE_COLOR} fillOpacity={0.08} />}
-      {coords.length > 1 && (
-        <path
-          d={linePath}
-          fill="none"
-          stroke={SCORE_COLOR}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
-      {coords.map((c, i) => (
-        <circle
-          key={i}
-          cx={c.x}
-          cy={c.y}
-          r={2.5}
-          fill="var(--card)"
-          stroke={SCORE_COLOR}
-          strokeWidth={1.5}
-        >
-          <title>
-            {shortDate(new Date(sorted[i].ts))}: {sorted[i].score.toFixed(1)}/10
-          </title>
-        </circle>
-      ))}
-    </svg>
-  );
+// Compute the heatmap's horizontal time window. Driven by the page's
+// period toggle, but with a hard ceiling at 90 days when period=all
+// so cells stay readable on a 760px viewBox.
+function windowFor(period: Period, trends: Prepared[]): { from: number; to: number } {
+  const now = Date.now();
+  if (period !== 'all') {
+    return { from: now - period * 86400_000, to: now };
+  }
+  const allTs: number[] = [];
+  for (const t of trends) for (const k of t.byDay.keys()) allTs.push(new Date(`${k}T12:00:00Z`).getTime());
+  if (allTs.length === 0) return { from: now - 30 * 86400_000, to: now };
+  const dataMin = Math.min(...allTs);
+  const dataMax = Math.max(...allTs);
+  const span = dataMax - dataMin;
+  const cap = 90 * 86400_000;
+  if (span <= cap) return { from: dataMin, to: dataMax };
+  return { from: dataMax - cap, to: dataMax };
 }
 
-function BinaryRow({
-  s,
-  tMin,
-  tRange,
-}: {
-  s: Prepared;
-  tMin: number;
-  tRange: number;
-}) {
-  const innerW = ROW_W - ROW_PAD_L - ROW_PAD_R;
-  const cy = BINARY_ROW_H / 2;
-  const xOf = (ts: string) =>
-    ROW_PAD_L + ((new Date(ts).getTime() - tMin) / tRange) * innerW;
-  const yesPts = s.binaryPoints.filter((p) => p.score === 1);
-  const noPts = s.binaryPoints.filter((p) => p.score === 0);
+const W = 760;
+const STATS_W = 220;
+const ROW_GAP = 6;
+const ROW_H = 22;
+const GROUP_GAP = 14;
+const PAD_X = 16;
+const AXIS_H = 22;
 
-  return (
-    <svg
-      viewBox={`0 0 ${ROW_W} ${BINARY_ROW_H}`}
-      className="block w-full"
-      preserveAspectRatio="none"
-      style={{ height: BINARY_ROW_H }}
-    >
-      <line
-        x1={ROW_PAD_L}
-        x2={ROW_W - ROW_PAD_R}
-        y1={cy}
-        y2={cy}
-        stroke="var(--border)"
-        strokeOpacity={0.5}
-        strokeWidth={0.5}
-      />
-      {noPts.map((p, i) => (
-        <circle
-          key={`n-${i}`}
-          cx={xOf(p.ts)}
-          cy={cy}
-          r={2.75}
-          fill="none"
-          stroke={BINARY_COLOR}
-          strokeOpacity={0.4}
-          strokeWidth={1}
-        >
-          <title>{shortDate(new Date(p.ts))}: no</title>
-        </circle>
-      ))}
-      {yesPts.map((p, i) => (
-        <circle
-          key={`y-${i}`}
-          cx={xOf(p.ts)}
-          cy={cy}
-          r={4.5}
-          fill={BINARY_COLOR}
-        >
-          <title>{shortDate(new Date(p.ts))}: yes</title>
-        </circle>
-      ))}
-    </svg>
-  );
-}
-
-function DateAxis({ tMin, tRange }: { tMin: number; tRange: number }) {
-  const TICK_COUNT = 5;
-  const innerW = ROW_W - ROW_PAD_L - ROW_PAD_R;
-  return (
-    <svg
-      viewBox={`0 0 ${ROW_W} ${AXIS_H}`}
-      className="block w-full"
-      preserveAspectRatio="none"
-      style={{ height: AXIS_H }}
-    >
-      {Array.from({ length: TICK_COUNT }, (_, i) => {
-        const t = tMin + (tRange * i) / (TICK_COUNT - 1);
-        const x = ROW_PAD_L + (innerW * i) / (TICK_COUNT - 1);
-        return (
-          <g key={i}>
-            <line
-              x1={x}
-              x2={x}
-              y1={0}
-              y2={4}
-              stroke="var(--border)"
-              strokeWidth={0.5}
-            />
-            <text
-              x={x}
-              y={16}
-              textAnchor={i === 0 ? 'start' : i === TICK_COUNT - 1 ? 'end' : 'middle'}
-              style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
-              className="mono tabular"
-            >
-              {shortDate(new Date(t))}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-export function SurveyTrendsCard({ trends }: Props) {
+export function SurveyTrendsCard({ trends, period }: Props) {
   const series = prepare(trends);
 
   if (series.length === 0) {
@@ -323,15 +170,38 @@ export function SurveyTrendsCard({ trends }: Props) {
     );
   }
 
-  // Shared time domain across ALL series so rows are date-aligned.
-  const allTs: number[] = [];
-  for (const s of series) for (const p of s.points) allTs.push(new Date(p.ts).getTime());
-  const tMin = Math.min(...allTs);
-  const tMax = Math.max(...allTs);
-  const tRange = Math.max(tMax - tMin, 1);
+  const { from, to } = windowFor(period, series);
+  const days = daysBetween(from, to);
+  const cellW = (W - STATS_W - PAD_X * 2) / days.length;
+  const cellPad = days.length > 70 ? 0.5 : days.length > 30 ? 1 : 1.5;
+  const cellSize = Math.max(cellW - cellPad * 2, 2);
 
   const scoreSeries = series.filter((s) => !s.isBinary);
   const binarySeries = series.filter((s) => s.isBinary);
+
+  // Vertical layout
+  const scoreH = scoreSeries.length * (ROW_H + ROW_GAP);
+  const binaryH = binarySeries.length * (ROW_H + ROW_GAP);
+  const groupGap = scoreSeries.length > 0 && binarySeries.length > 0 ? GROUP_GAP : 0;
+  const H = scoreH + groupGap + binaryH + AXIS_H + 8;
+
+  const gridLeft = STATS_W + PAD_X;
+  const xOfDay = (i: number) => gridLeft + i * cellW + cellPad;
+
+  // Date-axis labels: 5 evenly spaced
+  const TICK_COUNT = 5;
+  const tickAt = (i: number) =>
+    days[Math.round(((days.length - 1) * i) / (TICK_COUNT - 1))];
+
+  const totalReplies = series.reduce((s, x) => s + x.count, 0);
+  const repliesInWindow = series.reduce((sum, s) => {
+    let c = 0;
+    for (const k of s.byDay.keys()) {
+      const t = new Date(`${k}T12:00:00Z`).getTime();
+      if (t >= from && t <= to) c++;
+    }
+    return sum + c;
+  }, 0);
 
   return (
     <Card>
@@ -340,101 +210,261 @@ export function SurveyTrendsCard({ trends }: Props) {
         right={`${scoreSeries.length} score · ${binarySeries.length} yes/no`}
       />
 
-      <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-        {scoreSeries.map((s, i) => (
-          <Row
-            key={s.key}
-            label={s.label}
-            full={s.full}
-            count={s.count}
-            metaLeft={s.avg != null ? `avg ${s.avg.toFixed(1)}` : ''}
-            metaRight={
-              s.last
-                ? `last ${s.last.score.toFixed(1)}/10 · ${shortDate(new Date(s.last.ts))}`
-                : ''
-            }
-          >
-            <ScoreRow
-              s={s}
-              tMin={tMin}
-              tRange={tRange}
-              showMidline={i === 0}
-            />
-          </Row>
-        ))}
-
-        {binarySeries.map((s) => (
-          <Row
-            key={s.key}
-            label={s.label}
-            full={s.full}
-            count={s.count}
-            metaLeft={`yes ${s.yesCount}/${s.count}`}
-            metaRight={
-              s.last
-                ? `last ${s.last.score >= 0.5 ? 'yes' : 'no'} · ${shortDate(new Date(s.last.ts))}`
-                : ''
-            }
-            tone="binary"
-          >
-            <BinaryRow s={s} tMin={tMin} tRange={tRange} />
-          </Row>
-        ))}
-
-        {/* Shared date axis at the bottom of the panel */}
-        <div className="px-6 pt-1 pb-3">
-          <DateAxis tMin={tMin} tRange={tRange} />
+      {repliesInWindow === 0 ? (
+        <div className="px-6 py-10 text-center">
+          <p className="text-[13px] text-[color:var(--ink-mute)]">
+            — no replies in this window —
+          </p>
+          <p className="mt-1 text-[11.5px] text-[color:var(--ink-mute)]">
+            {totalReplies} reply{totalReplies === 1 ? '' : 's'} on file. Try a longer period.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="px-4 md:px-6 py-5 overflow-x-auto">
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="w-full h-auto"
+            style={{ minWidth: 600 }}
+          >
+            {/* Score rows */}
+            {scoreSeries.map((s, rowIdx) => {
+              const yTop = rowIdx * (ROW_H + ROW_GAP);
+              const cy = yTop + ROW_H / 2;
+              return (
+                <HeatRow
+                  key={s.key}
+                  series={s}
+                  yTop={yTop}
+                  cy={cy}
+                  days={days}
+                  xOfDay={xOfDay}
+                  cellSize={cellSize}
+                  cellW={cellW}
+                  statsX={PAD_X}
+                  statsW={STATS_W}
+                  isBinary={false}
+                />
+              );
+            })}
+
+            {/* Group separator */}
+            {scoreSeries.length > 0 && binarySeries.length > 0 && (
+              <line
+                x1={PAD_X}
+                x2={W - PAD_X}
+                y1={scoreH + GROUP_GAP / 2}
+                y2={scoreH + GROUP_GAP / 2}
+                stroke="var(--border)"
+                strokeWidth={0.5}
+              />
+            )}
+
+            {/* Binary rows */}
+            {binarySeries.map((s, rowIdx) => {
+              const yTop = scoreH + groupGap + rowIdx * (ROW_H + ROW_GAP);
+              const cy = yTop + ROW_H / 2;
+              return (
+                <HeatRow
+                  key={s.key}
+                  series={s}
+                  yTop={yTop}
+                  cy={cy}
+                  days={days}
+                  xOfDay={xOfDay}
+                  cellSize={cellSize}
+                  cellW={cellW}
+                  statsX={PAD_X}
+                  statsW={STATS_W}
+                  isBinary
+                />
+              );
+            })}
+
+            {/* Date axis */}
+            {Array.from({ length: TICK_COUNT }, (_, i) => {
+              const dayIdx = Math.round(((days.length - 1) * i) / (TICK_COUNT - 1));
+              const x = xOfDay(dayIdx) + cellSize / 2;
+              const ay = scoreH + groupGap + binaryH + 14;
+              return (
+                <g key={`tick-${i}`}>
+                  <line
+                    x1={x}
+                    x2={x}
+                    y1={ay - 8}
+                    y2={ay - 4}
+                    stroke="var(--border)"
+                    strokeWidth={0.5}
+                  />
+                  <text
+                    x={x}
+                    y={ay + 6}
+                    textAnchor={i === 0 ? 'start' : i === TICK_COUNT - 1 ? 'end' : 'middle'}
+                    style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
+                    className="mono tabular"
+                  >
+                    {shortDate(new Date(`${tickAt(i)}T12:00:00Z`))}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
     </Card>
   );
 }
 
-function Row({
-  label,
-  full,
-  count,
-  metaLeft,
-  metaRight,
-  tone,
-  children,
-}: {
-  label: string;
-  full: string;
-  count: number;
-  metaLeft: string;
-  metaRight: string;
-  tone?: 'binary';
-  children: React.ReactNode;
-}) {
+interface HeatRowProps {
+  series: Prepared;
+  yTop: number;
+  cy: number;
+  days: string[];
+  xOfDay: (i: number) => number;
+  cellSize: number;
+  cellW: number;
+  statsX: number;
+  statsW: number;
+  isBinary: boolean;
+}
+
+function HeatRow({
+  series,
+  yTop,
+  cy,
+  days,
+  xOfDay,
+  cellSize,
+  cellW,
+  statsX,
+  statsW,
+  isBinary,
+}: HeatRowProps) {
+  const lastTone = series.last
+    ? isBinary
+      ? series.last.score >= 0.5
+        ? RED
+        : MUTE
+      : scoreTone(series.last.score)
+    : MUTE;
+
+  const lastLabel = series.last
+    ? isBinary
+      ? series.last.score >= 0.5
+        ? 'last yes'
+        : 'last no'
+      : `last ${series.last.score.toFixed(1)}`
+    : '';
+
+  const stat2 = isBinary
+    ? `${series.yesCount}/${series.count} yes · ${Math.round((series.yesCount / Math.max(series.count, 1)) * 100)}%`
+    : `avg ${series.avg != null ? series.avg.toFixed(1) : '–'} · ${series.count} replies`;
+
   return (
-    <div className="px-6 py-3">
-      <div className="flex items-baseline justify-between gap-3 mb-1">
-        <h3
-          className="text-[13px] font-semibold text-[color:var(--ink)] line-clamp-1 flex-1 min-w-0"
-          title={full}
-        >
-          {label}
-        </h3>
-        <div className="flex items-baseline gap-3 shrink-0">
-          <span className="mono text-[10.5px] text-[color:var(--ink-mute)] tabular">
-            {count} replies
-          </span>
-          <span
-            className="mono text-[11px] tabular font-semibold"
-            style={{
-              color: tone === 'binary' ? BINARY_COLOR : SCORE_COLOR,
-            }}
+    <g>
+      {/* Stats column */}
+      <text
+        x={statsX}
+        y={yTop + 10}
+        style={{
+          fontSize: 12,
+          fill: 'var(--ink)',
+          fontWeight: 600,
+        }}
+        className="line-clamp-1"
+      >
+        <title>{series.full}</title>
+        {series.label}
+      </text>
+      <text
+        x={statsX}
+        y={yTop + 22}
+        style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
+        className="mono tabular"
+      >
+        {stat2}
+      </text>
+      <text
+        x={statsX + statsW - 8}
+        y={yTop + 14}
+        textAnchor="end"
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          fill: lastTone,
+        }}
+        className="mono tabular"
+      >
+        {lastLabel}
+      </text>
+
+      {/* Cells */}
+      {days.map((d, i) => {
+        const v = series.byDay.get(d);
+        const cx = xOfDay(i);
+        if (v == null) {
+          // No reply: faint background dot
+          return (
+            <circle
+              key={i}
+              cx={cx + cellSize / 2}
+              cy={cy}
+              r={Math.max(cellSize / 5, 0.6)}
+              fill="var(--border)"
+              fillOpacity={0.4}
+            />
+          );
+        }
+
+        if (isBinary) {
+          const isYes = v >= 0.5;
+          if (isYes) {
+            return (
+              <circle
+                key={i}
+                cx={cx + cellSize / 2}
+                cy={cy}
+                r={Math.max(cellSize / 2 - 0.5, 2)}
+                fill={RED}
+              >
+                <title>{shortDate(new Date(`${d}T12:00:00Z`))}: yes</title>
+              </circle>
+            );
+          }
+          return (
+            <circle
+              key={i}
+              cx={cx + cellSize / 2}
+              cy={cy}
+              r={Math.max(cellSize / 2 - 1, 1.5)}
+              fill="none"
+              stroke={MUTE}
+              strokeWidth={1}
+            >
+              <title>{shortDate(new Date(`${d}T12:00:00Z`))}: no</title>
+            </circle>
+          );
+        }
+
+        // Score cell — a rounded square.
+        const tone = scoreTone(v);
+        return (
+          <rect
+            key={i}
+            x={cx}
+            y={cy - cellSize / 2}
+            width={cellSize}
+            height={cellSize}
+            rx={Math.min(2, cellSize / 4)}
+            fill={tone}
+            fillOpacity={0.85}
           >
-            {metaLeft}
-          </span>
-        </div>
-      </div>
-      {children}
-      <div className="mt-1 mono text-[10px] text-[color:var(--ink-mute)] tabular text-right">
-        {metaRight}
-      </div>
-    </div>
+            <title>
+              {shortDate(new Date(`${d}T12:00:00Z`))}: {v.toFixed(1)}/10
+            </title>
+          </rect>
+        );
+      })}
+    </g>
   );
 }
 
