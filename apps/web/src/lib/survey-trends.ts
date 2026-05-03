@@ -30,8 +30,19 @@ export interface QuestionTrend {
    * 'score' is the default 0–10 line.
    */
   kind: 'binary' | 'score';
-  /** All replies in this group, ascending by date. */
+  /** All replies in this group, ascending by date. Daily-aggregated
+   *  for chart rendering (one point per calendar day). Use rawCount /
+   *  rawAvg / rawYesCount for honest "how many replies, how many were
+   *  yes" numbers — those reflect every reply, not the post-aggregation
+   *  per-day rollups. */
   points: TrendPoint[];
+  /** Total number of raw replies received (before daily aggregation). */
+  rawCount: number;
+  /** Mean of every raw reply's score (before daily aggregation). */
+  rawAvg: number;
+  /** For binary kind: count of raw replies whose score ≥0.5 (clamped
+   *  to "yes"). 0 for score kind. */
+  rawYesCount: number;
 }
 
 // Detect "0 = no, 1 = yes" and similar patterns in the raw question
@@ -165,10 +176,24 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
         question: display,
         kind: isBinary ? 'binary' : 'score',
         points: [],
+        rawCount: 0,
+        rawAvg: 0,
+        rawYesCount: 0,
       };
       groups.set(key, g);
     }
     g.points.push({ ts: m.date_sent, score });
+  }
+
+  // Compute raw stats BEFORE daily aggregation (so they reflect every
+  // reply, not just unique-day rollups). Without this, "11/11 yes 100%"
+  // would show for an athlete with 26 replies of which only 17 were yes.
+  for (const g of groups.values()) {
+    g.rawCount = g.points.length;
+    g.rawAvg = g.points.length
+      ? g.points.reduce((a, b) => a + b.score, 0) / g.points.length
+      : 0;
+    g.rawYesCount = g.points.filter((p) => p.score >= 0.5).length;
   }
 
   // Aggregate replies on the same calendar day:

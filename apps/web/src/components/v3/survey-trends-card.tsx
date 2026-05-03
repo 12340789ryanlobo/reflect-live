@@ -3,66 +3,64 @@
 // Calendar-heatmap visualization of an athlete's survey replies.
 //
 // Each row is one question; each column is one calendar day in the
-// active window. Cells are colored by reply value:
-//   - score (0-10):  red 1-4 / amber 5-6 / green 7-10
-//   - binary (0/1):  filled red = yes, hollow ring = no
-//   - no reply:      faint background dot (so cadence + compliance
-//                    gaps stay visible — distinct from "they replied no")
+// active page-period window. Cells:
+//   - score (0-10):  continuous red→amber→green gradient by value
+//   - binary (0/1):  filled red dot = yes, hollow ring = no
+//   - no reply:      faint background tick
 //
-// Why a heatmap and not the line chart we kept iterating on:
-// 5 metrics with sparse irregular sampling kept producing overlapping
-// lines, lone-outlier axis-stretching, and label collisions. The
-// heatmap collapses all of that — every reply is one fixed-width
-// cell, dates align trivially across rows, gaps become visible, and
-// vertical scanning at any column shows cross-metric correlation
-// ('did pain spike the same week readiness dropped?').
+// Why a heatmap (after four chart iterations failed):
+//   - Every reply is one fixed-width cell — lone outliers can't
+//     stretch the chart anymore.
+//   - Dates align trivially across rows; cross-metric correlation
+//     is a vertical scan ('did pain spike when readiness dropped?').
+//   - 'No reply' is a real, visible thing (faint tick) — distinct
+//     from 'they replied no'.
+//   - Universal mental model (GitHub contribution graph).
+//
+// Layout splits each row into HTML stats (left) + SVG heatmap (right),
+// so question titles get proper CSS truncation/wrap instead of SVG
+// text overflow. Single shared SVG for the heatmap so columns align
+// exactly across rows.
 //
 // See docs/superpowers/specs/2026-05-02-score-trends-heatmap-design.md
-// for the full design rationale.
 
 import type { Period } from '@/lib/period';
 import type { QuestionTrend, TrendPoint } from '@/lib/survey-trends';
 
 interface Props {
   trends: QuestionTrend[];
-  /** Page-level period toggle. Drives the heatmap's horizontal extent. */
+  /** Page period toggle. Drives the heatmap's horizontal extent. */
   period: Period;
 }
 
+// Continuous red→amber→green gradient over 1..10. The two-leg HSL
+// interpolation (red→amber on the bottom half, amber→green on the
+// top half) keeps the midline anchored at amber/5 so coaches read
+// "around 5 = warning" the same way they do everywhere else in the
+// app, while the rest of the scale flows smoothly.
+function scoreTone(v: number): string {
+  if (v < 1) return 'var(--ink-mute)';
+  const c = Math.min(10, v);
+  // hsl: 0=red, 38=amber, 145=green. Saturation/lightness chosen
+  // to match the discrete app palette so the gradient mid-points
+  // ride right through the existing red/amber/green tokens.
+  let hue: number;
+  if (c <= 5) hue = ((c - 1) / 4) * 38;          // 1..5 → 0..38
+  else hue = 38 + ((c - 5) / 5) * (145 - 38);    // 5..10 → 38..145
+  return `hsl(${hue.toFixed(0)}, 78%, 48%)`;
+}
+
 const RED = '#ef4444';
-const AMBER = '#f59e0b';
-const GREEN = '#10b981';
 const MUTE = 'var(--ink-mute)';
 
 function shortDate(d: Date): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function shortLabel(q: string, max = 36): string {
-  let s = q.replace(/\bReply\b[\s\S]*$/i, '').trim();
-  s = s.replace(/\(.*\)\s*$/, '').trim();
-  const firstQ = s.indexOf('?');
-  if (firstQ !== -1 && firstQ < max + 8) s = s.slice(0, firstQ + 1);
-  if (s.length > max) s = s.slice(0, max - 1).trim() + '…';
-  return s;
-}
-
-// Discrete tones at 4 buckets read better than a gradient at small
-// cell sizes. Matches the rest of the app's value-tone language.
-function scoreTone(v: number): string {
-  if (v < 1) return MUTE;
-  const f = Math.floor(v);
-  if (f <= 4) return RED;
-  if (f <= 6) return AMBER;
-  return GREEN;
-}
-
 function dayKey(ts: string): string {
   return ts.slice(0, 10); // YYYY-MM-DD
 }
 
-// Build the inclusive list of calendar-day timestamps that the
-// heatmap grid spans, given an [from, to] window in ms.
 function daysBetween(fromMs: number, toMs: number): string[] {
   const out: string[] = [];
   const start = new Date(fromMs);
@@ -79,15 +77,17 @@ function daysBetween(fromMs: number, toMs: number): string[] {
 
 interface Prepared {
   key: string;
-  label: string;
   full: string;
   isBinary: boolean;
-  count: number;
-  last: TrendPoint | null;
-  avg: number | null;
-  yesCount: number;
-  // Reply value keyed by YYYY-MM-DD for fast cell lookup.
+  // Raw counts — reflect EVERY reply, not just unique days. Drives the
+  // stats display so coaches see the honest numbers.
+  rawCount: number;
+  rawAvg: number;
+  rawYesCount: number;
+  // Day-aggregated values for cell rendering.
   byDay: Map<string, number>;
+  // Last raw reply (for the 'last X' summary).
+  lastReply: TrendPoint | null;
 }
 
 function prepare(trends: QuestionTrend[]): Prepared[] {
@@ -101,42 +101,34 @@ function prepare(trends: QuestionTrend[]): Prepared[] {
         if (cur == null) byDay.set(k, p.score);
         else byDay.set(k, isBinary ? Math.max(cur, p.score) : (cur + p.score) / 2);
       }
-      const last = t.points.length ? t.points[t.points.length - 1] : null;
-      const avg = t.points.length
-        ? t.points.reduce((a, b) => a + b.score, 0) / t.points.length
-        : null;
-      const yesCount = isBinary
-        ? t.points.filter((p) => p.score >= 0.5).length
-        : 0;
       return {
         key: t.key,
-        label: shortLabel(t.question),
         full: t.question,
         isBinary,
-        count: t.points.length,
-        last,
-        avg,
-        yesCount,
+        rawCount: t.rawCount,
+        rawAvg: t.rawAvg,
+        rawYesCount: t.rawYesCount,
         byDay,
+        lastReply: t.points.length ? t.points[t.points.length - 1] : null,
       };
     })
     .sort((a, b) => {
-      // Score rows first, then binary; within each, descending by count.
       if (a.isBinary !== b.isBinary) return a.isBinary ? 1 : -1;
-      return b.count - a.count;
+      return b.rawCount - a.rawCount;
     });
 }
 
-// Compute the heatmap's horizontal time window. Driven by the page's
-// period toggle, but with a hard ceiling at 90 days when period=all
-// so cells stay readable on a 760px viewBox.
-function windowFor(period: Period, trends: Prepared[]): { from: number; to: number } {
+function windowFor(
+  period: Period,
+  trends: Prepared[],
+): { from: number; to: number } {
   const now = Date.now();
   if (period !== 'all') {
     return { from: now - period * 86400_000, to: now };
   }
   const allTs: number[] = [];
-  for (const t of trends) for (const k of t.byDay.keys()) allTs.push(new Date(`${k}T12:00:00Z`).getTime());
+  for (const t of trends)
+    for (const k of t.byDay.keys()) allTs.push(new Date(`${k}T12:00:00Z`).getTime());
   if (allTs.length === 0) return { from: now - 30 * 86400_000, to: now };
   const dataMin = Math.min(...allTs);
   const dataMax = Math.max(...allTs);
@@ -146,13 +138,13 @@ function windowFor(period: Period, trends: Prepared[]): { from: number; to: numb
   return { from: dataMax - cap, to: dataMax };
 }
 
-const W = 760;
-const STATS_W = 220;
-const ROW_GAP = 6;
 const ROW_H = 22;
+const ROW_GAP = 6;
 const GROUP_GAP = 14;
-const PAD_X = 16;
 const AXIS_H = 22;
+const PAD_TOP = 4;
+const STATS_W_PX = 220;
+const SVG_PAD_X = 6;
 
 export function SurveyTrendsCard({ trends, period }: Props) {
   const series = prepare(trends);
@@ -172,28 +164,10 @@ export function SurveyTrendsCard({ trends, period }: Props) {
 
   const { from, to } = windowFor(period, series);
   const days = daysBetween(from, to);
-  const cellW = (W - STATS_W - PAD_X * 2) / days.length;
-  const cellPad = days.length > 70 ? 0.5 : days.length > 30 ? 1 : 1.5;
-  const cellSize = Math.max(cellW - cellPad * 2, 2);
 
   const scoreSeries = series.filter((s) => !s.isBinary);
   const binarySeries = series.filter((s) => s.isBinary);
-
-  // Vertical layout
-  const scoreH = scoreSeries.length * (ROW_H + ROW_GAP);
-  const binaryH = binarySeries.length * (ROW_H + ROW_GAP);
-  const groupGap = scoreSeries.length > 0 && binarySeries.length > 0 ? GROUP_GAP : 0;
-  const H = scoreH + groupGap + binaryH + AXIS_H + 8;
-
-  const gridLeft = STATS_W + PAD_X;
-  const xOfDay = (i: number) => gridLeft + i * cellW + cellPad;
-
-  // Date-axis labels: 5 evenly spaced
-  const TICK_COUNT = 5;
-  const tickAt = (i: number) =>
-    days[Math.round(((days.length - 1) * i) / (TICK_COUNT - 1))];
-
-  const totalReplies = series.reduce((s, x) => s + x.count, 0);
+  const totalReplies = series.reduce((s, x) => s + x.rawCount, 0);
   const repliesInWindow = series.reduce((sum, s) => {
     let c = 0;
     for (const k of s.byDay.keys()) {
@@ -210,6 +184,8 @@ export function SurveyTrendsCard({ trends, period }: Props) {
         right={`${scoreSeries.length} score · ${binarySeries.length} yes/no`}
       />
 
+      <ScaleLegend />
+
       {repliesInWindow === 0 ? (
         <div className="px-6 py-10 text-center">
           <p className="text-[13px] text-[color:var(--ink-mute)]">
@@ -220,220 +196,162 @@ export function SurveyTrendsCard({ trends, period }: Props) {
           </p>
         </div>
       ) : (
-        <div className="px-4 md:px-6 py-5 overflow-x-auto">
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="w-full h-auto"
-            style={{ minWidth: 600 }}
-          >
-            {/* Score rows */}
-            {scoreSeries.map((s, rowIdx) => {
-              const yTop = rowIdx * (ROW_H + ROW_GAP);
-              const cy = yTop + ROW_H / 2;
-              return (
-                <HeatRow
-                  key={s.key}
-                  series={s}
-                  yTop={yTop}
-                  cy={cy}
-                  days={days}
-                  xOfDay={xOfDay}
-                  cellSize={cellSize}
-                  cellW={cellW}
-                  statsX={PAD_X}
-                  statsW={STATS_W}
-                  isBinary={false}
-                />
-              );
-            })}
-
-            {/* Group separator */}
-            {scoreSeries.length > 0 && binarySeries.length > 0 && (
-              <line
-                x1={PAD_X}
-                x2={W - PAD_X}
-                y1={scoreH + GROUP_GAP / 2}
-                y2={scoreH + GROUP_GAP / 2}
-                stroke="var(--border)"
-                strokeWidth={0.5}
-              />
-            )}
-
-            {/* Binary rows */}
-            {binarySeries.map((s, rowIdx) => {
-              const yTop = scoreH + groupGap + rowIdx * (ROW_H + ROW_GAP);
-              const cy = yTop + ROW_H / 2;
-              return (
-                <HeatRow
-                  key={s.key}
-                  series={s}
-                  yTop={yTop}
-                  cy={cy}
-                  days={days}
-                  xOfDay={xOfDay}
-                  cellSize={cellSize}
-                  cellW={cellW}
-                  statsX={PAD_X}
-                  statsW={STATS_W}
-                  isBinary
-                />
-              );
-            })}
-
-            {/* Date axis */}
-            {Array.from({ length: TICK_COUNT }, (_, i) => {
-              const dayIdx = Math.round(((days.length - 1) * i) / (TICK_COUNT - 1));
-              const x = xOfDay(dayIdx) + cellSize / 2;
-              const ay = scoreH + groupGap + binaryH + 14;
-              return (
-                <g key={`tick-${i}`}>
-                  <line
-                    x1={x}
-                    x2={x}
-                    y1={ay - 8}
-                    y2={ay - 4}
-                    stroke="var(--border)"
-                    strokeWidth={0.5}
-                  />
-                  <text
-                    x={x}
-                    y={ay + 6}
-                    textAnchor={i === 0 ? 'start' : i === TICK_COUNT - 1 ? 'end' : 'middle'}
-                    style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
-                    className="mono tabular"
-                  >
-                    {shortDate(new Date(`${tickAt(i)}T12:00:00Z`))}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
+        <>
+          {scoreSeries.map((s, i) => (
+            <Row
+              key={s.key}
+              series={s}
+              days={days}
+              isLast={i === scoreSeries.length - 1 && binarySeries.length === 0}
+            />
+          ))}
+          {scoreSeries.length > 0 && binarySeries.length > 0 && (
+            <div className="border-t" style={{ borderColor: 'var(--border)' }} />
+          )}
+          {binarySeries.map((s, i) => (
+            <Row
+              key={s.key}
+              series={s}
+              days={days}
+              isLast={i === binarySeries.length - 1}
+            />
+          ))}
+          <DateAxis days={days} />
+        </>
       )}
     </Card>
   );
 }
 
-interface HeatRowProps {
-  series: Prepared;
-  yTop: number;
-  cy: number;
-  days: string[];
-  xOfDay: (i: number) => number;
-  cellSize: number;
-  cellW: number;
-  statsX: number;
-  statsW: number;
-  isBinary: boolean;
-}
-
-function HeatRow({
+function Row({
   series,
-  yTop,
-  cy,
   days,
-  xOfDay,
-  cellSize,
-  cellW,
-  statsX,
-  statsW,
-  isBinary,
-}: HeatRowProps) {
-  const lastTone = series.last
-    ? isBinary
-      ? series.last.score >= 0.5
+  isLast,
+}: {
+  series: Prepared;
+  days: string[];
+  isLast: boolean;
+}) {
+  const last = series.lastReply;
+  const lastTone = last
+    ? series.isBinary
+      ? last.score >= 0.5
         ? RED
         : MUTE
-      : scoreTone(series.last.score)
+      : scoreTone(last.score)
     : MUTE;
+  const lastLabel = last
+    ? series.isBinary
+      ? last.score >= 0.5
+        ? 'yes'
+        : 'no'
+      : last.score.toFixed(1)
+    : '–';
 
-  const lastLabel = series.last
-    ? isBinary
-      ? series.last.score >= 0.5
-        ? 'last yes'
-        : 'last no'
-      : `last ${series.last.score.toFixed(1)}`
-    : '';
-
-  const stat2 = isBinary
-    ? `${series.yesCount}/${series.count} yes · ${Math.round((series.yesCount / Math.max(series.count, 1)) * 100)}%`
-    : `avg ${series.avg != null ? series.avg.toFixed(1) : '–'} · ${series.count} replies`;
+  const stat2 = series.isBinary
+    ? `${series.rawYesCount}/${series.rawCount} yes · ${series.rawCount === 0 ? 0 : Math.round((series.rawYesCount / series.rawCount) * 100)}%`
+    : `avg ${series.rawAvg.toFixed(1)} · ${series.rawCount} ${series.rawCount === 1 ? 'reply' : 'replies'}`;
 
   return (
-    <g>
-      {/* Stats column */}
-      <text
-        x={statsX}
-        y={yTop + 10}
-        style={{
-          fontSize: 12,
-          fill: 'var(--ink)',
-          fontWeight: 600,
-        }}
-        className="line-clamp-1"
+    <div
+      className={`flex items-stretch ${isLast ? '' : ''}`}
+      style={{ height: ROW_H + ROW_GAP }}
+    >
+      {/* HTML stats column — proper CSS truncation, no SVG text math */}
+      <div
+        className="flex items-center gap-2 pl-6 pr-3 shrink-0"
+        style={{ width: STATS_W_PX }}
       >
-        <title>{series.full}</title>
-        {series.label}
-      </text>
-      <text
-        x={statsX}
-        y={yTop + 22}
-        style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
-        className="mono tabular"
-      >
-        {stat2}
-      </text>
-      <text
-        x={statsX + statsW - 8}
-        y={yTop + 14}
-        textAnchor="end"
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          fill: lastTone,
-        }}
-        className="mono tabular"
-      >
-        {lastLabel}
-      </text>
+        <div className="min-w-0 flex-1">
+          <div
+            className="text-[12.5px] font-semibold text-[color:var(--ink)] truncate leading-tight"
+            title={series.full}
+          >
+            {series.full}
+          </div>
+          <div className="mono text-[10px] text-[color:var(--ink-mute)] tabular leading-tight mt-0.5">
+            {stat2}
+          </div>
+        </div>
+        <div
+          className="mono text-[11px] tabular font-semibold shrink-0 leading-tight"
+          style={{ color: lastTone }}
+          title={last ? `last reply on ${shortDate(new Date(last.ts))}` : ''}
+        >
+          {lastLabel}
+        </div>
+      </div>
 
-      {/* Cells */}
+      {/* SVG heatmap row — fills remaining space; cells sized by container */}
+      <div className="flex-1 min-w-0 pr-6">
+        <HeatmapRow series={series} days={days} height={ROW_H + ROW_GAP} />
+      </div>
+    </div>
+  );
+}
+
+function HeatmapRow({
+  series,
+  days,
+  height,
+}: {
+  series: Prepared;
+  days: string[];
+  height: number;
+}) {
+  // ViewBox width chosen so cells stay readable across realistic
+  // window sizes. Each day is one column; preserveAspectRatio='none'
+  // lets the SVG stretch horizontally to fill its container.
+  const VB_W = Math.max(days.length * 12, 600);
+  const cellW = (VB_W - SVG_PAD_X * 2) / days.length;
+  const cellGap = days.length > 70 ? 0.5 : days.length > 30 ? 1 : 1.5;
+  const cellSize = Math.max(cellW - cellGap * 2, 2);
+  const cy = height / 2;
+  const xOf = (i: number) => SVG_PAD_X + i * cellW + cellGap;
+
+  return (
+    <svg
+      viewBox={`0 0 ${VB_W} ${height}`}
+      className="block w-full"
+      preserveAspectRatio="none"
+      style={{ height }}
+    >
       {days.map((d, i) => {
         const v = series.byDay.get(d);
-        const cx = xOfDay(i);
+        const cx = xOf(i) + cellSize / 2;
         if (v == null) {
-          // No reply: faint background dot
           return (
             <circle
               key={i}
-              cx={cx + cellSize / 2}
+              cx={cx}
               cy={cy}
-              r={Math.max(cellSize / 5, 0.6)}
+              r={Math.max(cellSize / 6, 0.6)}
               fill="var(--border)"
-              fillOpacity={0.4}
+              fillOpacity={0.55}
             />
           );
         }
-
-        if (isBinary) {
+        if (series.isBinary) {
           const isYes = v >= 0.5;
           if (isYes) {
             return (
               <circle
                 key={i}
-                cx={cx + cellSize / 2}
+                cx={cx}
                 cy={cy}
                 r={Math.max(cellSize / 2 - 0.5, 2)}
                 fill={RED}
               >
-                <title>{shortDate(new Date(`${d}T12:00:00Z`))}: yes</title>
+                <title>
+                  {shortDate(new Date(`${d}T12:00:00Z`))}: yes
+                </title>
               </circle>
             );
           }
           return (
             <circle
               key={i}
-              cx={cx + cellSize / 2}
+              cx={cx}
               cy={cy}
               r={Math.max(cellSize / 2 - 1, 1.5)}
               fill="none"
@@ -444,19 +362,16 @@ function HeatRow({
             </circle>
           );
         }
-
-        // Score cell — a rounded square.
-        const tone = scoreTone(v);
         return (
           <rect
             key={i}
-            x={cx}
+            x={xOf(i)}
             y={cy - cellSize / 2}
             width={cellSize}
             height={cellSize}
             rx={Math.min(2, cellSize / 4)}
-            fill={tone}
-            fillOpacity={0.85}
+            fill={scoreTone(v)}
+            fillOpacity={0.92}
           >
             <title>
               {shortDate(new Date(`${d}T12:00:00Z`))}: {v.toFixed(1)}/10
@@ -464,7 +379,122 @@ function HeatRow({
           </rect>
         );
       })}
-    </g>
+    </svg>
+  );
+}
+
+function DateAxis({ days }: { days: string[] }) {
+  const TICK_COUNT = 5;
+  return (
+    <div className="flex items-stretch" style={{ height: AXIS_H }}>
+      <div className="shrink-0" style={{ width: STATS_W_PX }} />
+      <div className="flex-1 min-w-0 pr-6 relative">
+        <svg
+          viewBox={`0 0 ${Math.max(days.length * 12, 600)} ${AXIS_H}`}
+          className="block w-full"
+          preserveAspectRatio="none"
+          style={{ height: AXIS_H }}
+        >
+          {Array.from({ length: TICK_COUNT }, (_, i) => {
+            const dayIdx = Math.round(((days.length - 1) * i) / (TICK_COUNT - 1));
+            const VB_W = Math.max(days.length * 12, 600);
+            const cellW = (VB_W - SVG_PAD_X * 2) / days.length;
+            const x = SVG_PAD_X + dayIdx * cellW + cellW / 2;
+            return (
+              <g key={i}>
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={0}
+                  y2={4}
+                  stroke="var(--border)"
+                  strokeWidth={0.5}
+                />
+                <text
+                  x={x}
+                  y={16}
+                  textAnchor={i === 0 ? 'start' : i === TICK_COUNT - 1 ? 'end' : 'middle'}
+                  style={{ fontSize: 10, fill: 'var(--ink-mute)' }}
+                  className="mono tabular"
+                >
+                  {shortDate(new Date(`${days[dayIdx]}T12:00:00Z`))}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// Color legend so the user immediately knows what cell tones mean.
+// Two halves: a smooth gradient bar (1..10 score) on the left, and a
+// pair of binary swatches on the right. Without this, a coach has to
+// hover cells one at a time to figure out the visual language.
+function ScaleLegend() {
+  return (
+    <div
+      className="flex items-center justify-between gap-6 px-6 py-3 border-b"
+      style={{ borderColor: 'var(--border)' }}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+          Score
+        </span>
+        <div
+          className="rounded-full"
+          style={{
+            width: 160,
+            height: 8,
+            background:
+              'linear-gradient(90deg,' +
+              [1, 2.5, 4, 5, 6, 7.5, 9, 10]
+                .map((v) => scoreTone(v))
+                .join(',') +
+              ')',
+          }}
+        />
+        <span className="mono text-[10px] tabular text-[color:var(--ink-mute)]">
+          1
+        </span>
+        <span className="mono text-[10px] tabular text-[color:var(--ink-mute)]">
+          10
+        </span>
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
+          Yes/no
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-block rounded-full"
+            style={{ width: 9, height: 9, background: RED }}
+          />
+          <span className="text-[11px] text-[color:var(--ink-soft)]">yes</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-block rounded-full border"
+            style={{ width: 9, height: 9, borderColor: 'var(--ink-mute)' }}
+          />
+          <span className="text-[11px] text-[color:var(--ink-soft)]">no</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-block rounded-full"
+            style={{
+              width: 4,
+              height: 4,
+              background: 'var(--border)',
+              opacity: 0.55,
+              margin: '0 2.5px',
+            }}
+          />
+          <span className="text-[11px] text-[color:var(--ink-soft)]">no reply</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
