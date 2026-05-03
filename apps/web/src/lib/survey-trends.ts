@@ -44,20 +44,6 @@ function questionIsBinary(rawQuestion: string): boolean {
   return false;
 }
 
-// Detect "Reply 1-10" / "score 1-10" / "rate 1-10" patterns. Athletes
-// answer many free-text prompts ("one thing to work on?", "which body
-// area bothers you?") with numbers (rep counts, severity ratings),
-// and we used to plot those as wellness scores — nonsense, since 7
-// reps and 7/10 readiness aren't the same scale. Only chart questions
-// whose text explicitly establishes a 0/1–10 numeric range.
-function questionIsScore(rawQuestion: string): boolean {
-  const t = rawQuestion.toLowerCase();
-  if (/\b(?:reply|rate|score|enter|on a scale of?)\b[\s\S]{0,30}?(?:0|1)\s*[-–to]+\s*10\b/.test(t))
-    return true;
-  if (/\b(?:0|1)\s*[-–to]+\s*10\b/.test(t) && /\b(?:score|rate|rating|reply)\b/.test(t))
-    return true;
-  return false;
-}
 
 const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -158,17 +144,18 @@ export function buildSurveyTrends(msgs: TwilioMessage[]): QuestionTrend[] {
         break;
       }
     }
-    // Drop replies we can't pair to a real question. Also drop
-    // replies whose question is neither an explicit 0/1-10 score nor
-    // a 0=no, 1=yes binary — athletes answer free-text prompts
-    // ("one thing to work on?") with numbers (rep counts, severity
-    // ratings), and plotting those alongside wellness scores is
-    // misleading. The strict text-pattern filter is the only honest
-    // way to know what scale the number is actually on.
+    // Drop replies we can't pair to a real question — those would
+    // bucket into a single 'unmatched' line that mixes unrelated
+    // answers. Anything else is fair game: if a paired question got
+    // a numeric reply, the user wants to see the trend, even when we
+    // can't be 100% certain it's a wellness score.
+    //
+    // Text-based binary detection still wins (so 'Did pain start?
+    // 0=no, 1=yes' doesn't get plotted as a chaotic line on the
+    // 0–10 axis when athletes typed severity), but everything else
+    // becomes a score series.
     if (!questionBody) continue;
     const isBinary = questionIsBinary(questionBody);
-    const isScore = questionIsScore(questionBody);
-    if (!isBinary && !isScore) continue;
     const { display, key } = normalizeQuestion(questionBody);
     if (!key) continue;
     let g = groups.get(key);
