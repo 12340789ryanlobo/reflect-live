@@ -331,18 +331,26 @@ export function AppSidebar({
             continuous with the sidebar width transition. */}
         <div
           className={cn(
-            'flex items-center justify-between gap-2 px-2 overflow-hidden transition-all duration-200 ease-out',
+            // gap-2 + min-w-0 + each child's shrink rules: role pill
+            // stays whole (shrink-0), team switcher gets the leftover
+            // space and ellipsizes (min-w-0). Without these the long
+            // 'UChicago Men's Swim & Dive' was cut mid-word.
+            'flex items-center gap-2 px-2 overflow-hidden transition-all duration-200 ease-out',
             collapsed ? 'opacity-0 max-h-0 pb-0' : 'opacity-100 max-h-12 pb-2',
           )}
           aria-hidden={collapsed}
         >
-          <RoleSwitcher current={role} />
+          <div className="shrink-0">
+            <RoleSwitcher current={role} />
+          </div>
           {teamName && teamId !== undefined && (
-            <TeamSwitcher
-              currentTeamId={teamId}
-              currentTeamName={teamName}
-              isPlatformAdmin={isPlatformAdmin}
-            />
+            <div className="min-w-0 flex-1 flex justify-end">
+              <TeamSwitcher
+                currentTeamId={teamId}
+                currentTeamName={teamName}
+                isPlatformAdmin={isPlatformAdmin}
+              />
+            </div>
           )}
         </div>
       </SidebarHeader>

@@ -100,7 +100,10 @@ export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }
   // wrong state. Static fallback before load: just the team name.
   if (!loaded) {
     return (
-      <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
+      <span
+        className="truncate min-w-0 text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold"
+        title={currentTeamName}
+      >
         {currentTeamName}
       </span>
     );
@@ -124,13 +127,18 @@ export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded transition hover:opacity-80"
+          // min-w-0 + flex (not inline-flex) lets the inner span's
+          // truncate fire — without it, long team names ('UChicago
+          // Men's Swim & Dive') overflow the sidebar instead of
+          // ellipsizing. title= surfaces the full name on hover.
+          className="flex min-w-0 items-center gap-1 rounded transition hover:opacity-80"
           aria-label="Switch active team"
+          title={currentTeamName}
         >
-          <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
+          <span className="truncate min-w-0 text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
             {currentTeamName}
           </span>
-          <ChevronsUpDown className="size-3 text-[color:var(--ink-mute)]" />
+          <ChevronsUpDown className="size-3 shrink-0 text-[color:var(--ink-mute)]" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="start" className="w-60">

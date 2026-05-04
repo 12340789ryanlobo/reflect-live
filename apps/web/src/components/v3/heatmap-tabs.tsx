@@ -14,6 +14,13 @@ import {
 import { Pill } from '@/components/v3/pill';
 import { regionLabel } from '@/lib/injury-aliases';
 import type { Gender } from '@reflect-live/shared';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Info } from 'lucide-react';
 
 export type HeatmapTab = 'injury' | 'activity' | 'rehab';
 
@@ -85,7 +92,42 @@ export function HeatmapTabs({
         className="flex items-center justify-between gap-3 px-6 py-4 border-b flex-wrap"
         style={{ borderColor: 'var(--border)' }}
       >
-        <h2 className="text-base font-bold text-[color:var(--ink)]">Body map</h2>
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-base font-bold text-[color:var(--ink)]">Body map</h2>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="How the body map works"
+                  className="inline-flex items-center justify-center rounded-full size-4 text-[color:var(--ink-mute)] hover:text-[color:var(--ink)] transition"
+                >
+                  <Info className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="start" className="max-w-xs text-[12px] leading-relaxed">
+                <p className="font-semibold mb-1">How the body map works</p>
+                <p>
+                  Three modes: <span className="font-semibold">Activity</span>{' '}
+                  paints muscles worked in logged workouts,{' '}
+                  <span className="font-semibold">Injury</span> shows reported
+                  pain, <span className="font-semibold">Rehab</span> shows
+                  rehab sessions tagged to a region.
+                </p>
+                <p className="mt-1.5">
+                  Workout text is parsed for exercise names (e.g. &ldquo;bench
+                  press&rdquo; &rarr; chest) and PPL shorthand (&ldquo;leg
+                  day&rdquo; &rarr; quads + hams + glutes + calves). Color
+                  intensity scales with session count.
+                </p>
+                <p className="mt-1.5 text-[color:var(--ink-mute)]">
+                  Click a muscle to filter the timeline below to entries that
+                  touched it.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
         <div
           className="inline-flex rounded-md border overflow-hidden"
           style={{ borderColor: 'var(--border)' }}
