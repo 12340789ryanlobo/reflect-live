@@ -275,9 +275,13 @@ function ScaleInput({
             <button
               key={n}
               type="button"
-              onClick={() => onChange(String(n))}
+              // Click the active number to clear it — gives the user
+              // a way back to 'unanswered' (skip) without having to
+              // refresh the dialog. Submission already drops empty
+              // answers from the payload.
+              onClick={() => onChange(isActive ? '' : String(n))}
               aria-pressed={isActive}
-              aria-label={`${n}`}
+              aria-label={isActive ? `Clear ${n}` : `${n}`}
               className="h-9 rounded-md border text-[13px] font-bold tabular transition focus:outline-none focus:ring-2 focus:ring-[color:var(--blue)]"
               style={{
                 borderColor: isActive ? tone : 'var(--border)',
@@ -316,8 +320,11 @@ function BinaryInput({
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={() => onChange('0')}
+          // Click-active-to-clear, so the user can return to
+          // 'unanswered' (skip) without dialog refresh.
+          onClick={() => onChange(isNo ? '' : '0')}
           aria-pressed={isNo}
+          aria-label={isNo ? 'Clear No' : 'No'}
           className="flex-1 h-9 rounded-md border text-[13px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-[color:var(--blue)]"
           style={{
             borderColor: isNo ? 'var(--green)' : 'var(--border)',
@@ -329,8 +336,9 @@ function BinaryInput({
         </button>
         <button
           type="button"
-          onClick={() => onChange('1')}
+          onClick={() => onChange(isYes ? '' : '1')}
           aria-pressed={isYes}
+          aria-label={isYes ? 'Clear Yes' : 'Yes'}
           className="flex-1 h-9 rounded-md border text-[13px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-[color:var(--blue)]"
           style={{
             borderColor: isYes ? 'var(--amber)' : 'var(--border)',
