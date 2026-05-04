@@ -128,6 +128,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'membership_insert_failed', detail: mErr.message, team }, { status: 500 });
   }
 
+  // Switch the creator's user_preferences over to the new team and
+  // align role with their fresh coach membership. Without this, the
+  // creator landed on /dashboard with prefs.role still pointing at
+  // whatever they were before (athlete on the prior team), the heal
+  // logic in dashboard-shell would force them back to that prior
+  // role, and the new-team experience read as 'I'm an athlete'
+  // instead of 'I'm the coach'. impersonate_player_id is reset to
+  // null because the prior value was a player on a different team.
+  const { error: prefsErr } = await sb
+    .from('user_preferences')
+    .upsert(
+      {
+        clerk_user_id: userId,
+        team_id: team.id,
+        role: 'coach',
+        impersonate_player_id: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'clerk_user_id' },
+    );
+  if (prefsErr) {
+    // Non-fatal: team and membership both exist. Log so we notice if
+    // it starts happening systematically.
+    console.error('[teams] prefs upsert failed for creator:', prefsErr.message);
+  }
+
   return NextResponse.json({ ok: true, team, requires_approval: requireApproval });
 }
 

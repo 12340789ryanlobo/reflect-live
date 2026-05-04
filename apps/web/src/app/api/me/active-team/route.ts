@@ -53,15 +53,37 @@ export async function PATCH(req: NextRequest) {
   const { data: team } = await sb.from('teams').select('id, name').eq('id', teamId).maybeSingle<{ id: number; name: string }>();
   if (!team) return NextResponse.json({ error: 'team_not_found' }, { status: 404 });
 
-  // Update. We upsert so users created via the request flow before
-  // user_preferences existed get a row created on first switch.
+  // Align prefs.role + impersonate_player_id with the team being
+  // switched INTO. Without this, switching from a team where you
+  // were 'coach' into one where you're 'athlete' (or vice versa)
+  // left prefs.role stale, and the heal logic in dashboard-shell
+  // misclassified you. impersonate_player_id is set from the
+  // membership row so 'My view' / self-report affordances on the
+  // player page work correctly. Platform admins keep their stored
+  // role since they're allowed to view-as via the role switcher.
+  const newRole = isAdmin
+    ? prefs.data?.role ?? 'admin'
+    : mem.data?.role ?? 'athlete';
+  const { data: memWithPlayer } = await sb
+    .from('team_memberships')
+    .select('player_id')
+    .eq('clerk_user_id', userId)
+    .eq('team_id', teamId)
+    .eq('status', 'active')
+    .maybeSingle<{ player_id: number | null }>();
+
   const { error } = await sb
     .from('user_preferences')
-    .upsert({
-      clerk_user_id: userId,
-      team_id: teamId,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'clerk_user_id' });
+    .upsert(
+      {
+        clerk_user_id: userId,
+        team_id: teamId,
+        role: newRole,
+        impersonate_player_id: memWithPlayer?.player_id ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'clerk_user_id' },
+    );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true, team });

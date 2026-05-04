@@ -110,8 +110,19 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       prefIsPlatformAdmin && state.kind !== 'active'
         ? (prefRow as UserPreferences).team_id
         : null;
+    // The "active" team for this render is whichever team the user is
+    // currently viewing — prefs.team_id wins when set (it tracks what
+    // the team-switcher last picked AND what /api/teams just created).
+    // Fall back to the membership-state default only when prefs has
+    // nothing useful (fresh signup, pending-only state). Without this,
+    // a user who'd just switched teams or created a new team had
+    // prefs.team_id pointing at the new team but defaultTeamId still
+    // pointing at the lowest-id membership, causing role/team
+    // resolution mismatches and the sidebar to render the wrong nav.
+    const prefsTeamId = (prefRow as UserPreferences | null)?.team_id ?? null;
     const defaultTeamId =
-      state.kind === 'active' ? state.defaultTeamId : fallbackTeamId;
+      prefsTeamId ??
+      (state.kind === 'active' ? state.defaultTeamId : fallbackTeamId);
     if (defaultTeamId == null) {
       // Defensive — shouldn't happen because we either have an active
       // membership OR we're a platform admin with prefs.team_id. If it
