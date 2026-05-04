@@ -319,12 +319,16 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // Anyone (athlete, captain, or coach who's also on the roster) viewing
   // their OWN player page gets the self affordances — Self-report / Log
   // workout / Report injury — instead of the manage-someone-else set.
-  // Texting yourself or marking your own injury 'resolved' from the coach
-  // panel makes no sense; this is your personal page. Platform admins are
-  // excluded so they keep the cross-team manager affordances.
+  // Driven by the role you're currently viewing as (prefs.role) plus
+  // the impersonate target. A platform admin who role-switches to
+  // 'athlete' wants the athlete experience, including the
+  // 'Text a workout' button that goes to the team Twilio number — not
+  // the coach 'Text' button that opens a chat to this player's
+  // personal phone. The previous gate hid the self set behind
+  // !is_platform_admin so admins-in-athlete-view stayed in coach mode.
   const viewerIsSelf =
-    !prefs.is_platform_admin &&
-    prefs.impersonate_player_id === player.id;
+    prefs.impersonate_player_id === player.id &&
+    (prefs.role === 'athlete' || prefs.role === 'captain');
   // Roster edits — coach on this team, or platform admin. Mirrors the
   // server-side requireRosterManager check on PATCH /api/players/[id].
   const viewerCanEdit =
