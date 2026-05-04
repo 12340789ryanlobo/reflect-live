@@ -4,19 +4,20 @@ import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { ReadinessBar } from '@/components/v3/readiness-bar';
-import { TrendChart, type TrendDay } from '@/components/v3/trend-chart';
+import { SurveyTrendsCard } from '@/components/v3/survey-trends-card';
+import { buildSurveyTrends, type QuestionTrend } from '@/lib/survey-trends';
 import { NeedsAttention } from '@/components/v3/needs-attention';
 import { Pill } from '@/components/v3/pill';
 import { PeriodToggle } from '@/components/v3/period-toggle';
 import { type Period, periodLabel, periodSinceIso } from '@/lib/period';
 import { stripProtocolPrefix } from '@/lib/timeline';
 import { useSupabase } from '@/lib/supabase-browser';
-import type { Location, WeatherSnapshot, ActivityLog, Player } from '@reflect-live/shared';
+import type {
+  Location, WeatherSnapshot, ActivityLog, TwilioMessage,
+} from '@reflect-live/shared';
 import { prettyDate, relativeTime } from '@/lib/format';
 
 const PERIOD_OPTIONS: readonly Period[] = [1, 7, 14, 30, 'all'] as const;
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 interface Counts {
   messages: number;
@@ -40,7 +41,10 @@ export default function Dashboard() {
     messages: 0, activePlayers: 0, rosterSize: 0, responseRate: 0,
     avgReadiness: null, flags: 0, surveyCount: 0,
   });
-  const [trend, setTrend] = useState<TrendDay[]>([]);
+  // Twilio messages for the period — fed into buildSurveyTrends below to
+  // produce per-metric team trends (the same machinery the athlete page
+  // uses, just aggregated across the whole roster).
+  const [scopedMsgs, setScopedMsgs] = useState<TwilioMessage[]>([]);
   const [nextMeet, setNextMeet] = useState<(Location & { daysUntil: number; weather?: WeatherSnapshot }) | null>(null);
   const [recentActivity, setRecentActivity] = useState<ActivityWithPlayer[]>([]);
 
@@ -56,62 +60,59 @@ export default function Dashboard() {
       const phoneSet = new Set((players ?? []).map((p: { phone_e164: string }) => p.phone_e164));
       const msgQ = sb
         .from('twilio_messages')
-        .select('from_number,direction,category,body,player_id,date_sent')
+        .select('*')
         .eq('team_id', prefs.team_id);
       const { data: msgs } = await (since ? msgQ.gte('date_sent', since) : msgQ);
-      const allMsgs = (msgs ?? []) as Array<{
-        from_number: string | null; direction: string; category: string;
-        body: string | null; player_id: number | null; date_sent: string;
-      }>;
+      const allMsgs = (msgs ?? []) as TwilioMessage[];
       const scoped = groupFilter
         ? allMsgs.filter((m) => m.from_number && phoneSet.has(m.from_number))
         : allMsgs;
       const active = new Set(scoped.filter((m) => m.direction === 'inbound').map((m) => m.from_number)).size;
       const rr = rosterSize ? Math.round((active / rosterSize) * 100) : 0;
-      const readings = scoped
-        .filter((m) => m.category === 'survey' && m.body)
-        .map((m) => {
-          const match = /^(\d{1,2})/.exec(m.body!.trim());
-          return match ? Number(match[1]) : null;
-        })
-        .filter((n): n is number => n !== null && n >= 1 && n <= 10);
-      const avg = readings.length ? Math.round((readings.reduce((a, b) => a + b, 0) / readings.length) * 10) / 10 : null;
-      const flagsCount = readings.filter((n) => n <= 4).length;
-      setCounts({
-        messages: scoped.length, activePlayers: active, rosterSize,
-        responseRate: rr, avgReadiness: avg, flags: flagsCount, surveyCount: readings.length,
-      });
-
-      // Build 7-day trend (always 7 days regardless of days filter)
-      const trendSince = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-      const buckets: Array<{ values: number[]; date: Date }> = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(trendSince);
-        d.setDate(d.getDate() + (6 - i));
-        d.setHours(0, 0, 0, 0);
-        buckets.push({ values: [], date: d });
-      }
-      const startMs = trendSince.getTime();
-      for (const m of scoped) {
-        if (m.category !== 'survey' || !m.body) continue;
-        const t = new Date(m.date_sent).getTime();
-        if (t < startMs) continue;
-        const match = /^(\d{1,2})/.exec(m.body.trim());
-        if (!match) continue;
-        const n = Number(match[1]);
-        if (!(n >= 1 && n <= 10)) continue;
-        const dayIdx = Math.floor((t - startMs) / (24 * 3600 * 1000));
-        if (dayIdx >= 0 && dayIdx < 7) buckets[dayIdx].values.push(n);
-      }
-      setTrend(
-        buckets.map((b) => ({
-          day: DAY_LABELS[b.date.getDay()],
-          value: b.values.length ? Math.round((b.values.reduce((a, c) => a + c, 0) / b.values.length) * 10) / 10 : null,
-          count: b.values.length,
-        })),
-      );
+      // Hand-off to survey-trends downstream: compute hero stats from
+      // the readiness bucket only (not "every numeric reply"), so a
+      // Tuesday/Thursday survey day with sleep/focus/RPE numbers
+      // doesn't inflate or distort the readiness number.
+      setScopedMsgs(scoped);
+      setCounts((prev) => ({
+        ...prev,
+        messages: scoped.length,
+        activePlayers: active,
+        rosterSize,
+        responseRate: rr,
+        // avgReadiness / flags / surveyCount are computed in the
+        // useMemo below from the trends, after pairing.
+      }));
     })();
   }, [sb, prefs.team_id, prefs.group_filter, days]);
+
+  // Per-metric team trends — single source of truth for both the hero
+  // readiness number and the small-multiples calendar grid.
+  const trends: QuestionTrend[] = useMemo(
+    () => buildSurveyTrends(scopedMsgs),
+    [scopedMsgs],
+  );
+
+  // Hero stats derive from the readiness bucket specifically. If the
+  // team's templates don't include a question that maps to readiness
+  // (inferMetric returns 'readiness' for "How ready are you", "rate
+  // your readiness", etc.), the hero shows '—' instead of a misleading
+  // mean over unrelated numerics.
+  useEffect(() => {
+    const readiness = trends.find((t) => t.key === 'readiness');
+    const flagCount = readiness
+      ? readiness.points.filter((p) => p.score <= 4).length
+      : 0;
+    const avg = readiness && readiness.rawCount > 0
+      ? Math.round(readiness.rawAvg * 10) / 10
+      : null;
+    setCounts((prev) => ({
+      ...prev,
+      avgReadiness: avg,
+      flags: flagCount,
+      surveyCount: readiness?.rawCount ?? 0,
+    }));
+  }, [trends]);
 
   // Next meet + weather
   useEffect(() => {
@@ -169,15 +170,13 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Trend chart */}
-        <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
-          <header className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-base font-bold text-[color:var(--ink)]">Readiness · last 7 days</h2>
-              <p className="text-[12px] text-[color:var(--ink-mute)] mt-0.5">Daily team average. Bars colored by score.</p>
-            </div>
-          </header>
-          <TrendChart data={trend} />
+        {/* Score trends — per-metric team averages, same machinery as the
+            individual athlete page but aggregated across the roster.
+            One row per metric (readiness/sleep/focus/RPE/mental/pain/...);
+            each cell is a calendar day's mean score across the team.
+            Click any cell to drill into that day's questions and replies. */}
+        <section className="reveal reveal-2">
+          <SurveyTrendsCard trends={trends} period={days} />
         </section>
 
         {/* Needs attention + Next meet */}
