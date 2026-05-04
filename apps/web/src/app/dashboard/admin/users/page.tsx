@@ -23,12 +23,21 @@ import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { prettyDate } from '@/lib/format';
 
+interface MembershipLite {
+  team_id: number;
+  team_name: string;
+  role: string;
+  status: string;
+}
+
 interface UserRow {
   clerk_user_id: string;
   email: string | null;
   name: string | null;
   role: string;
   team_id: number;
+  team_name: string | null;
+  memberships: MembershipLite[];
   impersonate_player_id: number | null;
   created_at: string;
 }
@@ -141,6 +150,7 @@ export default function AdminUsersPage() {
                     <Th>Email</Th>
                     <Th>Name</Th>
                     <Th>Role</Th>
+                    <Th>Teams</Th>
                     <Th>Linked athlete</Th>
                     <Th>Joined</Th>
                     <Th />
@@ -186,6 +196,13 @@ export default function AdminUsersPage() {
                               </SelectContent>
                             </Select>
                           </div>
+                        </Td>
+                        <Td>
+                          <TeamsCell
+                            memberships={u.memberships}
+                            activeTeamId={u.team_id}
+                            activeTeamName={u.team_name}
+                          />
                         </Td>
                         <Td>
                           {linked ? (
@@ -269,4 +286,76 @@ function Th({ children }: { children?: React.ReactNode }) {
 }
 function Td({ children }: { children?: React.ReactNode }) {
   return <td className="px-4 py-3 align-top">{children}</td>;
+}
+
+function TeamsCell({
+  memberships,
+  activeTeamId,
+  activeTeamName,
+}: {
+  memberships: MembershipLite[];
+  activeTeamId: number;
+  activeTeamName: string | null;
+}) {
+  // Build the rendered list. The user's "active team" (user_preferences.team_id)
+  // may not have a matching membership row for legacy / platform-admin
+  // accounts — surface it as a synthetic entry so the column never shows
+  // empty for someone who clearly belongs somewhere.
+  const haveActive = memberships.some((m) => m.team_id === activeTeamId);
+  const list = [...memberships];
+  if (!haveActive) {
+    list.push({
+      team_id: activeTeamId,
+      team_name: activeTeamName ?? `team ${activeTeamId}`,
+      role: '—',
+      status: 'no-membership',
+    });
+  }
+  // Active first, then alphabetical.
+  list.sort((a, b) => {
+    if (a.team_id === activeTeamId && b.team_id !== activeTeamId) return -1;
+    if (b.team_id === activeTeamId && a.team_id !== activeTeamId) return 1;
+    return a.team_name.localeCompare(b.team_name);
+  });
+
+  if (list.length === 0) {
+    return <span className="text-[12px] text-[color:var(--ink-dim)]">—</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {list.map((m) => {
+        const isActive = m.team_id === activeTeamId;
+        const isPending = m.status === 'pending';
+        const isInactive = m.status === 'inactive' || m.status === 'no-membership';
+        const ring = isActive
+          ? 'border-[color:var(--ink)] text-[color:var(--ink)]'
+          : isPending
+            ? 'border-amber-300 text-amber-700 bg-amber-50'
+            : isInactive
+              ? 'border-[color:var(--border)] text-[color:var(--ink-dim)] bg-transparent'
+              : 'border-[color:var(--border)] text-[color:var(--ink-mute)] bg-[color:var(--card-mute)]';
+        return (
+          <span
+            key={m.team_id}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px] ${ring}`}
+            title={`${m.team_name} · ${m.role}${m.status !== 'active' && m.status !== 'no-membership' ? ` · ${m.status}` : ''}${m.status === 'no-membership' ? ' · no membership row' : ''}`}
+          >
+            <span className="font-medium">{m.team_name}</span>
+            <span className="text-[10px] uppercase tracking-wide text-[color:var(--ink-mute)]">
+              {m.role}
+            </span>
+            {isActive && (
+              <span className="text-[9px] uppercase tracking-wide text-[color:var(--ink-mute)]">
+                active
+              </span>
+            )}
+            {isPending && (
+              <span className="text-[9px] uppercase tracking-wide">pending</span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
 }

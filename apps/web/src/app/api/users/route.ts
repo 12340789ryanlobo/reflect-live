@@ -27,33 +27,51 @@ export async function GET() {
 
   const sb = serviceClient();
   const { data: prefs } = await sb.from('user_preferences').select('*').order('created_at');
+
+  // Bulk-fetch all memberships + every team so we can render the multi-team
+  // membership picture without N+1 queries against Supabase.
+  const [{ data: mems }, { data: teams }] = await Promise.all([
+    sb.from('team_memberships').select('clerk_user_id, team_id, role, status'),
+    sb.from('teams').select('id, name'),
+  ]);
+  const teamName = new Map<number, string>();
+  for (const t of (teams ?? []) as Array<{ id: number; name: string }>) teamName.set(t.id, t.name);
+  const memsByUser = new Map<string, Array<{ team_id: number; team_name: string; role: string; status: string }>>();
+  for (const m of (mems ?? []) as Array<{ clerk_user_id: string; team_id: number; role: string; status: string }>) {
+    const list = memsByUser.get(m.clerk_user_id) ?? [];
+    list.push({
+      team_id: m.team_id,
+      team_name: teamName.get(m.team_id) ?? `team ${m.team_id}`,
+      role: m.role,
+      status: m.status,
+    });
+    memsByUser.set(m.clerk_user_id, list);
+  }
+
   const clerk = await clerkClient();
 
   const rows = await Promise.all(
     (prefs ?? []).map(async (p) => {
+      const memberships = memsByUser.get(p.clerk_user_id) ?? [];
+      const base = {
+        clerk_user_id: p.clerk_user_id,
+        role: p.role ?? 'coach',
+        team_id: p.team_id as number,
+        team_name: teamName.get(p.team_id) ?? null,
+        memberships,
+        impersonate_player_id: p.impersonate_player_id ?? null,
+        group_filter: p.group_filter ?? null,
+        created_at: p.created_at,
+      };
       try {
         const u = await clerk.users.getUser(p.clerk_user_id);
         return {
-          clerk_user_id: p.clerk_user_id,
+          ...base,
           email: u.emailAddresses?.[0]?.emailAddress ?? null,
           name: u.fullName ?? null,
-          role: p.role ?? 'coach',
-          team_id: p.team_id as number,
-          impersonate_player_id: p.impersonate_player_id ?? null,
-          group_filter: p.group_filter ?? null,
-          created_at: p.created_at,
         };
       } catch {
-        return {
-          clerk_user_id: p.clerk_user_id,
-          email: null,
-          name: null,
-          role: p.role ?? 'coach',
-          team_id: p.team_id as number,
-          impersonate_player_id: p.impersonate_player_id ?? null,
-          group_filter: p.group_filter ?? null,
-          created_at: p.created_at,
-        };
+        return { ...base, email: null, name: null };
       }
     }),
   );
