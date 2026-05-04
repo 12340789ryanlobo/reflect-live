@@ -321,7 +321,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     ? state.active.find((m) => m.team_id === state.defaultTeamId)
     : undefined;
   const membershipRole = (activeMem?.role ?? 'athlete') as UserRole;
-  const isAdminUser = prefs?.is_platform_admin === true || prefs?.role === 'admin';
+  // Same canonical admin marker as fetchAll above. is_platform_admin is
+  // stable across role switches; prefs.role is overwritten by the
+  // role-switcher and would silently demote the user the moment they
+  // clicked 'View as coach'.
+  const isAdminUser = prefs?.is_platform_admin === true;
   const role: UserRole = isAdminUser
     ? ((prefs?.role as UserRole) ?? membershipRole)
     : membershipRole;
