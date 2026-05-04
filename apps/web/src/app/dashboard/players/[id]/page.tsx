@@ -139,15 +139,46 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         .order('reported_at', { ascending: false })
         .limit(1000);
 
-      const [{ data: p }, { data: m }, { data: l }, { data: inj }] = await Promise.all([
+      // Soft-deleted sessions should disappear everywhere — Score
+      // trends and timeline included. We derive the time windows the
+      // bot was actively conducting the deleted session(s) for THIS
+      // player from the deliveries table, then drop any twilio
+      // message whose timestamp falls inside one of those windows.
+      // Pad each window by 5 min on both ends to cover the question
+      // burst at start + the trailing ack.
+      const deletedQ = sb
+        .from('deliveries')
+        .select('started_at,completed_at,session:sessions!inner(deleted_at)')
+        .eq('player_id', playerId)
+        .not('session.deleted_at', 'is', null);
+
+      const [{ data: p }, { data: m }, { data: l }, { data: inj }, { data: delDelivs }] = await Promise.all([
         sb.from('players').select('*').eq('id', playerId).single(),
         since ? msgQ.gte('date_sent', since) : msgQ,
         since ? logQ.gte('logged_at', since) : logQ,
         since ? injQ.gte('reported_at', since) : injQ,
+        deletedQ,
       ]);
       if (!alive) return;
+      const PAD_MS = 5 * 60_000;
+      const FALLBACK_END_MS = 48 * 3600_000; // when delivery never completed
+      const windows: Array<[number, number]> = [];
+      for (const d of (delDelivs ?? []) as Array<{ started_at: string; completed_at: string | null }>) {
+        const start = Date.parse(d.started_at);
+        const end = d.completed_at
+          ? Date.parse(d.completed_at)
+          : start + FALLBACK_END_MS;
+        windows.push([start - PAD_MS, end + PAD_MS]);
+      }
+      const filteredMsgs = (m ?? []).filter((tm) => {
+        const t = Date.parse(tm.date_sent);
+        for (const [a, b] of windows) {
+          if (t >= a && t <= b) return false;
+        }
+        return true;
+      });
       setPlayer(p as Player);
-      setMsgs((m ?? []) as TwilioMessage[]);
+      setMsgs(filteredMsgs as TwilioMessage[]);
       setLogs((l ?? []) as ActivityLog[]);
       setInjuries((inj ?? []) as InjuryRow[]);
     })();

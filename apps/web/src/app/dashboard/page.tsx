@@ -83,9 +83,39 @@ export default function Dashboard() {
         allMsgs.push(...(page as TwilioMessage[]));
         if (page.length < PAGE) break;
       }
+      // Soft-deleted sessions should drop out of every surface, not
+      // just /dashboard/sessions. Pull the (player_id × time-window)
+      // pairs for deliveries whose parent session is deleted, then
+      // filter messages whose timestamp falls inside one of those
+      // windows. ±5min padding covers the question burst at the start
+      // and the trailing ack.
+      const { data: delDelivs } = await sb
+        .from('deliveries')
+        .select('player_id,started_at,completed_at,session:sessions!inner(deleted_at)')
+        .not('session.deleted_at', 'is', null)
+        .in('player_id', Array.from(new Set((allMsgs.map((m) => m.player_id).filter((x): x is number => x != null)))));
+      const PAD = 5 * 60_000;
+      const FALLBACK = 48 * 3600_000;
+      const windowsByPlayer = new Map<number, Array<[number, number]>>();
+      for (const d of (delDelivs ?? []) as Array<{ player_id: number; started_at: string; completed_at: string | null }>) {
+        const start = Date.parse(d.started_at);
+        const end = d.completed_at ? Date.parse(d.completed_at) : start + FALLBACK;
+        const arr = windowsByPlayer.get(d.player_id) ?? [];
+        arr.push([start - PAD, end + PAD]);
+        windowsByPlayer.set(d.player_id, arr);
+      }
+      const inDeletedWindow = (m: TwilioMessage): boolean => {
+        if (m.player_id == null) return false;
+        const wins = windowsByPlayer.get(m.player_id);
+        if (!wins) return false;
+        const t = Date.parse(m.date_sent);
+        for (const [a, b] of wins) if (t >= a && t <= b) return true;
+        return false;
+      };
+      const visibleMsgs = allMsgs.filter((m) => !inDeletedWindow(m));
       const scoped = groupFilter
-        ? allMsgs.filter((m) => m.player_id != null && groupPlayerIds.has(m.player_id))
-        : allMsgs;
+        ? visibleMsgs.filter((m) => m.player_id != null && groupPlayerIds.has(m.player_id))
+        : visibleMsgs;
       // "Active" = roster players who responded at least once. Counting
       // by player_id (not raw from_number) collapses whatsapp:+E164 vs
       // +E164 duplicates and bounds the response rate at 100% — the old
