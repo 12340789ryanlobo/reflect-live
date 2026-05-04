@@ -174,7 +174,7 @@ export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }
 
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/dashboard/team/new" className="flex items-center gap-2 text-[12.5px]">
+          <Link href="/onboarding?mode=create" className="flex items-center gap-2 text-[12.5px]">
             <Plus className="size-3.5" />
             <span>Create another team</span>
           </Link>

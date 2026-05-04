@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
@@ -21,9 +21,36 @@ interface DiscoverableTeam {
   default_gender: string | null;
 }
 
-export default function Onboarding() {
+// Page entry: must wrap the inner component (which calls
+// useSearchParams) in a Suspense boundary, per Next.js's
+// missing-suspense-with-csr-bailout build rule.
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={null}>
+      <Onboarding />
+    </Suspense>
+  );
+}
+
+function Onboarding() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useUser();
+
+  // Mode toggle: 'join' (default) lets the user request membership in
+  // an existing team; 'create' lets them spin up a brand-new team
+  // they'll be coach of. Driven by ?mode=create so the sidebar's
+  // "Create another team" link can deep-link straight to the create
+  // form for users who already have a team.
+  const initialMode = searchParams.get('mode') === 'create' ? 'create' : 'join';
+  const [mode, setMode] = useState<'join' | 'create'>(initialMode);
+
+  // Create-team form state.
+  const [createName, setCreateName] = useState('');
+  const [createGender, setCreateGender] = useState<'male' | 'female'>('male');
+  const [createDescription, setCreateDescription] = useState('');
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createErr, setCreateErr] = useState<string | null>(null);
 
   const [teams, setTeams] = useState<DiscoverableTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,6 +149,38 @@ export default function Onboarding() {
     setSubmitErr(j.detail ?? j.error ?? 'Could not submit request');
   }
 
+  // POST /api/teams — creates a brand-new team and makes the current
+  // Clerk user its first coach via team_memberships. After creation
+  // we land on /dashboard which auto-loads the new team via the
+  // existing prefs flow (POST /api/teams already upserts an active
+  // membership for the creator).
+  async function submitCreate() {
+    const trimmed = createName.trim();
+    if (trimmed.length < 2) {
+      setCreateErr('Team name is required.');
+      return;
+    }
+    setCreateSubmitting(true);
+    setCreateErr(null);
+    const res = await fetch('/api/teams', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: trimmed,
+        default_gender: createGender,
+        description: createDescription.trim() || null,
+      }),
+    });
+    setCreateSubmitting(false);
+    if (res.ok) {
+      router.push('/dashboard');
+      router.refresh();
+      return;
+    }
+    const j = await res.json().catch(() => ({}));
+    setCreateErr(j.detail ?? j.error ?? 'Could not create team.');
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center px-6 py-12 bg-[color:var(--paper)]">
       <div className="w-full max-w-[480px]">
@@ -130,11 +189,111 @@ export default function Onboarding() {
           className="rounded-2xl bg-[color:var(--card)] border p-8 shadow-[var(--shadow)]"
           style={{ borderColor: 'var(--border)' }}
         >
-          <h1 className="text-2xl font-bold tracking-tight text-[color:var(--ink)]">Find your team</h1>
-          <p className="mt-2 text-[14px] text-[color:var(--ink-mute)]">
-            Pick a team you belong to or paste a join code your coach gave you.
-            We&rsquo;ll send the request to the team for approval.
-          </p>
+          {/* Mode toggle — same page handles both 'join existing team'
+              and 'create new team'. New accounts default to join,
+              existing users hit ?mode=create from the sidebar. */}
+          <div
+            className="mb-6 inline-flex rounded-lg border p-1"
+            style={{ borderColor: 'var(--border)' }}
+            role="tablist"
+            aria-label="Onboarding mode"
+          >
+            {(['join', 'create'] as const).map((m) => {
+              const active = mode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setMode(m)}
+                  className={`px-4 py-1.5 rounded-md text-[12.5px] font-semibold transition ${
+                    active
+                      ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
+                      : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]'
+                  }`}
+                >
+                  {m === 'join' ? 'Join a team' : 'Create a team'}
+                </button>
+              );
+            })}
+          </div>
+
+          {mode === 'create' ? (
+            <>
+              <h1 className="text-2xl font-bold tracking-tight text-[color:var(--ink)]">
+                Create a team
+              </h1>
+              <p className="mt-2 text-[14px] text-[color:var(--ink-mute)]">
+                You&rsquo;ll be the coach. Add athletes later by sharing the team
+                code with them — they&rsquo;ll request to join from this same page.
+              </p>
+              <div className="mt-6 space-y-5">
+                <div className="grid gap-1.5">
+                  <label className="text-[12.5px] font-semibold text-[color:var(--ink)]" htmlFor="create-name">
+                    Team name
+                  </label>
+                  <Input
+                    id="create-name"
+                    value={createName}
+                    onChange={(e) => setCreateName(e.target.value)}
+                    maxLength={120}
+                    placeholder="e.g. UChicago Women's Swim & Dive"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <label className="text-[12.5px] font-semibold text-[color:var(--ink)]" htmlFor="create-gender">
+                    Default gender for body heatmap
+                  </label>
+                  <Select
+                    value={createGender}
+                    onValueChange={(v) => setCreateGender(v as 'male' | 'female')}
+                  >
+                    <SelectTrigger id="create-gender" className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-[color:var(--ink-mute)]">
+                    Picks the silhouette the team-wide injury heatmap renders by default.
+                    Individual athletes can override their own.
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <label className="text-[12.5px] font-semibold text-[color:var(--ink)]" htmlFor="create-desc">
+                    Description{' '}
+                    <span className="text-[color:var(--ink-mute)] font-normal">(optional)</span>
+                  </label>
+                  <Input
+                    id="create-desc"
+                    value={createDescription}
+                    onChange={(e) => setCreateDescription(e.target.value)}
+                    maxLength={240}
+                    placeholder="One line about the team (shown in discovery)."
+                  />
+                </div>
+                {createErr && (
+                  <p className="text-[11.5px] text-[color:var(--red)]">{createErr}</p>
+                )}
+                <Button
+                  onClick={submitCreate}
+                  disabled={createSubmitting || createName.trim().length < 2}
+                  className="w-full h-11"
+                >
+                  {createSubmitting ? 'Creating…' : 'Create team'}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold tracking-tight text-[color:var(--ink)]">Find your team</h1>
+              <p className="mt-2 text-[14px] text-[color:var(--ink-mute)]">
+                Pick a team you belong to or paste a join code your coach gave you.
+                We&rsquo;ll send the request to the team for approval.
+              </p>
 
           {loading ? (
             <p className="mt-6 text-[13px] text-[color:var(--ink-mute)]">Loading…</p>
@@ -270,6 +429,8 @@ export default function Onboarding() {
               >
                 {submitting ? 'Sending request…' : 'Request to join →'}
               </Button>
+            </>
+          )}
             </>
           )}
         </section>
