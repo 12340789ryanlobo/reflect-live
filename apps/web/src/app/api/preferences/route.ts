@@ -2,6 +2,11 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
+// Force dynamic execution — the GET path is read after a fresh POST
+// that just upserted a different row, and we need that read to skip
+// any Next.js / Vercel static-optimization caching layer.
+export const dynamic = 'force-dynamic';
+
 function serviceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

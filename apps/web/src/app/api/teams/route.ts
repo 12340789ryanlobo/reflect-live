@@ -136,7 +136,7 @@ export async function POST(req: Request) {
   // role, and the new-team experience read as 'I'm an athlete'
   // instead of 'I'm the coach'. impersonate_player_id is reset to
   // null because the prior value was a player on a different team.
-  const { error: prefsErr } = await sb
+  const { data: upsertedPrefs, error: prefsErr } = await sb
     .from('user_preferences')
     .upsert(
       {
@@ -147,15 +147,34 @@ export async function POST(req: Request) {
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'clerk_user_id' },
-    );
+    )
+    .select('*')
+    .maybeSingle();
   if (prefsErr) {
-    // Non-fatal: team and membership both exist. Log so we notice if
-    // it starts happening systematically.
     console.error('[teams] prefs upsert failed for creator:', prefsErr.message);
+  } else {
+    console.log('[teams] creator prefs upserted:', {
+      clerk: userId,
+      team_id: upsertedPrefs?.team_id,
+      role: upsertedPrefs?.role,
+    });
   }
 
-  return NextResponse.json({ ok: true, team, requires_approval: requireApproval });
+  return NextResponse.json({
+    ok: true,
+    team,
+    requires_approval: requireApproval,
+    // Echo the upserted prefs back so the client can confirm the
+    // role transition committed before navigating.
+    preferences: upsertedPrefs ?? null,
+  });
 }
+
+// Force dynamic execution — without this, Next.js may attempt to
+// statically optimize the POST handler's surrounding RSC, which can
+// race with the freshly-written user_preferences row when /dashboard
+// re-renders. Same reason for /api/preferences below.
+export const dynamic = 'force-dynamic';
 
 export async function PATCH(req: Request) {
   const gate = await requirePlatformAdmin();

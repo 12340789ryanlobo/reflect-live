@@ -57,9 +57,17 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     // and the service-role key, so they always see the right rows.
     // Memberships are authoritative for "what teams am I on"; prefs
     // hold per-user UI preferences.
+    // cache: 'no-store' is critical here. Without it, when /dashboard
+    // mounts immediately after a POST /api/teams that just upserted
+    // prefs (the create-team flow), Next.js can replay a cached 200
+    // from a prior call — returning the OLD prefs (athlete on the
+    // previous team) and causing the heal logic to overwrite our
+    // fresh coach assignment. Always read live from the API.
     const [prefsRes, memsRes] = await Promise.all([
-      fetch('/api/preferences').then((r) => r.ok ? r.json() : { preferences: null, team: null }),
-      fetch('/api/team-memberships').then((r) => r.ok ? r.json() : { memberships: [] }),
+      fetch('/api/preferences', { cache: 'no-store' })
+        .then((r) => r.ok ? r.json() : { preferences: null, team: null }),
+      fetch('/api/team-memberships', { cache: 'no-store' })
+        .then((r) => r.ok ? r.json() : { memberships: [] }),
     ]);
     const prefRow = (prefsRes.preferences ?? null) as UserPreferences | null;
     // Team comes bundled with prefs (service-role) so we never have to
