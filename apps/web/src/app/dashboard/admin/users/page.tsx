@@ -11,6 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
 import { prettyDate } from '@/lib/format';
 
 interface UserRow {
@@ -36,6 +46,9 @@ export default function AdminUsersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -61,6 +74,24 @@ export default function AdminUsersPage() {
     });
     await load();
     setBusyId(null);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    const res = await fetch(`/api/users?clerk_user_id=${encodeURIComponent(deleteTarget.clerk_user_id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setDeleteError(j.error ?? `delete failed (${res.status})`);
+      setDeleting(false);
+      return;
+    }
+    setDeleteTarget(null);
+    setDeleting(false);
+    await load();
   }
 
   // Link-athlete dropdown intentionally removed from this page — legacy
@@ -112,6 +143,7 @@ export default function AdminUsersPage() {
                     <Th>Role</Th>
                     <Th>Linked athlete</Th>
                     <Th>Joined</Th>
+                    <Th />
                   </tr>
                 </thead>
                 <tbody>
@@ -172,6 +204,17 @@ export default function AdminUsersPage() {
                             {prettyDate(u.created_at)}
                           </span>
                         </Td>
+                        <Td>
+                          <button
+                            type="button"
+                            onClick={() => { setDeleteError(null); setDeleteTarget(u); }}
+                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[12px] text-[color:var(--ink-mute)] hover:bg-red-50 hover:text-red-600 transition"
+                            aria-label={`Delete ${u.email ?? u.clerk_user_id}`}
+                            title="Delete user"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </Td>
                       </tr>
                     );
                   })}
@@ -181,6 +224,38 @@ export default function AdminUsersPage() {
           )}
         </section>
       </main>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(null); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete user?</DialogTitle>
+            <DialogDescription>
+              This permanently removes the account from the platform and from
+              Clerk. The roster (player) row is preserved, so this person can
+              re-onboard with the same phone if they want back in.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-md border bg-[color:var(--card-mute)] px-3 py-2 text-[13px]" style={{ borderColor: 'var(--border)' }}>
+              <div><span className="text-[color:var(--ink-mute)]">Email:</span> <span className="mono">{deleteTarget.email ?? '—'}</span></div>
+              <div><span className="text-[color:var(--ink-mute)]">Name:</span> {deleteTarget.name ?? '—'}</div>
+              <div><span className="text-[color:var(--ink-mute)]">Role:</span> {deleteTarget.role}</div>
+              <div><span className="text-[color:var(--ink-mute)]">Team:</span> #{deleteTarget.team_id}</div>
+            </div>
+          )}
+          {deleteError && (
+            <p className="text-[13px] text-red-600">{deleteError}</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete user'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -141,3 +141,51 @@ export async function PATCH(req: Request) {
 
   return NextResponse.json({ ok: true });
 }
+
+// Hard-delete a user from the platform: removes team_memberships,
+// phone_verifications, user_preferences, and the Clerk auth row itself.
+// Player roster rows (`players`) are intentionally preserved — they're
+// shared team data, not per-account data, and the deleted user (or a
+// future user) can re-link via /onboarding's join flow.
+//
+// Self-protection: an admin cannot delete their own account from this
+// endpoint (would lock themselves out and orphan platform admin
+// privileges). They have to ask another admin.
+export async function DELETE(req: Request) {
+  const gate = await requireAdmin();
+  if (gate.error) return gate.error;
+
+  const url = new URL(req.url);
+  const clerk_user_id = url.searchParams.get('clerk_user_id');
+  if (!clerk_user_id) return NextResponse.json({ error: 'clerk_user_id required' }, { status: 400 });
+  if (clerk_user_id === gate.userId) {
+    return NextResponse.json({ error: 'cannot delete your own account' }, { status: 400 });
+  }
+
+  const sb = serviceClient();
+
+  // Order matters — child rows first.
+  const { error: memErr } = await sb.from('team_memberships').delete().eq('clerk_user_id', clerk_user_id);
+  if (memErr) return NextResponse.json({ error: `team_memberships: ${memErr.message}` }, { status: 500 });
+
+  const { error: phErr } = await sb.from('phone_verifications').delete().eq('clerk_user_id', clerk_user_id);
+  if (phErr) return NextResponse.json({ error: `phone_verifications: ${phErr.message}` }, { status: 500 });
+
+  const { error: prefErr } = await sb.from('user_preferences').delete().eq('clerk_user_id', clerk_user_id);
+  if (prefErr) return NextResponse.json({ error: `user_preferences: ${prefErr.message}` }, { status: 500 });
+
+  // Clerk last — if the DB cleanup fails we want the auth row left intact
+  // so the admin can retry safely. Going Clerk-first would leave dangling
+  // DB rows on partial failure.
+  try {
+    const clerk = await clerkClient();
+    await clerk.users.deleteUser(clerk_user_id);
+  } catch (e) {
+    return NextResponse.json(
+      { error: `clerk delete failed (DB rows already removed): ${(e as Error).message}` },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}
