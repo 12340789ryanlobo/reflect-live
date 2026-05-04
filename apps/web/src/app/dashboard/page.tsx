@@ -57,17 +57,46 @@ export default function Dashboard() {
       if (groupFilter) pq.eq('group', groupFilter);
       const { data: players } = await pq;
       const rosterSize = players?.length ?? 0;
-      const phoneSet = new Set((players ?? []).map((p: { phone_e164: string }) => p.phone_e164));
-      const msgQ = sb
-        .from('twilio_messages')
-        .select('*')
-        .eq('team_id', prefs.team_id);
-      const { data: msgs } = await (since ? msgQ.gte('date_sent', since) : msgQ);
-      const allMsgs = (msgs ?? []) as TwilioMessage[];
+      // For group-filtered scoping we use player_id (covers both
+      // outbound-to-player and inbound-from-player). The old phone-set
+      // filter excluded all outbound — that broke survey-trend pairing
+      // because the question text lives on outbound messages.
+      const groupPlayerIds = new Set(
+        (players ?? []).map((p: { id: number }) => p.id),
+      );
+      // Page through twilio_messages — Supabase caps each .select() at
+      // 1000 rows, so an "all-time" fetch was silently truncated and
+      // both the message count and the trends grid lost most of the
+      // history. Range-paginate until exhausted.
+      const PAGE = 1000;
+      const allMsgs: TwilioMessage[] = [];
+      for (let off = 0; ; off += PAGE) {
+        let q = sb
+          .from('twilio_messages')
+          .select('*')
+          .eq('team_id', prefs.team_id);
+        if (since) q = q.gte('date_sent', since);
+        const { data: page } = await q
+          .order('date_sent', { ascending: false })
+          .range(off, off + PAGE - 1);
+        if (!page || page.length === 0) break;
+        allMsgs.push(...(page as TwilioMessage[]));
+        if (page.length < PAGE) break;
+      }
       const scoped = groupFilter
-        ? allMsgs.filter((m) => m.from_number && phoneSet.has(m.from_number))
+        ? allMsgs.filter((m) => m.player_id != null && groupPlayerIds.has(m.player_id))
         : allMsgs;
-      const active = new Set(scoped.filter((m) => m.direction === 'inbound').map((m) => m.from_number)).size;
+      // "Active" = roster players who responded at least once. Counting
+      // by player_id (not raw from_number) collapses whatsapp:+E164 vs
+      // +E164 duplicates and bounds the response rate at 100% — the old
+      // phone-string set produced a 171% rate by counting whatsapp/sms
+      // copies of the same handset separately.
+      const activeIds = new Set<number>();
+      for (const m of scoped) {
+        if (m.direction !== 'inbound') continue;
+        if (m.player_id != null) activeIds.add(m.player_id);
+      }
+      const active = activeIds.size;
       const rr = rosterSize ? Math.round((active / rosterSize) * 100) : 0;
       // Hand-off to survey-trends downstream: compute hero stats from
       // the readiness bucket only (not "every numeric reply"), so a
