@@ -237,6 +237,21 @@ export function AppSidebar({
       );
   }
 
+  // Captains who are also on the roster get the SAME 'Your view'
+  // group athletes do, at the TOP of the sidebar — clicking 'My view'
+  // opens their own player page (self-report / log workout / report
+  // injury affordances kick in there). Captains are athletes too;
+  // showing this prominently makes that obvious. Coaches/admins get
+  // the same idea but as a smaller 'Also you' item further down,
+  // since their primary view is the team dashboard.
+  if (role === 'captain' && hasLinkedAthlete) {
+    const items = ATHLETE_NAV_BASE.map((i) =>
+      i.href === '/dashboard/athlete' && ownPlayerId
+        ? { ...i, href: `/dashboard/players/${ownPlayerId}` }
+        : i,
+    );
+    groups.push({ label: 'Your view', items });
+  }
   if (role === 'coach' || role === 'admin') {
     groups.push({ label: 'Team', items: applyRequestsRule(COACH_NAV) });
   }
@@ -256,11 +271,9 @@ export function AppSidebar({
     );
     groups.push({ label: 'Your view', items });
   }
-  if (hasLinkedAthlete && role !== 'athlete') {
-    // Captains and coaches who are also on the roster get an 'Also you'
-    // shortcut to their own player page. Use the canonical URL when we
-    // have ownPlayerId so the longest-prefix highlighter activates the
-    // entry when the user is on their own /dashboard/players/[id] page.
+  if (hasLinkedAthlete && role !== 'athlete' && role !== 'captain') {
+    // Coaches/admins on the roster get a smaller 'Also you' shortcut.
+    // Captains already got 'Your view' above so we don't duplicate.
     const myViewHref = ownPlayerId ? `/dashboard/players/${ownPlayerId}` : '/dashboard/athlete';
     groups.push({
       label: 'Also you',
