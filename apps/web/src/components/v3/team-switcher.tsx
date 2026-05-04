@@ -10,7 +10,6 @@
 // On switch, PATCHes /api/me/active-team and reloads the dashboard.
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import {
@@ -30,7 +29,6 @@ interface Props {
 interface TeamLite { id: number; name: string }
 
 export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }: Props) {
-  const router = useRouter();
   const sb = useSupabase();
   const { user } = useUser();
   const [memberships, setMemberships] = useState<TeamMembership[]>([]);
@@ -86,8 +84,15 @@ export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }
     });
     setSwitching(null);
     if (res.ok) {
-      router.push('/dashboard');
-      router.refresh();
+      // Full page navigation, not router.push — when the user is
+      // already on /dashboard, router.push to the same URL is a
+      // no-op for client-side state, so dashboard-shell's
+      // pathname-keyed useEffect (which re-runs fetchAll and
+      // re-reads prefs.role / prefs.team_id) never fires. The user
+      // had to hard-refresh to see the team switch take effect.
+      // window.location.assign forces a real navigation and a fresh
+      // page mount, guaranteeing dashboard-shell pulls live prefs.
+      window.location.assign('/dashboard');
     }
   }
 
