@@ -196,7 +196,7 @@ function SmsThread() {
         style={{ borderColor: 'var(--border)' }}
       >
         <div>
-          <div className="text-[13px] font-bold text-[color:var(--ink)]">UChicago Swim &amp; Dive</div>
+          <div className="text-[13px] font-bold text-[color:var(--ink)]">Your team bot</div>
           <div className="text-[10.5px] text-[color:var(--ink-mute)] uppercase tracking-wide">Team check-in</div>
         </div>
         <span className="text-[10px] mono tabular text-[color:var(--ink-mute)]">7:02 AM</span>
@@ -204,7 +204,7 @@ function SmsThread() {
 
       <div className="flex flex-col gap-2.5">
         <Bubble from="bot">
-          Hey Lorenzo! Overall body readiness right now? <span className="text-[color:var(--ink-mute)]">(1 = can barely move, 10 = peak)</span>
+          Hey! Overall body readiness right now? <span className="text-[color:var(--ink-mute)]">(1 = can barely move, 10 = peak)</span>
         </Bubble>
         <Bubble from="me">8</Bubble>
         <Bubble from="bot">
@@ -352,9 +352,14 @@ function DashboardPreview() {
             2 quiet
           </span>
         </div>
+        {/* Fictional placeholder names — NOT real athletes. Kept
+            realistic-sounding so the demo doesn't read as 'Athlete A /
+            Athlete B', but generic enough not to map to anyone on a
+            roster. Same intent as the SMS thread above (no first
+            name there either). */}
         <ul className="space-y-2 text-[13px]">
-          <AttentionRow name="Christopher Xia" tag="Breast · no replies in 4 days" tone="amber" />
-          <AttentionRow name="Taiki Ishikawa" tag="Fly · no replies in 6 days" tone="red" />
+          <AttentionRow name="Sam Rivera" tag="Group · no replies in 4 days" tone="amber" />
+          <AttentionRow name="Jordan Kim" tag="Group · no replies in 6 days" tone="red" />
         </ul>
       </div>
     </div>
