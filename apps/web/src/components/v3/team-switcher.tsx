@@ -101,14 +101,13 @@ export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }
     );
   }
 
-  // Only one team and not admin — nothing to switch to. Plain text.
-  if (memberships.length <= 1 && !isPlatformAdmin) {
-    return (
-      <span className="truncate text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">
-        {currentTeamName}
-      </span>
-    );
-  }
+  // Note: we used to render plain text (no dropdown) when the user
+  // had ≤1 team and wasn't a platform admin. That hid the
+  // 'Create another team' entry from anyone outside the admin role,
+  // so a coach who wanted to start a SECOND team from the same
+  // account had no UI path — they'd have to know to type
+  // /dashboard/team/new manually. Always render the dropdown now;
+  // even users with one team get the create-team option.
 
   // Pass-through teams = all teams the admin can view but doesn't have a
   // membership on. Computed after both lists are loaded.
