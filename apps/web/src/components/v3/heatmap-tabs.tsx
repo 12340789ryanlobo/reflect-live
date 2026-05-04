@@ -167,34 +167,59 @@ export function HeatmapTabs({
             onMuscleClick={onMuscleClick}
           />
           {(() => {
-            // Compute the same global max BodyHeatmap uses for intensity,
-            // then label each tier with its actual count range. So 'red'
-            // is captioned as e.g. '5–6' for an athlete whose top region
-            // count is 6 — the viewer can map a body color directly to a
-            // session count (and cross-check against the side list).
+            // Match the legend resolution to the data resolution. When
+            // the top region only has e.g. 2 sessions, the body map's
+            // intensity formula (ceil(c/max*5)) only ever picks tiers
+            // 3 and 5, leaving the legend with "—" gaps for unreachable
+            // tiers. That looks broken. Instead: when max ≤ 5, show
+            // exactly (max + 1) dots — one per integer count from 0 to
+            // max — using the same tier color the body map paints for
+            // that count. Above 5 we fall back to the original 6-tier
+            // ranged legend since per-integer dots stop being readable.
             const max = densityScale(counts);
             const unit = tab === 'injury' ? 'Flags' : 'Sessions';
-            function rangeLabel(tier: 1 | 2 | 3 | 4 | 5): string {
-              const r = densityTierRange(tier, max);
-              if (!r) return '—';
-              return r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`;
+            const legendItems: Array<{ label: string; color: string; isEmpty: boolean }> = [];
+            if (max === 0) {
+              legendItems.push({ label: '0', color: DENSITY_TIERS[0], isEmpty: true });
+            } else if (max <= 5) {
+              for (let n = 0; n <= max; n++) {
+                const tierIdx = n === 0
+                  ? 0
+                  : Math.max(1, Math.min(5, Math.ceil((n / max) * 5)));
+                legendItems.push({
+                  label: `${n}`,
+                  color: DENSITY_TIERS[tierIdx],
+                  isEmpty: n === 0,
+                });
+              }
+            } else {
+              // Long-tail histogram: 6 tiers, each captioned with the
+              // count range it covers (e.g. "5–6").
+              function rangeLabel(tier: 1 | 2 | 3 | 4 | 5): string {
+                const r = densityTierRange(tier, max);
+                if (!r) return '—';
+                return r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`;
+              }
+              const labels = ['0', rangeLabel(1), rangeLabel(2), rangeLabel(3), rangeLabel(4), rangeLabel(5)];
+              for (let i = 0; i < DENSITY_TIERS.length; i++) {
+                legendItems.push({ label: labels[i], color: DENSITY_TIERS[i], isEmpty: i === 0 });
+              }
             }
-            const labels = ['0', rangeLabel(1), rangeLabel(2), rangeLabel(3), rangeLabel(4), rangeLabel(5)];
             return (
               <div className="flex items-center gap-3 flex-wrap text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">
                 <span>{unit}{max > 0 ? ` · 0–${max}` : ''}</span>
-                {DENSITY_TIERS.map((color, i) => (
+                {legendItems.map((item, i) => (
                   <span key={i} className="inline-flex items-center gap-1.5">
                     <span
                       className="size-3.5 rounded-full"
                       style={{
-                        background: color,
+                        background: item.color,
                         // Subtle ring on the empty tier so the 'None'
                         // circle doesn't disappear into the card background.
-                        boxShadow: i === 0 ? 'inset 0 0 0 1px var(--border)' : undefined,
+                        boxShadow: item.isEmpty ? 'inset 0 0 0 1px var(--border)' : undefined,
                       }}
                     />
-                    <span className="tabular">{labels[i]}</span>
+                    <span className="tabular">{item.label}</span>
                   </span>
                 ))}
               </div>
