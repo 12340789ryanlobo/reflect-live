@@ -2,7 +2,14 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppSidebar } from './app-sidebar';
@@ -330,11 +337,38 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     ? ((prefs?.role as UserRole) ?? membershipRole)
     : membershipRole;
 
-  // Loading skeleton (same as before)
+  // Loading skeleton — DO NOT render role-specific sidebar nav here.
+  // The previous version hardcoded role="coach", so athletes and
+  // captains saw a flash of coach navigation between page load and
+  // the useEffect-driven redirect to their canonical surface
+  // (typically 50–200ms). Render a neutral placeholder sidebar with
+  // no nav groups instead — the user sees the Reflect brand + greyed
+  // bars, then the real role-correct sidebar.
   if (loading) {
     return (
       <SidebarProvider>
-        <AppSidebar role="coach" />
+        <Sidebar collapsible="icon">
+          <SidebarHeader>
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <span
+                className="font-bold text-[15px]"
+                style={{ color: 'var(--blue)' }}
+              >
+                Reflect
+              </span>
+            </div>
+            <div className="px-2 pb-2">
+              <Skeleton className="h-5 w-24" />
+            </div>
+          </SidebarHeader>
+          <SidebarContent>
+            <div className="px-3 space-y-2">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-7 w-full" />
+              ))}
+            </div>
+          </SidebarContent>
+        </Sidebar>
         <SidebarInset>
           <header className="flex h-16 items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--card)] px-4">
             <SidebarTrigger />

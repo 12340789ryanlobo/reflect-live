@@ -226,6 +226,19 @@ export function AppSidebar({
   const collapsed = state === 'collapsed';
   const groups: NavGroup[] = [];
 
+  // Where the Reflect logo links to. Always picks the role's natural
+  // landing page so clicking it never triggers the dashboard-shell
+  // role-redirect (which used to flash a coach skeleton at athletes
+  // and captains for ~50-200ms before bouncing them).
+  const logoHref =
+    role === 'admin'
+      ? '/dashboard/admin'
+      : role === 'captain'
+        ? '/dashboard/captain'
+        : role === 'athlete'
+          ? (ownPlayerId ? `/dashboard/players/${ownPlayerId}` : '/dashboard/athlete')
+          : '/dashboard';
+
   // Requests is a manager-only entry. Hide when nothing is pending —
   // there are usually 0, so it doesn't deserve permanent real-estate.
   // When > 0, surface it with a count badge so it pops in the sidebar.
@@ -288,7 +301,7 @@ export function AppSidebar({
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
         <Link
-          href="/dashboard"
+          href={logoHref}
           // Brand icon stays size-6 (24px) at all times so the mark keeps
           // its presence. Geometry: link sits at SidebarHeader inner-left
           // (after p-2). With pl-1 (4px) the icon lands at sidebar-inner-x
