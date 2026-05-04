@@ -114,6 +114,34 @@ const REGION_GROUP_ALIASES: Record<string, BodyRegion[]> = {
   'full back': ['upper_back', 'mid_back', 'lower_back'],
   'whole back': ['upper_back', 'mid_back', 'lower_back'],
   back: ['upper_back', 'mid_back', 'lower_back'],
+  // Push / pull / legs split — when athletes log workouts as 'push day',
+  // 'pull day', or 'leg day' rather than naming individual exercises,
+  // assume the canonical PPL muscle distribution. The longest-first
+  // sort in ALL_PHRASES means 'leg day' beats bare 'legs' beats bare
+  // 'leg', so 'Workout: leg day' won't double-credit.
+  'push day':  ['chest', 'shoulder', 'tricep'],
+  'push days': ['chest', 'shoulder', 'tricep'],
+  'pull day':  ['upper_back', 'bicep', 'forearm'],
+  'pull days': ['upper_back', 'bicep', 'forearm'],
+  'leg day':   ['quad', 'hamstring', 'hip', 'calf'],
+  'leg days':  ['quad', 'hamstring', 'hip', 'calf'],
+  'legs day':  ['quad', 'hamstring', 'hip', 'calf'],
+  'legs days': ['quad', 'hamstring', 'hip', 'calf'],
+  // Common workout-log shorthand. 'Workout: legs / squats x 8' is a
+  // legs header followed by exercise list — squats already maps via
+  // WORKOUT_ALIASES, but we still want the bare 'legs' header to credit
+  // the full lower-body set in case the rest of the text is sparse.
+  legs: ['quad', 'hamstring', 'hip', 'calf'],
+  'lower body': ['quad', 'hamstring', 'hip', 'calf'],
+  'upper body': ['chest', 'shoulder', 'bicep', 'tricep', 'upper_back'],
+  // Bare 'push' / 'pull' fallbacks — for comma-list shorthand like
+  // 'push, pull, and leg days'. Risk: a stray 'push' / 'pull' in cardio
+  // ('push the pace', 'pull the rope') will false-positive. Boundary
+  // regex blocks suffix-letter cases (pushed/pulling). Longer phrases
+  // ('push press' → shoulder, 'pull-up' → upper_back) consume their
+  // text first via length-sort, so legit exercise names still win.
+  push: ['chest', 'shoulder', 'tricep'],
+  pull: ['upper_back', 'bicep', 'forearm'],
 };
 
 // Workout / rehab vocabulary mapped to the primary muscle worked.
