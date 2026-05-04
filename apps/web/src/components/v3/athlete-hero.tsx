@@ -41,6 +41,7 @@ interface SummaryResult {
 
 export type ActionVerb =
   | 'text'
+  | 'log_via_whatsapp'
   | 'log_workout'
   | 'mark_injury_resolved'
   | 'self_report'
@@ -167,6 +168,7 @@ export function AthleteHero({
 
   const actions: Array<{ verb: ActionVerb; label: string }> = viewerIsSelf
     ? [
+        { verb: 'log_via_whatsapp', label: 'Text a workout' },
         { verb: 'self_report', label: 'Self-report' },
         { verb: 'log_workout', label: 'Log workout' },
         { verb: 'report_injury', label: 'Report injury' },

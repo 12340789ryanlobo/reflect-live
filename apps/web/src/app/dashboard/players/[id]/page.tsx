@@ -19,6 +19,7 @@ import { type Period, periodSinceIso } from '@/lib/period';
 import { parseAllRegions } from '@/lib/injury-aliases';
 import { regionToMuscles } from '@/lib/region-to-muscle';
 import { computeLeaderboard } from '@/lib/scoring';
+import { chatHrefForPerson, chatHrefForTeamNumber } from '@/lib/chat-link';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog } from '@reflect-live/shared';
 
@@ -334,9 +335,33 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
 
   function onAction(verb: ActionVerb) {
     switch (verb) {
-      case 'text':
-        if (player) window.location.href = `sms:${player.phone_e164}`;
+      case 'text': {
+        // Coach → athlete. Default to WhatsApp via wa.me — works
+        // cross-country (most international athletes don't have iMessage),
+        // and matches the channel the team's Twilio bot is on so the
+        // athlete reads coach + bot messages in one app.
+        const href = player ? chatHrefForPerson(player.phone_e164) : null;
+        if (href) window.open(href, '_blank', 'noopener,noreferrer');
         return;
+      }
+      case 'log_via_whatsapp': {
+        // Athlete-self quick action: hop into WhatsApp pre-typed with
+        // 'Workout: ' so the next thing they do is just describe what
+        // they did. The bot tags inbound messages by the player_id
+        // resolved from their phone, so no team-code or marker needed
+        // in the body.
+        const teamNum = (team as { twilio_phone_number?: string | null } | null)?.twilio_phone_number ?? null;
+        const href = chatHrefForTeamNumber(teamNum, 'Workout: ');
+        if (href) {
+          window.open(href, '_blank', 'noopener,noreferrer');
+        } else {
+          // Defensive: no team twilio config. Fall back to opening the
+          // log-workout dialog so the athlete still has a path.
+          setLogActivityKind('workout');
+          setLogActivityOpen(true);
+        }
+        return;
+      }
       case 'mark_injury_resolved':
         router.push('/dashboard/heatmap');
         return;
