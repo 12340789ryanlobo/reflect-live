@@ -203,7 +203,16 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     // the prefs.role to match the membership role and self-heal a stale
     // row if it drifted (e.g. legacy prefs created before membership
     // existed and got `role='coach'` from the schema default).
-    const isAdmin = p.is_platform_admin === true || p.role === 'admin';
+    // Admin detection MUST use the stable `is_platform_admin` flag, not
+    // the mutable `role` column. Reason: the role-switcher writes
+    // `role='coach'` (or 'captain' / 'athlete') when an admin clicks
+    // "View as coach". If we treated `role === 'admin'` as the admin
+    // marker, that single click demoted the admin to non-admin status,
+    // the heal logic below forced their role back to membership.role
+    // ('athlete'), and they got bounced to the athlete view with no way
+    // to switch back. is_platform_admin is set once at account creation
+    // and not touched by the role-switcher, so it survives view-switches.
+    const isAdmin = p.is_platform_admin === true;
     const effectiveRole: UserRole = isAdmin ? ((p.role ?? membershipRole) as UserRole) : membershipRole;
 
     // Heal stale prefs for non-admins:

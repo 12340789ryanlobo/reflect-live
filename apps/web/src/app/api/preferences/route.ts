@@ -51,7 +51,14 @@ export async function GET() {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
   const isBootstrapAdmin = !!email && adminEmails.includes(email);
-  const canSwitchRole = (data?.role === 'admin') || isBootstrapAdmin;
+  // Admin detection follows the same rule as dashboard-shell: prefer
+  // the stable is_platform_admin flag over prefs.role, which the
+  // role-switcher itself overwrites. Without this, an admin who picks
+  // "View as coach" loses can_switch_role and can't get back.
+  const canSwitchRole =
+    data?.is_platform_admin === true ||
+    data?.role === 'admin' ||
+    isBootstrapAdmin;
 
   // Bundle the team in the same response so dashboard-shell doesn't have
   // to do a second sb.from('teams') query — that path hits RLS on the
@@ -89,11 +96,24 @@ export async function POST(req: Request) {
     .filter(Boolean);
   const isBootstrapAdmin = !!email && adminEmails.includes(email);
 
+  // Need the is_platform_admin flag too — same reason as the GET path:
+  // a real platform admin who's switched to 'coach' has prefs.role='coach'
+  // but is still an admin, so they should still be allowed to switch
+  // back. Without this check, an admin who once viewed as coach was
+  // permanently locked into that view.
+  const { data: existingFull } = await sb
+    .from('user_preferences')
+    .select('is_platform_admin')
+    .eq('clerk_user_id', userId)
+    .maybeSingle();
+  const isStablePlatformAdmin = existingFull?.is_platform_admin === true;
+
   let effectiveRole: string | null = role;
-  // Admin role-changes are unrestricted. Bootstrap-admin emails are also
-  // unrestricted (covers the lock-out case above). Other users' role-change
-  // requests are silently dropped.
-  const canChangeRole = !existing || existing.role === 'admin' || isBootstrapAdmin;
+  const canChangeRole =
+    !existing ||
+    existing.role === 'admin' ||
+    isStablePlatformAdmin ||
+    isBootstrapAdmin;
   if (existing && !canChangeRole && role !== null && existing.role !== role) {
     effectiveRole = existing.role ?? 'coach';
   }
