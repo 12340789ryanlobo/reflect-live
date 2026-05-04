@@ -136,10 +136,38 @@ export async function POST(req: Request) {
   if (!existing && isBootstrapAdmin) {
     payload.is_platform_admin = true;
   }
-  // Admins (and bootstrap-admin emails switching back) can set impersonate_player_id.
-  // Other users must prove phone ownership via POST /api/link-phone.
-  if ((existing && existing.role === 'admin') || isBootstrapAdmin) {
+  // Admins can set impersonate_player_id directly. Other users must
+  // prove phone ownership via POST /api/link-phone.
+  if (isStablePlatformAdmin || (existing && existing.role === 'admin') || isBootstrapAdmin) {
     payload.impersonate_player_id = impersonate_player_id;
+  }
+
+  // When an admin switches into 'view as captain' or 'view as athlete'
+  // and didn't supply an impersonate_player_id (the role-switcher UI
+  // sends null for non-athlete switches), auto-pick a real player on
+  // the team to impersonate so the admin actually SEES what that role
+  // sees — including the new top-of-sidebar 'Your view' group, the
+  // self-report affordances on the player page, etc. Without this,
+  // 'view as captain' showed only the captain dashboard nav and
+  // looked broken to anyone trying to verify the captain experience.
+  const wantsAutoImpersonate =
+    isStablePlatformAdmin &&
+    (effectiveRole === 'captain' || effectiveRole === 'athlete') &&
+    payload.impersonate_player_id == null;
+  if (wantsAutoImpersonate) {
+    const { data: pick } = await sb
+      .from('team_memberships')
+      .select('player_id')
+      .eq('team_id', team_id)
+      .eq('role', effectiveRole)
+      .eq('status', 'active')
+      .not('player_id', 'is', null)
+      .order('player_id', { ascending: true })
+      .limit(1)
+      .maybeSingle<{ player_id: number }>();
+    if (pick?.player_id != null) {
+      payload.impersonate_player_id = pick.player_id;
+    }
   }
 
   const { data: upserted, error } = await sb
