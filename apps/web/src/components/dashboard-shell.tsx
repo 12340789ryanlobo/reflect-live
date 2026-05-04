@@ -340,11 +340,18 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const state = resolveMembershipState(memberships);
   const pendingMems = state.kind === 'no_memberships' ? [] : state.pending;
 
-  // Re-derive the same effective role as fetchAll so renders post-realtime
-  // also respect membership authority. team_memberships is the floor;
-  // platform admins / role='admin' may override.
-  const activeMem = state.kind === 'active'
-    ? state.active.find((m) => m.team_id === state.defaultTeamId)
+  // Re-derive the same effective role as fetchAll. Use prefs.team_id
+  // as the active team (same fallback rule as fetchAll), NOT
+  // state.defaultTeamId. The default flag picks one membership
+  // arbitrarily (lowest team_id) and was making the sidebar render
+  // the wrong role when the user had memberships on multiple teams
+  // and prefs.team_id pointed at a non-default one — e.g. a coach of
+  // a brand-new team they just created saw the ATHLETE role pill
+  // because they were also an athlete on their original team and
+  // that one was the default.
+  const renderTeamId = prefs?.team_id ?? (state.kind === 'active' ? state.defaultTeamId : null);
+  const activeMem = state.kind === 'active' && renderTeamId != null
+    ? state.active.find((m) => m.team_id === renderTeamId)
     : undefined;
   const membershipRole = (activeMem?.role ?? 'athlete') as UserRole;
   // Same canonical admin marker as fetchAll above. is_platform_admin is
