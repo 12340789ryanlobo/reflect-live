@@ -165,6 +165,15 @@ html { color-scheme: light; }
 }
 .slide-in-row { animation: slideIn 0.6s ease-out; }
 
+/* Shimmer for AnimatedShinyText — a thin highlight band that pans
+   across the text on an 8s loop. Slow on purpose; faster makes section
+   eyebrows feel jittery rather than 'live'. */
+@keyframes shimmer {
+  0%   { background-position: calc(-1 * var(--shiny-width, 80px)) 0; }
+  100% { background-position: calc(100% + var(--shiny-width, 80px)) 0; }
+}
+.animate-shimmer { animation: shimmer 8s linear infinite; }
+
 /* Live dot — small, simple, no pulsing aura */
 .live-dot {
   display: inline-block;

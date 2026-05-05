@@ -5,6 +5,8 @@ import { Brand } from '@/components/v3/brand';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { DotPattern } from '@/components/ui/dot-pattern';
 import { BorderBeam } from '@/components/ui/border-beam';
+import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
+import { MagicCard } from '@/components/ui/magic-card';
 import { cn } from '@/lib/utils';
 
 // auth() is dynamic — opt out of static rendering so the redirect runs
@@ -81,8 +83,10 @@ export default async function Landing() {
         <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,420px)] gap-12 items-start">
             <div>
-              <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--ink-mute)] mb-3">
-                The check-in
+              <p className="mb-3">
+                <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
+                  The check-in
+                </AnimatedShinyText>
               </p>
               <h2 className="text-3xl md:text-4xl font-bold tracking-[-0.01em] text-[color:var(--ink)] leading-[1.1] max-w-[20ch]">
                 One survey. One text. One stream of truth.
@@ -106,8 +110,10 @@ export default async function Landing() {
 
       {/* What the coach sees — mini dashboard preview */}
       <section className="mx-auto max-w-[1280px] px-6 py-20 md:px-10 reveal reveal-3">
-        <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--ink-mute)] mb-3">
-          What the coach sees
+        <p className="mb-3">
+          <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
+            What the coach sees
+          </AnimatedShinyText>
         </p>
         <h2 className="text-3xl md:text-4xl font-bold tracking-[-0.01em] text-[color:var(--ink)] leading-[1.1] max-w-[24ch]">
           A live read on the team — without asking another question.
@@ -128,18 +134,29 @@ export default async function Landing() {
         style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
       >
         <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
-          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--ink-mute)] mb-3">
-            What's inside
+          <p className="mb-3">
+            <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
+              What&rsquo;s inside
+            </AnimatedShinyText>
           </p>
           <h2 className="text-2xl md:text-3xl font-bold text-[color:var(--ink)] mb-10">
             Six surfaces. One database. Zero copy-paste.
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map((f) => (
-              <article key={f.title}>
-                <h3 className="text-[18px] font-bold text-[color:var(--ink)] mb-2">{f.title}</h3>
-                <p className="text-[14px] text-[color:var(--ink-soft)] leading-relaxed">{f.body}</p>
-              </article>
+              <MagicCard
+                key={f.title}
+                className="rounded-xl"
+                gradientColor="var(--blue-soft)"
+                gradientOpacity={0.6}
+                gradientFrom="#1F5FB0"
+                gradientTo="#3F7AC4"
+              >
+                <article className="p-6">
+                  <h3 className="text-[18px] font-bold text-[color:var(--ink)] mb-2">{f.title}</h3>
+                  <p className="text-[14px] text-[color:var(--ink-soft)] leading-relaxed">{f.body}</p>
+                </article>
+              </MagicCard>
             ))}
           </div>
         </div>
