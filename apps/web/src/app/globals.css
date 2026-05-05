@@ -165,17 +165,20 @@ html { color-scheme: light; }
 }
 .slide-in-row { animation: slideIn 0.6s ease-out; }
 
-/* Shimmer for AnimatedShinyText. Glint sweeps quickly across in the
-   first 18% of the cycle, then the position parks OFF-SCREEN-LEFT
-   (-150%, well past the element's left edge) for the rest of the
-   cycle. Because the glint is invisible during the pause, the
-   loop-back to 150% (off-screen-right) at 100% is visually a no-op —
-   no flash, no snap. Result: a brief, fast shine followed by a clear
-   pause, repeated cleanly. Cycle length set via --shimmer-duration. */
+/* Shimmer for AnimatedShinyText. Continuous sweep — glint travels
+   right-to-left across the text on a slow loop with no pause. The
+   previous keyframe had a brief sweep + long pause, but the
+   pause-and-jump-back was reading as 'random tweaking' because three
+   independent instances on the page would loop out of phase, so each
+   eyebrow shimmered at unpredictable moments relative to the others.
+   Continuous + slow makes every eyebrow feel uniform and ambient.
+   Position values stay one-element-width past the visible area on
+   each side (100% / -100%) so the loop point is exactly at the edge —
+   no snap visible because the glint is never on-element at start
+   or end of cycle. */
 @keyframes shimmer {
-  0%      { background-position: 150% 0; }
-  18%     { background-position: -150% 0; }
-  100%    { background-position: -150% 0; }
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 .animate-shimmer { animation: shimmer var(--shimmer-duration, 6s) linear infinite; }
 

@@ -29,13 +29,11 @@ export interface AnimatedShinyTextProps extends ComponentPropsWithoutRef<'span'>
 export const AnimatedShinyText: FC<AnimatedShinyTextProps> = ({
   children,
   className,
-  // 7s cycle — sweep takes ~1.25s (18% of cycle), then the glint
-  // parks off-screen-left for the remaining ~5.75s before looping.
-  // The sweep itself is fast and obvious; the long off-screen rest
-  // creates a clear breath between cycles. Loop-back to off-right is
-  // invisible because the glint never reaches the visible area
-  // during the rest portion.
-  duration = '7s',
+  // 4s cycle, continuous sweep. Slower than 4s starts to look like
+  // 'forgot to update,' faster looks busy. The gradient direction is
+  // pure horizontal (90deg below) so the glint moves cleanly across
+  // without diagonal artifacts.
+  duration = '4s',
   baseColor = 'var(--blue)',
   glintColor = '#5A8DCD',
   ...props
@@ -45,7 +43,7 @@ export const AnimatedShinyText: FC<AnimatedShinyTextProps> = ({
       style={
         {
           color: 'transparent',
-          backgroundImage: `linear-gradient(110deg, ${baseColor} 0%, ${baseColor} 30%, ${glintColor} 50%, ${baseColor} 70%, ${baseColor} 100%)`,
+          backgroundImage: `linear-gradient(90deg, ${baseColor} 0%, ${baseColor} 35%, ${glintColor} 50%, ${baseColor} 65%, ${baseColor} 100%)`,
           backgroundSize: '200% 100%',
           backgroundClip: 'text',
           WebkitBackgroundClip: 'text',
