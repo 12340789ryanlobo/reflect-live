@@ -238,15 +238,11 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* Colophon — centered stack: brand on top, attribution below.
-          Brand bumped to 'lg' so it has presence as the page's
-          closer; attribution sits as a subdued caption underneath. */}
+      {/* Colophon */}
       <footer className="border-t" style={{ borderColor: 'var(--border)' }}>
-        <div className="mx-auto flex max-w-[1280px] flex-col items-center justify-center gap-2 px-6 py-8 md:px-10">
-          <Brand size="lg" />
-          <span className="text-[12px] text-[color:var(--ink-mute)]">
-            Designed &amp; built by Ryan Lobo
-          </span>
+        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-3 px-6 py-6 md:px-10 text-[12px] text-[color:var(--ink-mute)]">
+          <Brand size="sm" />
+          <span>Designed &amp; built by Ryan Lobo</span>
         </div>
       </footer>
     </main>
