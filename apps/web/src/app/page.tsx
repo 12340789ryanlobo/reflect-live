@@ -93,7 +93,7 @@ export default async function Landing() {
         style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
       >
         <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,420px)] gap-12 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,360px)] gap-12 items-center">
             <div>
               <p className="mb-3">
                 <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
@@ -250,22 +250,25 @@ function CheckRow({ children }: { children: React.ReactNode }) {
 // silhouette stays recognizable on small screens.
 function SmsThread() {
   return (
-    <div className="flex justify-center lg:block">
+    // Center the phone vertically in the column so the section
+    // doesn't grow to phone-height when the text column is shorter.
+    // The huge gap below the text in the previous layout was caused
+    // by the phone being ~650px tall while the text was ~600px and
+    // the row left-aligning to start.
+    <div className="flex justify-center items-center lg:justify-center h-full">
       <div
-        // aspect-[9/19.5] forces real iPhone proportions so the
-        // silhouette doesn't read as a square tablet. Narrower
-        // max-w-[300px] keeps the frame from dominating the column.
-        // Thinner outer chrome (p-1.5 + 1px-ish bezel) and smaller
-        // inner radius (38px vs 44px) tighten the visual so it looks
-        // less like a kid's-toy rounded rectangle.
-        className="relative w-full max-w-[300px] aspect-[9/19.5] rounded-[44px] p-1.5 shadow-[0_30px_60px_-15px_rgba(20,25,35,0.30),0_10px_24px_-6px_rgba(20,25,35,0.18)]"
+        // aspect-[9/18] is portrait but less extreme than 9/19.5 —
+        // the phone reads as a phone without dominating the row.
+        // Width trimmed 300 → 240 so the silhouette is proportionate
+        // to the text column rather than overpowering it.
+        className="relative w-full max-w-[240px] aspect-[9/18] rounded-[36px] p-1.5 shadow-[0_24px_48px_-15px_rgba(20,25,35,0.30),0_8px_20px_-6px_rgba(20,25,35,0.18)]"
         style={{
           background: 'linear-gradient(180deg, #0F141C 0%, #1F2530 100%)',
         }}
       >
         {/* Inner screen — h-full so it fills the aspect-locked frame */}
         <div
-          className="relative h-full rounded-[38px] overflow-hidden flex flex-col"
+          className="relative h-full rounded-[30px] overflow-hidden flex flex-col"
           style={{ background: 'var(--paper)' }}
         >
           {/* Notch — Dynamic-Island-style pill at the top center */}

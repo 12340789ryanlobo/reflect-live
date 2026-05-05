@@ -165,15 +165,17 @@ html { color-scheme: light; }
 }
 .slide-in-row { animation: slideIn 0.6s ease-out; }
 
-/* Shimmer for AnimatedShinyText. The glint sweeps quickly in the
-   first 25% of the cycle, then idles at rest position for the
-   remaining 75% — produces a brief sweep with a noticeable pause
-   between, instead of a continuous moving band. Tune the cycle
-   length via --shimmer-duration. */
+/* Shimmer for AnimatedShinyText. Glint sweeps quickly across in the
+   first 18% of the cycle, then the position parks OFF-SCREEN-LEFT
+   (-150%, well past the element's left edge) for the rest of the
+   cycle. Because the glint is invisible during the pause, the
+   loop-back to 150% (off-screen-right) at 100% is visually a no-op —
+   no flash, no snap. Result: a brief, fast shine followed by a clear
+   pause, repeated cleanly. Cycle length set via --shimmer-duration. */
 @keyframes shimmer {
-  0%   { background-position: 200% 0; }
-  25%  { background-position: -200% 0; }
-  100% { background-position: -200% 0; }
+  0%      { background-position: 150% 0; }
+  18%     { background-position: -150% 0; }
+  100%    { background-position: -150% 0; }
 }
 .animate-shimmer { animation: shimmer var(--shimmer-duration, 6s) linear infinite; }
 
@@ -189,6 +191,19 @@ html { color-scheme: light; }
 }
 .animate-marquee          { animation: marquee var(--duration, 40s) linear infinite; }
 .animate-marquee-vertical { animation: marquee-vertical var(--duration, 40s) linear infinite; }
+
+/* Retro grid floor scroll — translates the gradient by EXACTLY one
+   cell so the loop is seamless (start state == end state). The
+   element reads --rg-cell from inline style. Without an exact-cell
+   distance the loop point is mid-cell and the snap is visible.
+   prefers-reduced-motion gets a still grid. */
+@keyframes retroGridScroll {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 var(--rg-cell, 60px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*='retroGridScroll'] { animation: none !important; }
+}
 
 
 /* Live dot — small, simple, no pulsing aura */
