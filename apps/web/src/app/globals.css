@@ -165,11 +165,14 @@ html { color-scheme: light; }
 }
 .slide-in-row { animation: slideIn 0.6s ease-out; }
 
-/* Shimmer for AnimatedShinyText. Gradient is sized 200% wide and the
-   glint sweeps from right to left in one full cycle. Duration is
-   driven by --shimmer-duration so callers can tune per-instance. */
+/* Shimmer for AnimatedShinyText. The glint sweeps quickly in the
+   first 25% of the cycle, then idles at rest position for the
+   remaining 75% — produces a brief sweep with a noticeable pause
+   between, instead of a continuous moving band. Tune the cycle
+   length via --shimmer-duration. */
 @keyframes shimmer {
   0%   { background-position: 200% 0; }
+  25%  { background-position: -200% 0; }
   100% { background-position: -200% 0; }
 }
 .animate-shimmer { animation: shimmer var(--shimmer-duration, 6s) linear infinite; }

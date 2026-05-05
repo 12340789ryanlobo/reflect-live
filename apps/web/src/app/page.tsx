@@ -7,6 +7,7 @@ import { DotPattern } from '@/components/ui/dot-pattern';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import { MagicCard } from '@/components/ui/magic-card';
+import { RetroGrid } from '@/components/ui/retro-grid';
 import { AttentionList } from '@/components/v3/landing-attention-list';
 import { cn } from '@/lib/utils';
 
@@ -35,12 +36,11 @@ export default async function Landing() {
         </div>
       </header>
 
-      {/* Hero — DotPattern lives in the upper portion only, fading to
-          nothing before it reaches the CTA buttons. Two stacked masks:
-          a top-down linear fade (full at top → 0% halfway) AND a
-          radial fade so the headline area gets the densest texture
-          and the edges stay quiet. Both buttons sit in the bottom
-          half so neither has dots behind it. */}
+      {/* Hero — DotPattern concentrated at the bottom of the section
+          with a radial mask, fading toward the top + edges. Buttons
+          sit inside that dense zone, so each button gets a solid bg
+          (--paper for the outline 'Sign in', solid --blue for 'Open
+          the dashboard') so the dots don't read through them. */}
       <section className="relative overflow-hidden">
         <DotPattern
           width={22}
@@ -48,8 +48,8 @@ export default async function Landing() {
           cr={1}
           className={cn(
             'text-[color:var(--ink-mute)]/30',
-            '[mask-image:linear-gradient(to_bottom,white_0%,white_30%,transparent_60%)]',
-            '[-webkit-mask-image:linear-gradient(to_bottom,white_0%,white_30%,transparent_60%)]',
+            '[mask-image:radial-gradient(ellipse_75%_55%_at_50%_95%,white_25%,transparent_75%)]',
+            '[-webkit-mask-image:radial-gradient(ellipse_75%_55%_at_50%_95%,white_25%,transparent_75%)]',
           )}
         />
         <div className="relative mx-auto max-w-[1280px] px-6 py-20 md:px-10 md:py-28 reveal reveal-1">
@@ -72,7 +72,14 @@ export default async function Landing() {
           <Link
             href="/sign-in"
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl text-[14px] font-bold border transition hover:border-[color:var(--blue)] hover:text-[color:var(--blue)]"
-            style={{ borderColor: 'var(--border-2)', color: 'var(--ink-soft)' }}
+            style={{
+              // Solid paper bg so the hero's DotPattern doesn't read
+              // through the outline button — without it, the dots
+              // visible behind the button made it look 'transparent'.
+              background: 'var(--paper)',
+              borderColor: 'var(--border-2)',
+              color: 'var(--ink-soft)',
+            }}
           >
             Sign in
           </Link>
@@ -167,21 +174,35 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-[920px] px-6 py-24 md:px-10 md:py-32 text-center">
-        <h2 className="text-3xl md:text-5xl font-bold tracking-[-0.02em] text-[color:var(--ink)]">
-          Your team is already on the wire.
-        </h2>
-        <p className="mt-4 text-[15px] text-[color:var(--ink-mute)]">The dashboard is three clicks away.</p>
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/sign-up"
-            className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
-            style={{ background: 'var(--blue)' }}
-          >
-            Open the dashboard
-            <span aria-hidden>→</span>
-          </Link>
+      {/* CTA — static RetroGrid floor receding to the horizon. The
+          previous animated version flickered on retina because the
+          perspective transform compresses lines toward the horizon and
+          a moving bg-position aliases hard. Static gives the same 'a
+          floor' visual without the moiré. */}
+      <section className="relative overflow-hidden">
+        <RetroGrid
+          angleDegrees={62}
+          cellSize={64}
+          lineColor="var(--blue)"
+          opacity={0.13}
+          heightFraction={0.7}
+          lineWidth={1.5}
+        />
+        <div className="relative mx-auto max-w-[920px] px-6 py-24 md:px-10 md:py-32 text-center">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-[-0.02em] text-[color:var(--ink)]">
+            Your team is already on the wire.
+          </h2>
+          <p className="mt-4 text-[15px] text-[color:var(--ink-mute)]">The dashboard is three clicks away.</p>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
+              style={{ background: 'var(--blue)' }}
+            >
+              Open the dashboard
+              <span aria-hidden>→</span>
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -231,14 +252,20 @@ function SmsThread() {
   return (
     <div className="flex justify-center lg:block">
       <div
-        className="relative w-full max-w-[340px] rounded-[54px] p-2.5 shadow-[0_30px_60px_-15px_rgba(20,25,35,0.25),0_8px_20px_-6px_rgba(20,25,35,0.15)]"
+        // aspect-[9/19.5] forces real iPhone proportions so the
+        // silhouette doesn't read as a square tablet. Narrower
+        // max-w-[300px] keeps the frame from dominating the column.
+        // Thinner outer chrome (p-1.5 + 1px-ish bezel) and smaller
+        // inner radius (38px vs 44px) tighten the visual so it looks
+        // less like a kid's-toy rounded rectangle.
+        className="relative w-full max-w-[300px] aspect-[9/19.5] rounded-[44px] p-1.5 shadow-[0_30px_60px_-15px_rgba(20,25,35,0.30),0_10px_24px_-6px_rgba(20,25,35,0.18)]"
         style={{
-          background: 'linear-gradient(180deg, #1A1F2A 0%, #2A3140 100%)',
+          background: 'linear-gradient(180deg, #0F141C 0%, #1F2530 100%)',
         }}
       >
-        {/* Inner screen */}
+        {/* Inner screen — h-full so it fills the aspect-locked frame */}
         <div
-          className="relative rounded-[44px] overflow-hidden"
+          className="relative h-full rounded-[38px] overflow-hidden flex flex-col"
           style={{ background: 'var(--paper)' }}
         >
           {/* Notch — Dynamic-Island-style pill at the top center */}
@@ -249,7 +276,7 @@ function SmsThread() {
           />
 
           {/* iOS-ish status bar */}
-          <div className="flex items-center justify-between px-7 pt-3 pb-1 text-[10.5px] mono tabular text-[color:var(--ink)]">
+          <div className="shrink-0 flex items-center justify-between px-7 pt-3 pb-1 text-[10.5px] mono tabular text-[color:var(--ink)]">
             <span className="font-semibold">7:02</span>
             <span className="flex items-center gap-1.5 text-[color:var(--ink-soft)]">
               <span aria-hidden>•••</span>
@@ -262,7 +289,7 @@ function SmsThread() {
 
           {/* Conversation header */}
           <div
-            className="flex items-center gap-3 px-5 pt-3 pb-3 border-b"
+            className="shrink-0 flex items-center gap-3 px-5 pt-3 pb-3 border-b"
             style={{ borderColor: 'var(--border)' }}
           >
             <span
@@ -278,8 +305,10 @@ function SmsThread() {
             </div>
           </div>
 
-          {/* Messages */}
-          <div className="flex flex-col gap-2.5 px-4 py-4">
+          {/* Messages — flex-1 fills the remaining height inside the
+              aspect-locked frame; overflow-hidden truncates if a
+              future tweak adds more bubbles than fit. */}
+          <div className="flex-1 flex flex-col gap-2 px-3.5 py-3 overflow-hidden">
             <Bubble from="bot">
               Hey! Overall body readiness right now? <span className="text-[color:var(--ink-mute)]">(1 = can barely move, 10 = peak)</span>
             </Bubble>
@@ -297,9 +326,9 @@ function SmsThread() {
           </div>
 
           {/* Home indicator bar */}
-          <div className="flex justify-center pt-1 pb-2">
+          <div className="flex justify-center pt-1 pb-2 shrink-0">
             <span
-              className="h-1 w-28 rounded-full"
+              className="h-1 w-24 rounded-full"
               style={{ background: 'var(--ink)' }}
               aria-hidden
             />

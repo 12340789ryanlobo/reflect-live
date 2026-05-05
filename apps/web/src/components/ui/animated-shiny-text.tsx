@@ -29,14 +29,15 @@ export interface AnimatedShinyTextProps extends ComponentPropsWithoutRef<'span'>
 export const AnimatedShinyText: FC<AnimatedShinyTextProps> = ({
   children,
   className,
-  // Slower default — 5.5s reads as ambient pulse, not 'something is
-  // moving fast,' which is more in line with the rest of the page.
-  duration = '5.5s',
+  // 8s total cycle — but with the new keyframe the actual sweep only
+  // takes the first 25% (~2s), then there's a 6s pause at rest before
+  // the next sweep. So the shine itself feels quick, with a clear
+  // breath between cycles instead of a continuously-moving band.
+  duration = '8s',
   baseColor = 'var(--blue)',
-  // Mid-tone blue between --blue (#1F5FB0) and --blue-2 (#3F7AC4).
-  // Previously '#BFD7EF' (very light blue) read as a white shine that
-  // looked like a CSS bug; this lifts the color enough to register as
-  // intentional but stays inside the brand blue family.
+  // Mid-tone blue between --blue (#1F5FB0) and --blue-2 (#3F7AC4) so
+  // the sweep stays inside the brand family and doesn't read as a
+  // white CSS-bug shine.
   glintColor = '#5A8DCD',
   ...props
 }) => {
