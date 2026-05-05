@@ -26,20 +26,12 @@ export default async function Landing() {
       <header className="border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-5 md:px-10">
           <Brand size="md" />
-          <nav className="flex items-center gap-6">
-            <Link
-              href="/pricing"
-              className="text-[13px] font-semibold text-[color:var(--ink-soft)] hover:text-[color:var(--blue)] transition"
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/sign-in"
-              className="text-[13px] font-semibold text-[color:var(--ink-soft)] hover:text-[color:var(--blue)] transition"
-            >
-              Sign in →
-            </Link>
-          </nav>
+          <Link
+            href="/sign-in"
+            className="text-[13px] font-semibold text-[color:var(--ink-soft)] hover:text-[color:var(--blue)] transition"
+          >
+            Sign in →
+          </Link>
         </div>
       </header>
 
@@ -244,11 +236,21 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* Colophon */}
+      {/* Colophon — Pricing link tucked here (not in masthead) so the
+          page stays focused on the demo, but the link is still
+          discoverable to anyone scrolling through. */}
       <footer className="border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-3 px-6 py-6 md:px-10 text-[12px] text-[color:var(--ink-mute)]">
           <Brand size="sm" />
-          <span>Designed &amp; built by Ryan Lobo</span>
+          <div className="flex items-center gap-5">
+            <Link
+              href="/pricing"
+              className="text-[12px] text-[color:var(--ink-mute)] hover:text-[color:var(--blue)] transition"
+            >
+              Pricing
+            </Link>
+            <span>Designed &amp; built by Ryan Lobo</span>
+          </div>
         </div>
       </footer>
     </main>
