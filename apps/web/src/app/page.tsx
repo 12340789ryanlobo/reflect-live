@@ -9,6 +9,7 @@ import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import { MagicCard } from '@/components/ui/magic-card';
 import { RetroGrid } from '@/components/ui/retro-grid';
 import { AttentionList } from '@/components/v3/landing-attention-list';
+import { LandingHeatmap } from '@/components/v3/landing-heatmap';
 import { cn } from '@/lib/utils';
 
 // auth() is dynamic — opt out of static rendering so the redirect runs
@@ -100,15 +101,15 @@ export default async function Landing() {
                   The check-in
                 </AnimatedShinyText>
               </p>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-[-0.01em] text-[color:var(--ink)] leading-[1.1] max-w-[20ch]">
+              <h2 className="text-2xl md:text-3xl font-bold tracking-[-0.01em] text-[color:var(--ink)] leading-[1.15] max-w-[20ch]">
                 One survey. One text. One stream of truth.
               </h2>
-              <p className="mt-6 max-w-[50ch] text-[15px] text-[color:var(--ink-soft)] leading-relaxed">
+              <p className="mt-5 max-w-[50ch] text-[14px] text-[color:var(--ink-soft)] leading-relaxed">
                 The team bot sends questions on the channel athletes already use.
                 Replies are tagged on arrival, paired with the question that prompted them,
                 and routed into per-metric trends — no app, no portal, no friction.
               </p>
-              <ul className="mt-8 space-y-3 text-[14px] text-[color:var(--ink-soft)]">
+              <ul className="mt-6 space-y-2.5 text-[13.5px] text-[color:var(--ink-soft)]">
                 <CheckRow>WhatsApp or SMS — same flow either channel</CheckRow>
                 <CheckRow>Replies live in the dashboard within 15 seconds</CheckRow>
                 <CheckRow>Pain reports auto-populate the body heatmap</CheckRow>
@@ -137,6 +138,37 @@ export default async function Landing() {
         </p>
         <div className="mt-10">
           <DashboardPreview />
+        </div>
+      </section>
+
+      {/* Body heatmap — pulls in the same react-muscle-highlighter
+          component the dashboard uses, fed with mock injury counts.
+          Sells the "pain reports auto-tag body regions" line earlier
+          in the page by actually showing it. */}
+      <section
+        className="border-y reveal reveal-3"
+        style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
+      >
+        <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
+          <p className="mb-3">
+            <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
+              Where it hurts
+            </AnimatedShinyText>
+          </p>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-[-0.01em] text-[color:var(--ink)] leading-[1.15] max-w-[24ch]">
+            Pain reports turn straight into a body map.
+          </h2>
+          <p className="mt-5 max-w-[60ch] text-[14px] text-[color:var(--ink-soft)] leading-relaxed">
+            Athletes name a sore region in their reply. The same alias parser
+            the dashboard uses tags it to a canonical body region — &ldquo;tight
+            hamstrings,&rdquo; &ldquo;left lower back,&rdquo; &ldquo;tennis
+            elbow&rdquo; — and paints the team heatmap accordingly. Click any
+            muscle in the live dashboard to filter the timeline to entries
+            that touched it.
+          </p>
+          <div className="mt-10">
+            <LandingHeatmap />
+          </div>
         </div>
       </section>
 
@@ -292,19 +324,19 @@ function SmsThread() {
 
           {/* Conversation header */}
           <div
-            className="shrink-0 flex items-center gap-3 px-5 pt-3 pb-3 border-b"
+            className="shrink-0 flex items-center gap-2 px-4 pt-2.5 pb-2.5 border-b"
             style={{ borderColor: 'var(--border)' }}
           >
             <span
-              className="grid place-items-center size-8 rounded-full text-white text-[11px] font-bold"
+              className="grid place-items-center size-6 rounded-full text-white text-[9.5px] font-bold"
               style={{ background: 'var(--blue)' }}
               aria-hidden
             >
               R
             </span>
             <div className="min-w-0">
-              <div className="text-[13px] font-bold text-[color:var(--ink)] truncate">Your team bot</div>
-              <div className="text-[10.5px] text-[color:var(--ink-mute)] uppercase tracking-wide">Team check-in</div>
+              <div className="text-[11.5px] font-bold text-[color:var(--ink)] truncate leading-tight">Your team bot</div>
+              <div className="text-[9.5px] text-[color:var(--ink-mute)] uppercase tracking-wide leading-tight">Team check-in</div>
             </div>
           </div>
 
@@ -347,7 +379,7 @@ function Bubble({ from, children }: { from: 'me' | 'bot'; children: React.ReactN
     return (
       <div className="flex justify-end">
         <div
-          className="rounded-2xl rounded-br-md px-3 py-2 text-[13px] font-semibold text-white max-w-[80%]"
+          className="rounded-2xl rounded-br-md px-2.5 py-1.5 text-[11px] font-semibold text-white max-w-[80%]"
           style={{ background: 'var(--blue)' }}
         >
           {children}
@@ -358,7 +390,7 @@ function Bubble({ from, children }: { from: 'me' | 'bot'; children: React.ReactN
   return (
     <div className="flex justify-start">
       <div
-        className="rounded-2xl rounded-bl-md px-3 py-2 text-[13px] text-[color:var(--ink-soft)] max-w-[88%] border"
+        className="rounded-2xl rounded-bl-md px-2.5 py-1.5 text-[11px] leading-snug text-[color:var(--ink-soft)] max-w-[88%] border"
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
       >
         {children}
