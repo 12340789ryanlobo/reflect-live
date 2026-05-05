@@ -29,9 +29,15 @@ export interface AnimatedShinyTextProps extends ComponentPropsWithoutRef<'span'>
 export const AnimatedShinyText: FC<AnimatedShinyTextProps> = ({
   children,
   className,
-  duration = '4s',
+  // Slower default — 5.5s reads as ambient pulse, not 'something is
+  // moving fast,' which is more in line with the rest of the page.
+  duration = '5.5s',
   baseColor = 'var(--blue)',
-  glintColor = '#BFD7EF',
+  // Mid-tone blue between --blue (#1F5FB0) and --blue-2 (#3F7AC4).
+  // Previously '#BFD7EF' (very light blue) read as a white shine that
+  // looked like a CSS bug; this lifts the color enough to register as
+  // intentional but stays inside the brand blue family.
+  glintColor = '#5A8DCD',
   ...props
 }) => {
   return (

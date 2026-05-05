@@ -7,7 +7,6 @@ import { DotPattern } from '@/components/ui/dot-pattern';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import { MagicCard } from '@/components/ui/magic-card';
-import { RetroGrid } from '@/components/ui/retro-grid';
 import { AttentionList } from '@/components/v3/landing-attention-list';
 import { cn } from '@/lib/utils';
 
@@ -36,21 +35,21 @@ export default async function Landing() {
         </div>
       </header>
 
-      {/* Hero — DotPattern sits behind, masked so the texture is
-          confined to the lower-center of the section. The previous
-          ellipse-at-center mask let dots bleed up toward the masthead
-          and crowd the 'Sign in' button visually; this radial-at-bottom
-          version puts the densest dots near the CTA buttons and fades
-          to nothing at the top of the section. Pattern color driven by
-          text-* on the SVG. */}
+      {/* Hero — DotPattern lives in the upper portion only, fading to
+          nothing before it reaches the CTA buttons. Two stacked masks:
+          a top-down linear fade (full at top → 0% halfway) AND a
+          radial fade so the headline area gets the densest texture
+          and the edges stay quiet. Both buttons sit in the bottom
+          half so neither has dots behind it. */}
       <section className="relative overflow-hidden">
         <DotPattern
           width={22}
           height={22}
           cr={1}
           className={cn(
-            'text-[color:var(--ink-mute)]/35',
-            '[mask-image:radial-gradient(ellipse_75%_60%_at_50%_85%,white_30%,transparent_75%)]',
+            'text-[color:var(--ink-mute)]/30',
+            '[mask-image:linear-gradient(to_bottom,white_0%,white_30%,transparent_60%)]',
+            '[-webkit-mask-image:linear-gradient(to_bottom,white_0%,white_30%,transparent_60%)]',
           )}
         />
         <div className="relative mx-auto max-w-[1280px] px-6 py-20 md:px-10 md:py-28 reveal reveal-1">
@@ -168,35 +167,21 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* CTA — RetroGrid floor receding to the horizon behind the
-          headline, fading into the page at the top. The floor reaches
-          the bottom edge of the section so the colophon bar below
-          'pops' against it (the reference site's effect). RetroGrid
-          is pointer-events:none so it doesn't intercept clicks. */}
-      <section className="relative overflow-hidden">
-        <RetroGrid
-          angleDegrees={62}
-          cellSize={56}
-          lineColor="var(--blue)"
-          opacity={0.22}
-          duration="14s"
-          heightFraction={0.75}
-        />
-        <div className="relative mx-auto max-w-[920px] px-6 py-24 md:px-10 md:py-32 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold tracking-[-0.02em] text-[color:var(--ink)]">
-            Your team is already on the wire.
-          </h2>
-          <p className="mt-4 text-[15px] text-[color:var(--ink-mute)]">The dashboard is three clicks away.</p>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/sign-up"
-              className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
-              style={{ background: 'var(--blue)' }}
-            >
-              Open the dashboard
-              <span aria-hidden>→</span>
-            </Link>
-          </div>
+      {/* CTA */}
+      <section className="mx-auto max-w-[920px] px-6 py-24 md:px-10 md:py-32 text-center">
+        <h2 className="text-3xl md:text-5xl font-bold tracking-[-0.02em] text-[color:var(--ink)]">
+          Your team is already on the wire.
+        </h2>
+        <p className="mt-4 text-[15px] text-[color:var(--ink-mute)]">The dashboard is three clicks away.</p>
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/sign-up"
+            className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
+            style={{ background: 'var(--blue)' }}
+          >
+            Open the dashboard
+            <span aria-hidden>→</span>
+          </Link>
         </div>
       </section>
 
@@ -233,44 +218,93 @@ function CheckRow({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Lightweight WhatsApp-ish SMS thread. Fully static — no JS, no images,
-// no animation. Bubble colors track reflect-live's palette: bot
-// messages on a tinted card, athlete replies in --blue. Timestamps are
-// monospace + tabular so they line up the same way the dashboard's
-// time columns do.
+// SMS thread mocked up as an iPhone-style device. Three nested layers:
+//   1. Outer device chrome — thicker dark border, deep shadow, larger
+//      corner radius (54px) so the silhouette reads as a phone.
+//   2. Inner screen — paper bg + notch pill at top center + iOS-style
+//      status bar (signal / wifi / battery glyphs as plain unicode so
+//      we don't ship icon weight).
+//   3. Conversation surface — same Bubble pattern as before.
+// All static. Mobile clamps the device to ~85% viewport width so the
+// silhouette stays recognizable on small screens.
 function SmsThread() {
   return (
-    <div
-      className="rounded-[28px] border bg-[color:var(--paper)] p-4 md:p-5 shadow-sm"
-      style={{ borderColor: 'var(--border-2)' }}
-    >
-      {/* Phone-ish header */}
+    <div className="flex justify-center lg:block">
       <div
-        className="flex items-center justify-between pb-3 mb-3 border-b"
-        style={{ borderColor: 'var(--border)' }}
+        className="relative w-full max-w-[340px] rounded-[54px] p-2.5 shadow-[0_30px_60px_-15px_rgba(20,25,35,0.25),0_8px_20px_-6px_rgba(20,25,35,0.15)]"
+        style={{
+          background: 'linear-gradient(180deg, #1A1F2A 0%, #2A3140 100%)',
+        }}
       >
-        <div>
-          <div className="text-[13px] font-bold text-[color:var(--ink)]">Your team bot</div>
-          <div className="text-[10.5px] text-[color:var(--ink-mute)] uppercase tracking-wide">Team check-in</div>
-        </div>
-        <span className="text-[10px] mono tabular text-[color:var(--ink-mute)]">7:02 AM</span>
-      </div>
+        {/* Inner screen */}
+        <div
+          className="relative rounded-[44px] overflow-hidden"
+          style={{ background: 'var(--paper)' }}
+        >
+          {/* Notch — Dynamic-Island-style pill at the top center */}
+          <div
+            className="absolute left-1/2 top-2 -translate-x-1/2 h-5 w-24 rounded-full z-10"
+            style={{ background: '#0B0F18' }}
+            aria-hidden
+          />
 
-      <div className="flex flex-col gap-2.5">
-        <Bubble from="bot">
-          Hey! Overall body readiness right now? <span className="text-[color:var(--ink-mute)]">(1 = can barely move, 10 = peak)</span>
-        </Bubble>
-        <Bubble from="me">8</Bubble>
-        <Bubble from="bot">
-          How hard did today&rsquo;s practice feel? <span className="text-[color:var(--ink-mute)]">(1 = easy, 10 = maximal)</span>
-        </Bubble>
-        <Bubble from="me">7</Bubble>
-        <Bubble from="bot">
-          Did any pain or physical issue start during practice today?<br />
-          <span className="text-[color:var(--ink-mute)]">Reply: 0 = no, 1 = yes</span>
-        </Bubble>
-        <Bubble from="me">0</Bubble>
-        <Bubble from="bot">Thanks for checking in!</Bubble>
+          {/* iOS-ish status bar */}
+          <div className="flex items-center justify-between px-7 pt-3 pb-1 text-[10.5px] mono tabular text-[color:var(--ink)]">
+            <span className="font-semibold">7:02</span>
+            <span className="flex items-center gap-1.5 text-[color:var(--ink-soft)]">
+              <span aria-hidden>•••</span>
+              <span aria-hidden className="text-[11px] leading-none">⌃</span>
+              <span aria-hidden className="inline-block w-5 h-2.5 rounded-[3px] border" style={{ borderColor: 'var(--ink)' }}>
+                <span className="block h-full w-3/4 rounded-[2px]" style={{ background: 'var(--ink)' }} />
+              </span>
+            </span>
+          </div>
+
+          {/* Conversation header */}
+          <div
+            className="flex items-center gap-3 px-5 pt-3 pb-3 border-b"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <span
+              className="grid place-items-center size-8 rounded-full text-white text-[11px] font-bold"
+              style={{ background: 'var(--blue)' }}
+              aria-hidden
+            >
+              R
+            </span>
+            <div className="min-w-0">
+              <div className="text-[13px] font-bold text-[color:var(--ink)] truncate">Your team bot</div>
+              <div className="text-[10.5px] text-[color:var(--ink-mute)] uppercase tracking-wide">Team check-in</div>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex flex-col gap-2.5 px-4 py-4">
+            <Bubble from="bot">
+              Hey! Overall body readiness right now? <span className="text-[color:var(--ink-mute)]">(1 = can barely move, 10 = peak)</span>
+            </Bubble>
+            <Bubble from="me">8</Bubble>
+            <Bubble from="bot">
+              How hard did today&rsquo;s practice feel? <span className="text-[color:var(--ink-mute)]">(1 = easy, 10 = maximal)</span>
+            </Bubble>
+            <Bubble from="me">7</Bubble>
+            <Bubble from="bot">
+              Did any pain or physical issue start during practice today?<br />
+              <span className="text-[color:var(--ink-mute)]">Reply: 0 = no, 1 = yes</span>
+            </Bubble>
+            <Bubble from="me">0</Bubble>
+            <Bubble from="bot">Thanks for checking in!</Bubble>
+          </div>
+
+          {/* Home indicator bar */}
+          <div className="flex justify-center pt-1 pb-2">
+            <span
+              className="h-1 w-28 rounded-full"
+              style={{ background: 'var(--ink)' }}
+              aria-hidden
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
