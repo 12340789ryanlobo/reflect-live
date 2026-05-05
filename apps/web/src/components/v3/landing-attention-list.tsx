@@ -21,7 +21,12 @@ interface Props {
 const containerVariants: Variants = {
   hidden: {},
   visible: {
-    transition: { staggerChildren: 0.18, delayChildren: 0.1 },
+    // delayChildren: wait this long after the section enters the
+    // viewport before the first row starts animating. Combined with
+    // viewport.amount=0.7 below, the staggered entrance only fires
+    // once the user is actually parked on this part of the page,
+    // not the moment a single pixel scrolls into view.
+    transition: { staggerChildren: 0.22, delayChildren: 0.45 },
   },
 };
 
@@ -41,7 +46,12 @@ export function AttentionList({ rows }: Props) {
       variants={containerVariants}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, margin: '-50px' }}
+      // amount: 0.7 means 70% of the list rect needs to be visible
+      // before the entrance fires. Bumped from the prior margin-based
+      // trigger because a -50px margin still fired the moment the row
+      // peeked above the fold; this waits until the user scrolls past
+      // the dashboard preview and the list is genuinely on-screen.
+      viewport={{ once: true, amount: 0.7 }}
     >
       {rows.map((r) => {
         const dotColor = r.tone === 'red' ? 'var(--red)' : 'var(--amber)';

@@ -7,7 +7,6 @@ import { DotPattern } from '@/components/ui/dot-pattern';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import { MagicCard } from '@/components/ui/magic-card';
-import { Marquee } from '@/components/ui/marquee';
 import { AttentionList } from '@/components/v3/landing-attention-list';
 import { cn } from '@/lib/utils';
 
@@ -421,49 +420,9 @@ function DashboardPreview() {
           ]}
         />
       </div>
-
-      {/* Live data ticker — a slow Marquee underneath the dashboard
-          preview, hinting that the numbers are flowing in continuously
-          rather than being a one-shot screenshot. Same color and
-          typography as the rest of the preview chrome. */}
-      <div
-        className="border-t py-3"
-        style={{ borderColor: 'var(--border)', background: 'var(--paper)' }}
-      >
-        <Marquee className="[--duration:55s] [--gap:2.5rem]" pauseOnHover>
-          {LIVE_TICKER_ITEMS.map((item, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]"
-            >
-              <span
-                className="size-1.5 rounded-full shrink-0"
-                style={{ background: item.tone }}
-                aria-hidden
-              />
-              <span className="text-[color:var(--ink-soft)]">{item.label}</span>
-              <span className="mono tabular text-[color:var(--ink)]">{item.value}</span>
-            </span>
-          ))}
-        </Marquee>
-      </div>
     </div>
   );
 }
-
-// Short, scannable items for the live-data ticker. Mix of metrics +
-// recent-event snippets so the ribbon reads as 'a stream' rather than
-// a stat strip. Tone color drives the leading dot.
-const LIVE_TICKER_ITEMS: Array<{ label: string; value: string; tone: string }> = [
-  { label: 'Inbound',         value: '8 just now',     tone: 'var(--green)' },
-  { label: 'Readiness avg',   value: '7.4 / 10',       tone: 'var(--green)' },
-  { label: 'Workouts logged', value: '36 this week',   tone: 'var(--blue)' },
-  { label: 'Pain reports',    value: '2 open',         tone: 'var(--amber)' },
-  { label: 'Active',          value: '22 / 24',        tone: 'var(--ink)' },
-  { label: 'Survey response', value: '92%',            tone: 'var(--blue)' },
-  { label: 'Flag',            value: 'low readiness',  tone: 'var(--red)' },
-  { label: 'Sleep avg',       value: '6.8 / 10',       tone: 'var(--amber)' },
-];
 
 interface StatProps {
   label: string;
