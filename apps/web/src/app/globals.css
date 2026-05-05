@@ -165,14 +165,27 @@ html { color-scheme: light; }
 }
 .slide-in-row { animation: slideIn 0.6s ease-out; }
 
-/* Shimmer for AnimatedShinyText — a thin highlight band that pans
-   across the text on an 8s loop. Slow on purpose; faster makes section
-   eyebrows feel jittery rather than 'live'. */
+/* Shimmer for AnimatedShinyText. Gradient is sized 200% wide and the
+   glint sweeps from right to left in one full cycle. Duration is
+   driven by --shimmer-duration so callers can tune per-instance. */
 @keyframes shimmer {
-  0%   { background-position: calc(-1 * var(--shiny-width, 80px)) 0; }
-  100% { background-position: calc(100% + var(--shiny-width, 80px)) 0; }
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
-.animate-shimmer { animation: shimmer 8s linear infinite; }
+.animate-shimmer { animation: shimmer var(--shimmer-duration, 6s) linear infinite; }
+
+/* Marquee — infinite horizontal/vertical scroll. Distance is 100% of
+   the inner row plus the gap, so each repeat slots in seamlessly. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-100% - var(--gap))); }
+}
+@keyframes marquee-vertical {
+  from { transform: translateY(0); }
+  to   { transform: translateY(calc(-100% - var(--gap))); }
+}
+.animate-marquee          { animation: marquee var(--duration, 40s) linear infinite; }
+.animate-marquee-vertical { animation: marquee-vertical var(--duration, 40s) linear infinite; }
 
 /* Live dot — small, simple, no pulsing aura */
 .live-dot {

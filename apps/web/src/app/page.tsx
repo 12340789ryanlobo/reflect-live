@@ -7,6 +7,8 @@ import { DotPattern } from '@/components/ui/dot-pattern';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import { MagicCard } from '@/components/ui/magic-card';
+import { Marquee } from '@/components/ui/marquee';
+import { AttentionList } from '@/components/v3/landing-attention-list';
 import { cn } from '@/lib/utils';
 
 // auth() is dynamic — opt out of static rendering so the redirect runs
@@ -410,16 +412,58 @@ function DashboardPreview() {
         {/* Fictional placeholder names — NOT real athletes. Kept
             realistic-sounding so the demo doesn't read as 'Athlete A /
             Athlete B', but generic enough not to map to anyone on a
-            roster. Same intent as the SMS thread above (no first
-            name there either). */}
-        <ul className="space-y-2 text-[13px]">
-          <AttentionRow name="Sam Rivera" tag="Group · no replies in 4 days" tone="amber" />
-          <AttentionRow name="Jordan Kim" tag="Group · no replies in 6 days" tone="red" />
-        </ul>
+            roster. AttentionList is a client component that staggers
+            each row's entrance via motion's whileInView. */}
+        <AttentionList
+          rows={[
+            { name: 'Sam Rivera', tag: 'Group · no replies in 4 days', tone: 'amber' },
+            { name: 'Jordan Kim', tag: 'Group · no replies in 6 days', tone: 'red' },
+          ]}
+        />
+      </div>
+
+      {/* Live data ticker — a slow Marquee underneath the dashboard
+          preview, hinting that the numbers are flowing in continuously
+          rather than being a one-shot screenshot. Same color and
+          typography as the rest of the preview chrome. */}
+      <div
+        className="border-t py-3"
+        style={{ borderColor: 'var(--border)', background: 'var(--paper)' }}
+      >
+        <Marquee className="[--duration:55s] [--gap:2.5rem]" pauseOnHover>
+          {LIVE_TICKER_ITEMS.map((item, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]"
+            >
+              <span
+                className="size-1.5 rounded-full shrink-0"
+                style={{ background: item.tone }}
+                aria-hidden
+              />
+              <span className="text-[color:var(--ink-soft)]">{item.label}</span>
+              <span className="mono tabular text-[color:var(--ink)]">{item.value}</span>
+            </span>
+          ))}
+        </Marquee>
       </div>
     </div>
   );
 }
+
+// Short, scannable items for the live-data ticker. Mix of metrics +
+// recent-event snippets so the ribbon reads as 'a stream' rather than
+// a stat strip. Tone color drives the leading dot.
+const LIVE_TICKER_ITEMS: Array<{ label: string; value: string; tone: string }> = [
+  { label: 'Inbound',         value: '8 just now',     tone: 'var(--green)' },
+  { label: 'Readiness avg',   value: '7.4 / 10',       tone: 'var(--green)' },
+  { label: 'Workouts logged', value: '36 this week',   tone: 'var(--blue)' },
+  { label: 'Pain reports',    value: '2 open',         tone: 'var(--amber)' },
+  { label: 'Active',          value: '22 / 24',        tone: 'var(--ink)' },
+  { label: 'Survey response', value: '92%',            tone: 'var(--blue)' },
+  { label: 'Flag',            value: 'low readiness',  tone: 'var(--red)' },
+  { label: 'Sleep avg',       value: '6.8 / 10',       tone: 'var(--amber)' },
+];
 
 interface StatProps {
   label: string;
@@ -445,20 +489,6 @@ function Stat({ label, value, valueSuffix, sub, tone }: StatProps) {
       </div>
       <div className="mt-1 text-[11px] text-[color:var(--ink-mute)]">{sub}</div>
     </div>
-  );
-}
-
-function AttentionRow({ name, tag, tone }: { name: string; tag: string; tone: 'amber' | 'red' }) {
-  const dotColor = tone === 'red' ? 'var(--red)' : 'var(--amber)';
-  return (
-    <li className="flex items-center justify-between gap-3 py-1">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <span className="size-1.5 rounded-full shrink-0" style={{ background: dotColor }} aria-hidden />
-        <span className="font-semibold text-[color:var(--ink)]">{name}</span>
-        <span className="text-[12px] text-[color:var(--ink-mute)] truncate">{tag}</span>
-      </div>
-      <span className="text-[10.5px] uppercase tracking-wide font-bold text-[color:var(--ink-mute)]">quiet</span>
-    </li>
   );
 }
 
