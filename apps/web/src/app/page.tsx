@@ -26,12 +26,20 @@ export default async function Landing() {
       <header className="border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-5 md:px-10">
           <Brand size="md" />
-          <Link
-            href="/sign-in"
-            className="text-[13px] font-semibold text-[color:var(--ink-soft)] hover:text-[color:var(--blue)] transition"
-          >
-            Sign in →
-          </Link>
+          <nav className="flex items-center gap-6">
+            <Link
+              href="/pricing"
+              className="text-[13px] font-semibold text-[color:var(--ink-soft)] hover:text-[color:var(--blue)] transition"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/sign-in"
+              className="text-[13px] font-semibold text-[color:var(--ink-soft)] hover:text-[color:var(--blue)] transition"
+            >
+              Sign in →
+            </Link>
+          </nav>
         </div>
       </header>
 

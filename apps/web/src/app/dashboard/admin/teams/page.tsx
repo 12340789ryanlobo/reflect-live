@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { prettyDate } from '@/lib/format';
 import type { TeamCreationStatus } from '@reflect-live/shared';
+import { PLANS, PLAN_ORDER, resolvePlan, type Plan } from '@/lib/billing-plans';
 
 interface TeamRow {
   id: number;
@@ -22,6 +23,10 @@ interface TeamRow {
   default_gender: string | null;
   created_at: string;
   member_count?: number;
+  // Optional because the migration may not have run yet — resolvePlan
+  // treats missing as 'free'. Once 0026 lands everywhere this is safe
+  // to make required.
+  plan?: string | null;
 }
 
 const STATUS_TONE: Record<TeamCreationStatus, 'green' | 'amber' | 'red'> = {
@@ -92,6 +97,17 @@ export default function AdminTeamsPage() {
     if (res.ok) await load();
   }
 
+  async function setPlan(team: TeamRow, plan: Plan) {
+    setBusyId(team.id);
+    const res = await fetch(`/api/teams/${team.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'set_plan', plan }),
+    });
+    setBusyId(null);
+    if (res.ok) await load();
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     setBusyId(deleteTarget.id);
@@ -153,6 +169,14 @@ export default function AdminTeamsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[14px] font-semibold text-[color:var(--ink)]">{t.name}</span>
                       <Pill tone={STATUS_TONE[t.creation_status]}>{t.creation_status}</Pill>
+                      {/* Plan dropdown — admin can flip a team's tier
+                          here for pilot deals. Persists via PATCH
+                          /api/teams/:id { action: 'set_plan' }. */}
+                      <PlanSelector
+                        current={resolvePlan(t.plan)}
+                        disabled={busyId === t.id}
+                        onChange={(p) => setPlan(t, p)}
+                      />
                       {t.team_code && (
                         <span className="text-[11.5px] text-[color:var(--ink-mute)] mono">
                           code: <span className="font-semibold">{t.team_code}</span>
@@ -234,5 +258,44 @@ export default function AdminTeamsPage() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// Inline plan picker. Native <select> for accessibility + minimum chrome —
+// the visual identity is just a small chip, not a form control. Disabled
+// while the row is mid-flight on another action.
+function PlanSelector({
+  current,
+  onChange,
+  disabled,
+}: {
+  current: Plan;
+  onChange: (p: Plan) => void;
+  disabled: boolean;
+}) {
+  const tone =
+    current === 'program' ? 'var(--green)'
+    : current === 'team'  ? 'var(--blue)'
+    : 'var(--ink-mute)';
+  return (
+    <label
+      className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 cursor-pointer text-[10.5px] font-bold uppercase tracking-wide"
+      style={{ borderColor: 'var(--border-2)', color: tone }}
+      title={`Plan: ${PLANS[current].name}`}
+    >
+      <select
+        value={current}
+        onChange={(e) => onChange(e.target.value as Plan)}
+        disabled={disabled}
+        className="bg-transparent outline-none cursor-pointer disabled:cursor-wait"
+        style={{ color: tone }}
+      >
+        {PLAN_ORDER.map((p) => (
+          <option key={p} value={p} style={{ color: 'var(--ink)' }}>
+            {PLANS[p].name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

@@ -23,6 +23,7 @@ import {
   HeartPulse,
   ClipboardList,
   UserPlus,
+  CreditCard,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -367,6 +368,14 @@ export function AppSidebar({
                   <Link href="/dashboard/settings">
                     <Settings className="size-4" />
                     <span>Settings</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={usePathname() === '/dashboard/billing'} tooltip="Billing">
+                  <Link href="/dashboard/billing">
+                    <CreditCard className="size-4" />
+                    <span>Billing</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

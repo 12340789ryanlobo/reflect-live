@@ -28,9 +28,28 @@ export async function PATCH(
   const id = Number(idStr);
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'bad_id' }, { status: 400 });
 
-  let body: { action?: unknown };
+  let body: { action?: unknown; plan?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
   const action = body.action;
+  const sb = serviceClient();
+
+  // Plan-flip path. Separate from the freeze/approve/reset actions so
+  // we don't conflate billing state with creation_status state. Body:
+  // { action: 'set_plan', plan: 'free' | 'team' | 'program' }.
+  if (action === 'set_plan') {
+    const plan = body.plan;
+    if (plan !== 'free' && plan !== 'team' && plan !== 'program') {
+      return NextResponse.json({ error: 'bad_plan' }, { status: 400 });
+    }
+    const { data, error } = await sb
+      .from('teams')
+      .update({ plan })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, team: data });
+  }
 
   let nextStatus: 'pending' | 'active' | 'suspended';
   if (action === 'freeze') nextStatus = 'suspended';
@@ -38,7 +57,6 @@ export async function PATCH(
   else if (action === 'reset_pending') nextStatus = 'pending';
   else return NextResponse.json({ error: 'bad_action' }, { status: 400 });
 
-  const sb = serviceClient();
   const { data, error } = await sb
     .from('teams')
     .update({ creation_status: nextStatus })
