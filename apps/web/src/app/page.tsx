@@ -2,13 +2,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { Brand } from '@/components/v3/brand';
-import { NumberTicker } from '@/components/ui/number-ticker';
 import { DotPattern } from '@/components/ui/dot-pattern';
-import { BorderBeam } from '@/components/ui/border-beam';
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import { MagicCard } from '@/components/ui/magic-card';
 import { RetroGrid } from '@/components/ui/retro-grid';
-import { AttentionList } from '@/components/v3/landing-attention-list';
+import { LandingDashboardPreview } from '@/components/v3/landing-dashboard-preview';
 import { LandingHeatmap } from '@/components/v3/landing-heatmap';
 import { cn } from '@/lib/utils';
 
@@ -137,7 +135,7 @@ export default async function Landing() {
           dashboard, the athlete page, and the LLM brief — single source, no copies.
         </p>
         <div className="mt-10">
-          <DashboardPreview />
+          <LandingDashboardPreview />
         </div>
       </section>
 
@@ -399,189 +397,3 @@ function Bubble({ from, children }: { from: 'me' | 'bot'; children: React.ReactN
   );
 }
 
-// Mini dashboard preview that mirrors reflect-live's actual chrome:
-// readiness bar + score-trend heatmap row + needs-attention list.
-// Everything inline — no real data, no fetches. The point is to give
-// the visitor a thirty-second read of the product.
-function DashboardPreview() {
-  return (
-    <div
-      className="relative rounded-2xl border overflow-hidden"
-      style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
-    >
-      {/* Quietly draws the eye to the preview without animating the
-          content itself. Two beams chasing each other from opposite
-          corners feel more product-y than a single one. */}
-      <BorderBeam
-        size={120}
-        duration={9}
-        colorFrom="#1F5FB0"
-        colorTo="#3F7AC4"
-      />
-      <BorderBeam
-        size={120}
-        duration={9}
-        delay={4.5}
-        colorFrom="#3F7AC4"
-        colorTo="#1F5FB0"
-      />
-      {/* Window chrome — page header strip */}
-      <div
-        className="px-6 py-4 border-b flex items-center justify-between"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <div>
-          <div className="text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">Today</div>
-          <div className="text-[16px] font-bold text-[color:var(--ink)]">Dashboard</div>
-        </div>
-        <div className="flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--ink-mute)]">
-          {['7d', '14d', '30d', 'all'].map((p) => (
-            <span
-              key={p}
-              className="px-2 py-1 rounded"
-              style={{
-                background: p === '7d' ? 'var(--ink)' : 'transparent',
-                color: p === '7d' ? 'var(--paper)' : 'var(--ink-mute)',
-              }}
-            >
-              {p}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-[minmax(280px,1fr)_2fr] gap-6">
-        {/* Readiness card */}
-        <div
-          className="rounded-xl border p-5"
-          style={{ borderColor: 'var(--border)', background: 'var(--paper)' }}
-        >
-          <div className="text-[10.5px] uppercase tracking-wide text-[color:var(--green)] font-bold">Team readiness</div>
-          <div className="mt-2 flex items-baseline gap-1">
-            <NumberTicker
-              value={7.4}
-              decimalPlaces={1}
-              delay={0.2}
-              className="text-[3rem] font-bold leading-none text-[color:var(--ink)]"
-            />
-            <span className="text-[14px] text-[color:var(--ink-mute)] tabular">/ 10</span>
-          </div>
-          <div
-            className="mt-3 h-1.5 rounded-full overflow-hidden"
-            style={{ background: 'var(--border)' }}
-          >
-            <div
-              className="h-full"
-              style={{ width: '74%', background: 'var(--green)' }}
-            />
-          </div>
-          <div className="mt-3 flex items-center justify-between text-[10.5px] uppercase tracking-wide font-semibold">
-            <span style={{ color: 'var(--green)' }}>Healthy</span>
-            <span className="text-[color:var(--ink-mute)] tabular">19 responses</span>
-          </div>
-        </div>
-
-        {/* Stat strip */}
-        <div className="grid grid-cols-3 divide-x rounded-xl border" style={{ borderColor: 'var(--border)' }}>
-          <Stat label="Messages" value={412} sub="last 7 days" tone="blue" />
-          <Stat label="Active" value={22} valueSuffix=" / 24" sub="92% response rate" tone="ink" />
-          <Stat label="Flags" value={2} sub="readiness ≤ 4" tone="red" />
-        </div>
-      </div>
-
-      {/* Score trends — heatmap row */}
-      <div className="border-t px-6 py-5" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[14px] font-bold text-[color:var(--ink)]">Score trends</div>
-          <div className="text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">3 score · 1 yes/no</div>
-        </div>
-        <div className="space-y-2">
-          {TREND_ROWS.map((row) => (
-            <div key={row.label} className="grid grid-cols-[120px_1fr] items-center gap-3">
-              <div>
-                <div className="text-[12.5px] font-semibold text-[color:var(--ink)]">{row.label}</div>
-                <div className="text-[10.5px] mono tabular text-[color:var(--ink-mute)]">avg {row.avg}</div>
-              </div>
-              <div className="grid gap-[3px]" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
-                {row.cells.map((c, i) => (
-                  <span
-                    key={i}
-                    className="h-4 rounded-sm"
-                    style={{ background: cellColor(c) }}
-                    aria-hidden
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Needs attention */}
-      <div className="border-t px-6 py-5" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[14px] font-bold text-[color:var(--ink)]">Needs attention</div>
-          <span className="text-[10.5px] uppercase tracking-wide font-bold text-white px-1.5 py-0.5 rounded" style={{ background: 'var(--red)' }}>
-            2 quiet
-          </span>
-        </div>
-        {/* Fictional placeholder names — NOT real athletes. Kept
-            realistic-sounding so the demo doesn't read as 'Athlete A /
-            Athlete B', but generic enough not to map to anyone on a
-            roster. AttentionList is a client component that staggers
-            each row's entrance via motion's whileInView. */}
-        <AttentionList
-          rows={[
-            { name: 'Sam Rivera', tag: 'Group · no replies in 4 days', tone: 'amber' },
-            { name: 'Jordan Kim', tag: 'Group · no replies in 6 days', tone: 'red' },
-          ]}
-        />
-      </div>
-    </div>
-  );
-}
-
-interface StatProps {
-  label: string;
-  /** Number that will count up from 0 on viewport entry. */
-  value: number;
-  /** Optional suffix appended to the value (e.g. '/ 24'). Static text. */
-  valueSuffix?: string;
-  sub: string;
-  tone: 'blue' | 'ink' | 'red';
-}
-
-function Stat({ label, value, valueSuffix, sub, tone }: StatProps) {
-  const valueColor = tone === 'blue' ? 'var(--blue)' : tone === 'red' ? 'var(--red)' : 'var(--ink)';
-  return (
-    <div className="p-5" style={{ borderColor: 'var(--border)' }}>
-      <div className="text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">{label}</div>
-      <div
-        className="mt-1 text-[1.75rem] font-bold leading-none flex items-baseline gap-0.5"
-        style={{ color: valueColor }}
-      >
-        <NumberTicker value={value} delay={0.3} />
-        {valueSuffix && <span className="tabular text-[1.25rem]">{valueSuffix}</span>}
-      </div>
-      <div className="mt-1 text-[11px] text-[color:var(--ink-mute)]">{sub}</div>
-    </div>
-  );
-}
-
-// Static demo data — picked to look like a realistic week. 14 cells
-// (≈2 weeks of survey days) per metric; null = no reply that day.
-const TREND_ROWS: Array<{ label: string; avg: string; cells: Array<number | null> }> = [
-  { label: 'Readiness', avg: '7.4', cells: [7, 8, null, 6, 8, 9, 7, 6, 7, null, 8, 8, 7, 7] },
-  { label: 'Sleep',     avg: '6.8', cells: [7, 6, null, 5, 7, 7, 8, 6, 5, null, 7, 7, 7, 6] },
-  { label: 'RPE',       avg: '6.1', cells: [5, 6, null, 7, 6, 5, 6, 7, 6, null, 6, 7, 5, 6] },
-];
-
-// Continuous red→amber→green gradient mirroring SurveyTrendsCard. Null
-// reads as a faint, empty cell — same convention the real heatmap uses.
-function cellColor(v: number | null): string {
-  if (v == null) return 'var(--paper-2)';
-  let hue: number;
-  if (v <= 5) hue = ((v - 1) / 4) * 38;
-  else hue = 38 + ((v - 5) / 5) * (145 - 38);
-  return `hsl(${hue.toFixed(0)}, 78%, 48%)`;
-}
