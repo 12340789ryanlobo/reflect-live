@@ -2,6 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { Brand } from '@/components/v3/brand';
+import { NumberTicker } from '@/components/ui/number-ticker';
+import { DotPattern } from '@/components/ui/dot-pattern';
+import { BorderBeam } from '@/components/ui/border-beam';
+import { cn } from '@/lib/utils';
 
 // auth() is dynamic — opt out of static rendering so the redirect runs
 // at request time on Vercel. Without this, Next 16 + Turbopack was
@@ -28,8 +32,20 @@ export default async function Landing() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="mx-auto max-w-[1280px] px-6 py-20 md:px-10 md:py-28 reveal reveal-1">
+      {/* Hero — DotPattern sits behind, masked to fade out at the
+          edges so the texture doesn't fight the surrounding sections.
+          Pattern color is driven by text-* on the SVG. */}
+      <section className="relative overflow-hidden">
+        <DotPattern
+          width={22}
+          height={22}
+          cr={1}
+          className={cn(
+            'text-[color:var(--ink-mute)]/40',
+            '[mask-image:radial-gradient(ellipse_at_center,white_20%,transparent_75%)]',
+          )}
+        />
+        <div className="relative mx-auto max-w-[1280px] px-6 py-20 md:px-10 md:py-28 reveal reveal-1">
         <h1 className="max-w-[18ch] text-5xl md:text-7xl font-bold tracking-[-0.02em] leading-[1.05] text-[color:var(--ink)]">
           Texts in. Insights out.
         </h1>
@@ -53,6 +69,7 @@ export default async function Landing() {
           >
             Sign in
           </Link>
+        </div>
         </div>
       </section>
 
@@ -254,9 +271,25 @@ function Bubble({ from, children }: { from: 'me' | 'bot'; children: React.ReactN
 function DashboardPreview() {
   return (
     <div
-      className="rounded-2xl border overflow-hidden"
+      className="relative rounded-2xl border overflow-hidden"
       style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
     >
+      {/* Quietly draws the eye to the preview without animating the
+          content itself. Two beams chasing each other from opposite
+          corners feel more product-y than a single one. */}
+      <BorderBeam
+        size={120}
+        duration={9}
+        colorFrom="#1F5FB0"
+        colorTo="#3F7AC4"
+      />
+      <BorderBeam
+        size={120}
+        duration={9}
+        delay={4.5}
+        colorFrom="#3F7AC4"
+        colorTo="#1F5FB0"
+      />
       {/* Window chrome — page header strip */}
       <div
         className="px-6 py-4 border-b flex items-center justify-between"
@@ -290,7 +323,12 @@ function DashboardPreview() {
         >
           <div className="text-[10.5px] uppercase tracking-wide text-[color:var(--green)] font-bold">Team readiness</div>
           <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-[3rem] font-bold tabular leading-none text-[color:var(--ink)]">7.4</span>
+            <NumberTicker
+              value={7.4}
+              decimalPlaces={1}
+              delay={0.2}
+              className="text-[3rem] font-bold leading-none text-[color:var(--ink)]"
+            />
             <span className="text-[14px] text-[color:var(--ink-mute)] tabular">/ 10</span>
           </div>
           <div
@@ -310,9 +348,9 @@ function DashboardPreview() {
 
         {/* Stat strip */}
         <div className="grid grid-cols-3 divide-x rounded-xl border" style={{ borderColor: 'var(--border)' }}>
-          <Stat label="Messages" value="412" sub="last 7 days" tone="blue" />
-          <Stat label="Active" value="22/24" sub="92% response rate" tone="ink" />
-          <Stat label="Flags" value="2" sub="readiness ≤ 4" tone="red" />
+          <Stat label="Messages" value={412} sub="last 7 days" tone="blue" />
+          <Stat label="Active" value={22} valueSuffix=" / 24" sub="92% response rate" tone="ink" />
+          <Stat label="Flags" value={2} sub="readiness ≤ 4" tone="red" />
         </div>
       </div>
 
@@ -366,12 +404,28 @@ function DashboardPreview() {
   );
 }
 
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub: string; tone: 'blue' | 'ink' | 'red' }) {
+interface StatProps {
+  label: string;
+  /** Number that will count up from 0 on viewport entry. */
+  value: number;
+  /** Optional suffix appended to the value (e.g. '/ 24'). Static text. */
+  valueSuffix?: string;
+  sub: string;
+  tone: 'blue' | 'ink' | 'red';
+}
+
+function Stat({ label, value, valueSuffix, sub, tone }: StatProps) {
   const valueColor = tone === 'blue' ? 'var(--blue)' : tone === 'red' ? 'var(--red)' : 'var(--ink)';
   return (
     <div className="p-5" style={{ borderColor: 'var(--border)' }}>
       <div className="text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] font-semibold">{label}</div>
-      <div className="mt-1 text-[1.75rem] font-bold tabular leading-none" style={{ color: valueColor }}>{value}</div>
+      <div
+        className="mt-1 text-[1.75rem] font-bold leading-none flex items-baseline gap-0.5"
+        style={{ color: valueColor }}
+      >
+        <NumberTicker value={value} delay={0.3} />
+        {valueSuffix && <span className="tabular text-[1.25rem]">{valueSuffix}</span>}
+      </div>
       <div className="mt-1 text-[11px] text-[color:var(--ink-mute)]">{sub}</div>
     </div>
   );
