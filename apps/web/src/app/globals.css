@@ -187,6 +187,37 @@ html { color-scheme: light; }
 .animate-marquee          { animation: marquee var(--duration, 40s) linear infinite; }
 .animate-marquee-vertical { animation: marquee-vertical var(--duration, 40s) linear infinite; }
 
+/* RetroGrid floor — perspective-tilted grid receding to the horizon.
+   Two stacked linear-gradients form the cells; the parent perspective
+   + rotateX tips the plane forward so it reads as 'a floor.' Lines
+   flow toward the viewer via an animated translateY (duration tunable
+   per-instance via --rg-duration). The mask fades the top into the
+   page background so the horizon dissolves cleanly. */
+.retro-grid-floor {
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  bottom: 0;
+  height: var(--rg-height-pct, 70%);
+  opacity: var(--rg-opacity, 0.18);
+  background-image:
+    linear-gradient(to right, var(--rg-line-color, var(--blue)) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--rg-line-color, var(--blue)) 1px, transparent 1px);
+  background-size: var(--rg-cell, 48px) var(--rg-cell, 48px);
+  transform: perspective(500px) rotateX(var(--rg-angle, 60deg));
+  transform-origin: center bottom;
+  animation: retroGridScroll var(--rg-duration, 12s) linear infinite;
+  -webkit-mask-image: linear-gradient(to top, black 15%, transparent 90%);
+          mask-image: linear-gradient(to top, black 15%, transparent 90%);
+}
+@keyframes retroGridScroll {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 var(--rg-cell, 48px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .retro-grid-floor { animation: none; }
+}
+
 /* Live dot — small, simple, no pulsing aura */
 .live-dot {
   display: inline-block;

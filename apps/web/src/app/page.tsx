@@ -7,6 +7,7 @@ import { DotPattern } from '@/components/ui/dot-pattern';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import { MagicCard } from '@/components/ui/magic-card';
+import { RetroGrid } from '@/components/ui/retro-grid';
 import { AttentionList } from '@/components/v3/landing-attention-list';
 import { cn } from '@/lib/utils';
 
@@ -35,17 +36,21 @@ export default async function Landing() {
         </div>
       </header>
 
-      {/* Hero — DotPattern sits behind, masked to fade out at the
-          edges so the texture doesn't fight the surrounding sections.
-          Pattern color is driven by text-* on the SVG. */}
+      {/* Hero — DotPattern sits behind, masked so the texture is
+          confined to the lower-center of the section. The previous
+          ellipse-at-center mask let dots bleed up toward the masthead
+          and crowd the 'Sign in' button visually; this radial-at-bottom
+          version puts the densest dots near the CTA buttons and fades
+          to nothing at the top of the section. Pattern color driven by
+          text-* on the SVG. */}
       <section className="relative overflow-hidden">
         <DotPattern
           width={22}
           height={22}
           cr={1}
           className={cn(
-            'text-[color:var(--ink-mute)]/40',
-            '[mask-image:radial-gradient(ellipse_at_center,white_20%,transparent_75%)]',
+            'text-[color:var(--ink-mute)]/35',
+            '[mask-image:radial-gradient(ellipse_75%_60%_at_50%_85%,white_30%,transparent_75%)]',
           )}
         />
         <div className="relative mx-auto max-w-[1280px] px-6 py-20 md:px-10 md:py-28 reveal reveal-1">
@@ -163,21 +168,35 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-[920px] px-6 py-24 md:px-10 md:py-32 text-center">
-        <h2 className="text-3xl md:text-5xl font-bold tracking-[-0.02em] text-[color:var(--ink)]">
-          Your team is already on the wire.
-        </h2>
-        <p className="mt-4 text-[15px] text-[color:var(--ink-mute)]">The dashboard is three clicks away.</p>
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/sign-up"
-            className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
-            style={{ background: 'var(--blue)' }}
-          >
-            Open the dashboard
-            <span aria-hidden>→</span>
-          </Link>
+      {/* CTA — RetroGrid floor receding to the horizon behind the
+          headline, fading into the page at the top. The floor reaches
+          the bottom edge of the section so the colophon bar below
+          'pops' against it (the reference site's effect). RetroGrid
+          is pointer-events:none so it doesn't intercept clicks. */}
+      <section className="relative overflow-hidden">
+        <RetroGrid
+          angleDegrees={62}
+          cellSize={56}
+          lineColor="var(--blue)"
+          opacity={0.22}
+          duration="14s"
+          heightFraction={0.75}
+        />
+        <div className="relative mx-auto max-w-[920px] px-6 py-24 md:px-10 md:py-32 text-center">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-[-0.02em] text-[color:var(--ink)]">
+            Your team is already on the wire.
+          </h2>
+          <p className="mt-4 text-[15px] text-[color:var(--ink-mute)]">The dashboard is three clicks away.</p>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/sign-up"
+              className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
+              style={{ background: 'var(--blue)' }}
+            >
+              Open the dashboard
+              <span aria-hidden>→</span>
+            </Link>
+          </div>
         </div>
       </section>
 
