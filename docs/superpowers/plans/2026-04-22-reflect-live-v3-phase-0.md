@@ -337,7 +337,7 @@ Expected: `✓ Compiled successfully`. Fonts now load Montserrat + JetBrains Mon
 - [ ] **Step 3: Commit foundation**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/app/globals.css apps/web/src/app/layout.tsx
 git commit -m "phase-0: foundation — Reflect 2.0 tokens + Montserrat/JetBrains Mono"
 ```
@@ -814,7 +814,7 @@ cd apps/web && bun run build 2>&1 | tail -5
 - [ ] **Step 3: Commit primitives**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/components/v3
 git commit -m "phase-0: add v3 primitives — Brand, Pill, StatCell, ReadinessBar, MessageRow, PageHeader"
 ```
@@ -1990,7 +1990,7 @@ Expected: `✓ Compiled successfully`. Some pages may still have TS errors refer
 - [ ] **Step 10: Commit display refits**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/components/dashboard-shell.tsx apps/web/src/components/app-sidebar.tsx apps/web/src/components/live-feed.tsx apps/web/src/components/watchlist-panel.tsx apps/web/src/components/weather-grid.tsx apps/web/src/components/news-feed.tsx apps/web/src/components/activity-log-timeline.tsx apps/web/src/components/worker-health-card.tsx apps/web/src/components/metric-card.tsx apps/web/src/components/star-button.tsx
 git commit -m "phase-0: refit display components to v3 (light, plain, primitives)"
 ```
@@ -2333,7 +2333,7 @@ cd apps/web && bun run build 2>&1 | tail -5
 ```
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/app/page.tsx apps/web/src/app/sign-in apps/web/src/app/sign-up apps/web/src/app/onboarding
 git commit -m "phase-0: rewrite landing + auth pages to v3 light"
 ```
@@ -2904,7 +2904,7 @@ cd apps/web && bun run build 2>&1 | tail -5
 - [ ] **Step 8: Commit all dashboard pages**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/app/dashboard
 git commit -m "phase-0: rewrite all 17 dashboard pages to v3 light"
 ```
@@ -2924,7 +2924,7 @@ git commit -m "phase-0: rewrite all 17 dashboard pages to v3 light"
 - [ ] **Step 1: Verify no imports remain**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 grep -rn "from '@/components/brand-mark'\|from '@/components/readiness-dial'\|from '@/components/stamp'\|from '@/components/section-tag'\|from '@/components/stat-readout'\|BrandMark\|ReadinessDial\|SectionTag\|StatReadout" apps/web/src --include="*.tsx" --include="*.ts" 2>/dev/null
 ```
 
@@ -2933,11 +2933,11 @@ Expected: empty output. If any usages remain, fix the importing file before cont
 - [ ] **Step 2: Move files to trash**
 
 ```bash
-mv "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/src/components/brand-mark.tsx" \
-   "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/src/components/readiness-dial.tsx" \
-   "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/src/components/stamp.tsx" \
-   "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/src/components/section-tag.tsx" \
-   "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/src/components/stat-readout.tsx" \
+mv "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/src/components/brand-mark.tsx" \
+   "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/src/components/readiness-dial.tsx" \
+   "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/src/components/stamp.tsx" \
+   "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/src/components/section-tag.tsx" \
+   "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/src/components/stat-readout.tsx" \
    ~/.Trash/
 ```
 
@@ -2972,7 +2972,7 @@ Expected: `✓ Compiled successfully`. If a page errors with `Property 'code' do
 - [ ] **Step 5: Commit cleanup**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add -A apps/web/src/components
 git commit -m "phase-0: remove obsolete decorative components + drop deprecated PageHeader props"
 ```
@@ -2989,13 +2989,13 @@ git commit -m "phase-0: remove obsolete decorative components + drop deprecated 
 - [ ] **Step 1: Move mockups to trash**
 
 ```bash
-mv "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/public/mockups" ~/.Trash/
+mv "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/public/mockups" ~/.Trash/
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add -A apps/web/public
 git commit -m "phase-0: drop mockup HTML files (the real app is the mock now)"
 ```
@@ -3007,7 +3007,7 @@ git commit -m "phase-0: drop mockup HTML files (the real app is the mock now)"
 - [ ] **Step 1: Final build**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun run build 2>&1 | tail -30
 ```
 
@@ -3016,7 +3016,7 @@ Expected: `✓ Compiled successfully` + `Generating static pages using N workers
 - [ ] **Step 2: Push to main**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git push 2>&1 | tail -5
 ```
 

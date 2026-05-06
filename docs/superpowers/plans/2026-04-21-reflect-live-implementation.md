@@ -11,7 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-04-21-reflect-live-design.md`
 
 **Working directory (all paths relative):**
-`/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/`
+`/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/`
 
 ---
 
@@ -165,7 +165,7 @@ Only needed if you want Phase 2 of the seed to populate `activity_logs` with ref
 - [ ] **Step 1: `cd` into the repo directory**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 ```
 
 - [ ] **Step 2: `git init` and set default branch**

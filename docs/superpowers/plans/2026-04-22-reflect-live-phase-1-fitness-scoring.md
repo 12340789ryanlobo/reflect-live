@@ -71,7 +71,7 @@ If MCP isn't connected to the project right now, the migration file is on disk a
 - [ ] **Step 3: Commit**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add supabase/migrations/0009_team_scoring_config.sql
 git commit -m "phase-1: migration — teams.scoring_json (workout/rehab points)"
 ```
@@ -86,7 +86,7 @@ git commit -m "phase-1: migration — teams.scoring_json (workout/rehab points)"
 - [ ] **Step 1: Read the current Team type**
 
 ```bash
-cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/packages/shared/src/types.ts" | grep -A 15 "interface Team"
+cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/packages/shared/src/types.ts" | grep -A 15 "interface Team"
 ```
 
 You'll see the current `Team` interface. Note its location and existing fields.
@@ -112,7 +112,7 @@ If `Team` already imports from elsewhere, just add the new field at the end of t
 - [ ] **Step 3: Verify the build still compiles**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun run build 2>&1 | tail -10
 ```
 
@@ -121,7 +121,7 @@ Expected: `✓ Compiled successfully`. The new field is non-breaking — existin
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add packages/shared/src/types.ts
 git commit -m "phase-1: extend Team type with scoring_json"
 ```
@@ -136,7 +136,7 @@ git commit -m "phase-1: extend Team type with scoring_json"
 - [ ] **Step 1: Read current package.json**
 
 ```bash
-cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/package.json"
+cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/package.json"
 ```
 
 Note the existing `scripts` section.
@@ -163,7 +163,7 @@ If any of the listed scripts already exist, only add the missing `"test"` entry 
 - [ ] **Step 3: Verify the script is present**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 grep -A 1 '"test"' package.json
 ```
 
@@ -184,7 +184,7 @@ We'll TDD this: test first, see it fail (because the file doesn't exist), implem
 - [ ] **Step 1: Create the test file with failing tests**
 
 ```bash
-mkdir -p "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/tests/lib"
+mkdir -p "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/tests/lib"
 ```
 
 Write `apps/web/tests/lib/scoring.test.ts`:
@@ -356,7 +356,7 @@ describe('weekStartCT', () => {
 - [ ] **Step 2: Run the tests — expect them to fail because `scoring.ts` doesn't exist yet**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun test 2>&1 | tail -20
 ```
 
@@ -551,7 +551,7 @@ A note on the `weekStartCT` implementation: timezone math is brittle. The above 
 - [ ] **Step 4: Run the tests — expect all pass**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun test 2>&1 | tail -20
 ```
 
@@ -587,7 +587,7 @@ Use whichever passes the tests. Don't merge a flaky `weekStartCT`.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/package.json apps/web/src/lib/scoring.ts apps/web/tests/lib/scoring.test.ts
 git commit -m "phase-1: scoring lib + tests (aggregateLeaderboard, weekStartCT)"
 ```
@@ -657,7 +657,7 @@ export async function PATCH(req: NextRequest) {
 This route depends on a `createServerSupabase` helper. Check if it exists:
 
 ```bash
-grep -rn "createServerSupabase\|export.*Supabase" /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web/src/lib/ 2>/dev/null | head
+grep -rn "createServerSupabase\|export.*Supabase" /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web/src/lib/ 2>/dev/null | head
 ```
 
 If `apps/web/src/lib/supabase-server.ts` doesn't exist or doesn't export `createServerSupabase`, look at how OTHER API routes in `apps/web/src/app/api/` create their server-side Supabase client (e.g., `/api/preferences/route.ts` if present). Use the same import path and helper name. Adjust the import line in the route accordingly.
@@ -667,7 +667,7 @@ If the project's existing pattern is different — e.g., `import { supabaseServe
 - [ ] **Step 2: Build to verify**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun run build 2>&1 | tail -10
 ```
 
@@ -676,7 +676,7 @@ Expected: `✓ Compiled successfully`. The route table should now include `/api/
 - [ ] **Step 3: Commit**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/app/api/team/scoring
 git commit -m "phase-1: PATCH /api/team/scoring (coach + admin)"
 ```
@@ -786,7 +786,7 @@ export function Leaderboard({
 - [ ] **Step 2: Build to verify**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun run build 2>&1 | tail -5
 ```
 
@@ -795,7 +795,7 @@ Expected: `✓ Compiled successfully`.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/components/v3/leaderboard.tsx
 git commit -m "phase-1: v3 Leaderboard component"
 ```
@@ -810,7 +810,7 @@ git commit -m "phase-1: v3 Leaderboard component"
 - [ ] **Step 1: Read the current Activity page**
 
 ```bash
-cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/src/app/dashboard/fitness/page.tsx" | head -50
+cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/src/app/dashboard/fitness/page.tsx" | head -50
 ```
 
 You'll see imports + the `FitnessPage` component. Note the existing structure.
@@ -867,7 +867,7 @@ Adjust the `reveal-N` class so subsequent sections still have a sensible reveal 
 - [ ] **Step 4: Build**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun run build 2>&1 | tail -10
 ```
 
@@ -876,7 +876,7 @@ Expected: `✓ Compiled successfully`. If there's a TypeScript error about `team
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/app/dashboard/fitness/page.tsx
 git commit -m "phase-1: Activity page — embed weekly + all-time leaderboards"
 ```
@@ -891,7 +891,7 @@ git commit -m "phase-1: Activity page — embed weekly + all-time leaderboards"
 - [ ] **Step 1: Read the current Athlete page**
 
 ```bash
-cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/src/app/dashboard/athlete/page.tsx" | head -60
+cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/src/app/dashboard/athlete/page.tsx" | head -60
 ```
 
 - [ ] **Step 2: Add imports + rank state + fetch**
@@ -951,7 +951,7 @@ Place it logically — for example, immediately after the page header subtitle l
 - [ ] **Step 4: Build**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun run build 2>&1 | tail -5
 ```
 
@@ -960,7 +960,7 @@ Expected: `✓ Compiled successfully`.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/app/dashboard/athlete/page.tsx
 git commit -m "phase-1: Athlete view — personal rank chip (this week + all-time)"
 ```
@@ -975,7 +975,7 @@ git commit -m "phase-1: Athlete view — personal rank chip (this week + all-tim
 - [ ] **Step 1: Read the current Settings page**
 
 ```bash
-cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web/src/app/dashboard/settings/page.tsx" | head -80
+cat "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web/src/app/dashboard/settings/page.tsx" | head -80
 ```
 
 Note the section structure (Role / view, Phone OTP, Preferences, Account, Database, Worker health).
@@ -1101,7 +1101,7 @@ If `Label` and `Input` and `Button` aren't already imported in this file, add th
 - [ ] **Step 4: Build**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun run build 2>&1 | tail -5
 ```
 
@@ -1162,7 +1162,7 @@ The existing `save()` function still POSTs role. That's fine — it's the umbrel
 - [ ] **Step 3: Build**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun run build 2>&1 | tail -5
 ```
 
@@ -1171,7 +1171,7 @@ Expected: `✓ Compiled successfully`.
 - [ ] **Step 4: Commit Tasks 9 + 10**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git add apps/web/src/app/dashboard/settings/page.tsx
 git commit -m "phase-1: Settings — Scoring card + click-to-save role switcher"
 ```
@@ -1183,7 +1183,7 @@ git commit -m "phase-1: Settings — Scoring card + click-to-save role switcher"
 - [ ] **Step 1: Run full test suite**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live/apps/web"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live/apps/web"
 bun test 2>&1 | tail -15
 ```
 
@@ -1200,7 +1200,7 @@ Expected: `✓ Compiled successfully` plus the route table now includes `/api/te
 - [ ] **Step 3: Push to main**
 
 ```bash
-cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/Assignments/Assignment4/reflect-live"
+cd "/Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238 DBS/reflect-live"
 git push 2>&1 | tail -5
 ```
 

@@ -79,7 +79,7 @@ export async function requirePlatformAdmin(): Promise<AdminGuardResult> {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -88,7 +88,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/lib/admin-guard.ts
 git commit -m "feat(web): requirePlatformAdmin helper
 
@@ -271,7 +271,7 @@ export async function PATCH(req: Request) {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -280,7 +280,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/teams/route.ts
 git commit -m "feat(api): open POST /api/teams to coach self-service
 
@@ -384,7 +384,7 @@ export async function DELETE(
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -393,7 +393,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/teams/\[id\]/route.ts
 git commit -m "feat(api): PATCH/DELETE /api/teams/[id] for admin lifecycle
 
@@ -481,7 +481,7 @@ export async function PATCH(req: NextRequest) {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -490,7 +490,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/platform-settings/route.ts
 git commit -m "feat(api): /api/platform-settings GET + PATCH
 
@@ -643,7 +643,7 @@ export default function NewTeamPage() {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -652,7 +652,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/dashboard/team/new/page.tsx
 git commit -m "feat(dashboard): /dashboard/team/new coach team-creation form
 
@@ -924,7 +924,7 @@ export default function AdminTeamsPage() {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -933,7 +933,7 @@ Expected: clean.
 - [ ] **Step 3: Commit + push**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/dashboard/admin/teams/page.tsx
 git commit -m "feat(admin): all-teams panel — status, code, lifecycle actions, approval toggle
 

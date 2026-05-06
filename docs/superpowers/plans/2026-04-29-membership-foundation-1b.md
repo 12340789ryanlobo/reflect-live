@@ -183,7 +183,7 @@ Expected: PASS — 6 cases green.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/lib/membership-state.ts apps/web/src/lib/membership-state.test.ts
 git commit -m "feat(web): membership-state helper + tests
 
@@ -267,7 +267,7 @@ export async function GET(req: NextRequest) {
 Start the dev server (skip if already running):
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web && bun run dev
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web && bun run dev
 ```
 
 Then in a browser hit `http://localhost:3000/api/teams/discover` while logged in. Expected response:
@@ -284,7 +284,7 @@ And `http://localhost:3000/api/teams/discover?code=uchicago-swim` returns `{ "te
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/teams/discover/route.ts
 git commit -m "feat(api): /api/teams/discover for athlete onboarding browse + code lookup
 
@@ -421,7 +421,7 @@ export async function POST(req: NextRequest) {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -430,7 +430,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/team-memberships/route.ts
 git commit -m "feat(api): /api/team-memberships POST request + GET own
 
@@ -536,7 +536,7 @@ export async function PATCH(
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -545,7 +545,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/team-memberships/\[teamId\]/route.ts
 git commit -m "feat(api): PATCH /api/team-memberships/[teamId] self-service actions
 
@@ -639,7 +639,7 @@ export function PendingBanner({ pending, teamNames, onAfterCancel }: Props) {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -648,7 +648,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/components/v3/pending-banner.tsx
 git commit -m "feat(web): PendingBanner component for in-flight join requests
 
@@ -904,7 +904,7 @@ export default function Onboarding() {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -913,7 +913,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/onboarding/page.tsx
 git commit -m "feat(onboarding): browse + code-entry request flow
 
@@ -1186,7 +1186,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -1195,7 +1195,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/components/dashboard-shell.tsx
 git commit -m "feat(web): dashboard-shell reads team_memberships as authoritative
 
@@ -1221,7 +1221,7 @@ post-approval first-render path)."
 - [ ] **Step 1: Push the branch**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git push
 ```
 

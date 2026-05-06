@@ -3,7 +3,7 @@
 **Course:** MPCS 51238 (Design, Build, Ship) · Spring 2026
 **Assignment:** 4 — Build & Deploy a System
 **Date:** 2026-04-21
-**Working folder:** `Assignments/Assignment4/reflect-live/`
+**Working folder:** `reflect-live/`
 
 ---
 

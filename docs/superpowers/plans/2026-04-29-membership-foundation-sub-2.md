@@ -106,7 +106,7 @@ export async function PATCH(req: NextRequest) {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -115,7 +115,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/me/active-team/route.ts
 git commit -m "feat(api): PATCH /api/me/active-team for team switcher
 
@@ -331,7 +331,7 @@ export function TeamSwitcher({ currentTeamId, currentTeamName, isPlatformAdmin }
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -340,7 +340,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/components/v3/team-switcher.tsx
 git commit -m "feat(web): TeamSwitcher component for sidebar header
 
@@ -434,7 +434,7 @@ The pending-only branch's `<AppSidebar role="athlete" />` doesn't need updating 
 - [ ] **Step 3: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -443,7 +443,7 @@ Expected: clean.
 - [ ] **Step 4: Commit + push**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/components/app-sidebar.tsx apps/web/src/components/dashboard-shell.tsx
 git commit -m "feat(sidebar): wire TeamSwitcher into the header
 

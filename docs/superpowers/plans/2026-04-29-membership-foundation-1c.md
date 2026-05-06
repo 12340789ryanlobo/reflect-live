@@ -50,7 +50,7 @@ alter table team_memberships add column if not exists requested_phone text;
 - [ ] **Step 2: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add supabase/migrations/0016_request_phone.sql
 git commit -m "feat(db): add requested_phone to team_memberships for coach approval
 
@@ -127,7 +127,7 @@ Then in the insert call, add `requested_phone: phone`:
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -140,8 +140,8 @@ Open `packages/shared/src/types.ts`. Find `TeamMembership` interface. Add `reque
 - [ ] **Step 4: Re-typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/packages/shared && bunx tsc --noEmit
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web && bunx tsc --noEmit
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/packages/shared && bunx tsc --noEmit
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web && bunx tsc --noEmit
 ```
 
 Expected: clean.
@@ -149,7 +149,7 @@ Expected: clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/team-memberships/route.ts packages/shared/src/types.ts
 git commit -m "feat(api): accept + store requested_phone on join request
 
@@ -234,7 +234,7 @@ Update the disabled state of the submit button to require phone:
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -243,7 +243,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/onboarding/page.tsx
 git commit -m "feat(onboarding): collect phone in join request form
 
@@ -333,7 +333,7 @@ export async function GET(
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -342,7 +342,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/teams/\[id\]/requests/route.ts
 git commit -m "feat(api): GET /api/teams/[id]/requests — coach inbox listing
 
@@ -538,7 +538,7 @@ export async function PATCH(
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -547,7 +547,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/api/teams/\[id\]/requests/\[clerkUserId\]/route.ts
 git commit -m "feat(api): PATCH /api/teams/[id]/requests/[clerkUserId] approve/deny
 
@@ -775,7 +775,7 @@ export default function RequestsPage() {
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -784,7 +784,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/app/dashboard/requests/page.tsx
 git commit -m "feat(dashboard): /dashboard/requests inbox for coach/captain
 
@@ -827,7 +827,7 @@ import { ..., UserPlus } from 'lucide-react';
 - [ ] **Step 2: Typecheck**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live/apps/web
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live/apps/web
 bunx tsc --noEmit
 ```
 
@@ -836,7 +836,7 @@ Expected: clean.
 - [ ] **Step 3: Commit + push**
 
 ```bash
-cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/Assignments/Assignment4/reflect-live
+cd /Users/rlobo/Documents/UChicago/Classes/Fourth-year/Spring2026/MPCS51238\ DBS/reflect-live
 git add apps/web/src/components/app-sidebar.tsx
 git commit -m "feat(sidebar): add Requests entry for coach + captain navs
 
