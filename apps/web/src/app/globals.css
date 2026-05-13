@@ -10,7 +10,11 @@
 :root {
   /* Surfaces */
   --paper: #FAF8F3;
-  --paper-2: #F4F0E6;
+  /* Deeper, warmer cream — was #F4F0E6 (only 4-6 channel pts off
+     --paper which read as 'the same color'). New value is ~14 pts
+     off; the cream-to-cream difference is finally visible, giving
+     section transitions real tonal rhythm against pure-white cards. */
+  --paper-2: #ECE4CE;
   --card: #FFFFFF;
   --card-hover: #FBF9F4;
 
@@ -24,11 +28,16 @@
   --border: #EAE5D9;
   --border-2: #D7D1C2;
 
-  /* Brand */
-  --blue: #1F5FB0;
-  --blue-2: #3F7AC4;
-  --blue-soft: #E8F0F9;
-  --blue-soft-2: #D7E3F2;
+  /* Brand — was #1F5FB0 (desaturated navy, low energy). Bumped to
+     a more saturated, slightly brighter blue that reads as modern
+     SaaS brand color rather than 'corporate intranet.' Every CTA,
+     eyebrow, hover, and accent pill across both the landing page
+     and the dashboard picks this up automatically since everything
+     reads from the var. */
+  --blue: #1E55D6;
+  --blue-2: #4878E8;
+  --blue-soft: #E4ECFB;
+  --blue-soft-2: #C9D7F4;
 
   /* Signal */
   --green: #148759;

@@ -94,11 +94,7 @@ export default async function Landing() {
         <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,360px)] gap-12 items-center">
             <div>
-              <p className="mb-3">
-                <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
-                  The check-in
-                </AnimatedShinyText>
-              </p>
+              <Eyebrow>The check-in</Eyebrow>
               <h2 className="text-2xl md:text-3xl font-bold tracking-[-0.01em] text-[color:var(--ink)] leading-[1.15] max-w-[20ch]">
                 One survey. One text. One stream of truth.
               </h2>
@@ -121,11 +117,7 @@ export default async function Landing() {
 
       {/* What the coach sees — mini dashboard preview */}
       <section className="mx-auto max-w-[1280px] px-6 py-20 md:px-10 reveal reveal-3">
-        <p className="mb-3">
-          <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
-            What the coach sees
-          </AnimatedShinyText>
-        </p>
+        <Eyebrow>What the coach sees</Eyebrow>
         <h2 className="text-3xl md:text-4xl font-bold tracking-[-0.01em] text-[color:var(--ink)] leading-[1.1] max-w-[24ch]">
           A live read on the team — without asking another question.
         </h2>
@@ -148,11 +140,7 @@ export default async function Landing() {
         style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
       >
         <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
-          <p className="mb-3">
-            <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
-              Where it hurts
-            </AnimatedShinyText>
-          </p>
+          <Eyebrow>Where it hurts</Eyebrow>
           <h2 className="text-2xl md:text-3xl font-bold tracking-[-0.01em] text-[color:var(--ink)] leading-[1.15] max-w-[24ch]">
             Pain reports turn straight into a body map.
           </h2>
@@ -170,17 +158,17 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* Feature grid */}
+      {/* Feature grid — uses --paper-2 (deeper warm cream) instead of
+          --card (white) so the section transitions read with real
+          three-tone rhythm: paper → card → paper → card → paper-2 →
+          paper. The previous all-paper/card alternation read as 'one
+          continuous gray wash' (reviewer's word). */}
       <section
         className="border-y"
-        style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
+        style={{ borderColor: 'var(--border)', background: 'var(--paper-2)' }}
       >
         <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
-          <p className="mb-3">
-            <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
-              What&rsquo;s inside
-            </AnimatedShinyText>
-          </p>
+          <Eyebrow>What&rsquo;s inside</Eyebrow>
           <h2 className="text-2xl md:text-3xl font-bold text-[color:var(--ink)] mb-10">
             Six surfaces. One database. Zero copy-paste.
           </h2>
@@ -276,6 +264,27 @@ function CheckRow({ children }: { children: React.ReactNode }) {
       />
       <span>{children}</span>
     </li>
+  );
+}
+
+// Section eyebrow as a pill chip — was previously just colored text,
+// which the reviewer correctly noted made section headers blend into
+// the body copy. Pill bg gives every section a visible 'this is a
+// distinct chapter' anchor. AnimatedShinyText still does its slow
+// glint inside; --blue-soft chip bg makes the brand color register as
+// a punchier accent across the page.
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-4">
+      <span
+        className="inline-flex items-center px-2.5 py-1 rounded-full"
+        style={{ background: 'var(--blue-soft)' }}
+      >
+        <AnimatedShinyText className="text-[11px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
+          {children}
+        </AnimatedShinyText>
+      </span>
+    </p>
   );
 }
 
