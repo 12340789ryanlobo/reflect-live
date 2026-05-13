@@ -158,14 +158,10 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* Feature grid — uses --paper-2 (deeper warm cream) instead of
-          --card (white) so the section transitions read with real
-          three-tone rhythm: paper → card → paper → card → paper-2 →
-          paper. The previous all-paper/card alternation read as 'one
-          continuous gray wash' (reviewer's word). */}
+      {/* Feature grid */}
       <section
         className="border-y"
-        style={{ borderColor: 'var(--border)', background: 'var(--paper-2)' }}
+        style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
       >
         <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
           <Eyebrow>What&rsquo;s inside</Eyebrow>
