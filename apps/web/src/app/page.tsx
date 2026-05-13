@@ -56,8 +56,8 @@ export default async function Landing() {
           Texts in. Insights out.
         </h1>
         <p className="mt-8 max-w-[55ch] text-lg md:text-xl text-[color:var(--ink-soft)] leading-relaxed">
-          Coaches get a live read on the team without asking another question. Athletes text —
-          workouts, rehabs, readiness — and the dashboard updates in seconds. No app to install.
+          Athletes text. The dashboard updates live. Workouts, rehabs, readiness, fitness scoring,
+          AI assistant — all in one place. No app to install.
         </p>
         <div className="mt-10 flex flex-wrap items-center gap-3">
           <Link
@@ -139,22 +139,17 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* Body heatmap — warm tonal anchor. Faint --red-soft background
-          subconsciously signals 'body / injury / pain context' and
-          breaks up the otherwise-near-white rhythm of the page. The
-          tint is subtle enough that the section still reads as part
-          of the same product family. */}
+      {/* Body heatmap — pulls in the same react-muscle-highlighter
+          component the dashboard uses, fed with mock injury counts.
+          Sells the "pain reports auto-tag body regions" line earlier
+          in the page by actually showing it. */}
       <section
         className="border-y reveal reveal-3"
-        style={{ borderColor: 'var(--border)', background: 'var(--red-soft)' }}
+        style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
       >
         <div className="mx-auto max-w-[1280px] px-6 py-20 md:px-10">
           <p className="mb-3">
-            <AnimatedShinyText
-              className="text-[12px] font-bold uppercase tracking-[0.12em]"
-              baseColor="var(--red)"
-              glintColor="#D87976"
-            >
+            <AnimatedShinyText className="text-[12px] font-bold uppercase tracking-[0.12em] text-[color:var(--blue)]">
               Where it hurts
             </AnimatedShinyText>
           </p>
@@ -209,52 +204,33 @@ export default async function Landing() {
         </div>
       </section>
 
-      {/* CTA — inverted dark band. Dark navy-ink background + white
-          text gives the whole page a rhythm: light, light, light,
-          *thump*, light footer. Reads as 'decision time' right where
-          the user should click. RetroGrid line color brightened to
-          --blue-2 (lighter brand blue) so it's visible against the
-          dark surface. CTA button flipped to white-on-blue for max
-          contrast on dark; secondary 'See pricing' link added to give
-          the section a second affordance now that there's real estate
-          to fill. */}
-      <section
-        className="relative overflow-hidden"
-        style={{ background: '#0F141C' }}
-      >
+      {/* CTA — static RetroGrid floor receding to the horizon. The
+          previous animated version flickered on retina because the
+          perspective transform compresses lines toward the horizon and
+          a moving bg-position aliases hard. Static gives the same 'a
+          floor' visual without the moiré. */}
+      <section className="relative overflow-hidden">
         <RetroGrid
           angleDegrees={62}
           cellSize={64}
-          lineColor="#3F7AC4"
-          opacity={0.28}
+          lineColor="var(--blue)"
+          opacity={0.13}
           heightFraction={0.7}
           lineWidth={1.5}
         />
         <div className="relative mx-auto max-w-[920px] px-6 py-24 md:px-10 md:py-32 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold tracking-[-0.02em] text-white">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-[-0.02em] text-[color:var(--ink)]">
             Your team is already on the wire.
           </h2>
-          <p className="mt-4 text-[15px]" style={{ color: 'rgba(255,255,255,0.65)' }}>
-            The dashboard is three clicks away.
-          </p>
+          <p className="mt-4 text-[15px] text-[color:var(--ink-mute)]">The dashboard is three clicks away.</p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/sign-up"
-              className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold transition hover:opacity-90"
-              style={{ background: 'white', color: 'var(--ink)' }}
+              className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
+              style={{ background: 'var(--blue)' }}
             >
               Open the dashboard
               <span aria-hidden>→</span>
-            </Link>
-            <Link
-              href="/pricing"
-              className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold border transition hover:bg-white/10"
-              style={{
-                borderColor: 'rgba(255,255,255,0.25)',
-                color: 'rgba(255,255,255,0.85)',
-              }}
-            >
-              See pricing
             </Link>
           </div>
         </div>
