@@ -1,13 +1,15 @@
 'use client';
 
 // In-app billing screen. Shows the team's current plan + the feature
-// matrix + an upgrade CTA. Read-only — plan changes happen via
-// /dashboard/admin/teams (admin sets it manually for pilots).
+// matrix and lets the coach kick off Stripe Checkout / Customer
+// Portal. Real plan changes happen in the webhook handler — this UI
+// just initiates the redirect.
 //
 // Falls back to 'free' if team.plan is undefined (migration not yet
 // applied), so this page works in both states.
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
@@ -41,8 +43,14 @@ const FEATURE_ROWS: FeatureRow[] = [
 export default function BillingPage() {
   const { team } = useDashboard();
   const sb = useSupabase();
+  const params = useSearchParams();
+  const status = params.get('status');
+  const intent = params.get('intent');
+  const intentPlan = params.get('plan');
   const [planRaw, setPlanRaw] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [upgrading, setUpgrading] = useState<Plan | null>(null);
+  const [upgradeErr, setUpgradeErr] = useState<string | null>(null);
 
   // useDashboard's `team` object may not include `plan` if the type
   // definition in @reflect-live/shared hasn't been bumped yet, so we
@@ -62,6 +70,72 @@ export default function BillingPage() {
   const plan: Plan = resolvePlan(planRaw);
   const planDef = PLANS[plan];
 
+  // Kicks off Stripe Checkout for the given target plan. Server is the
+  // authority on auth + plan validity; we just redirect to whatever
+  // session URL it returns. The webhook is what actually flips
+  // teams.plan, so the `?status=success` landing is purely visual —
+  // the real plan change may be a few seconds behind on first arrival.
+  async function startCheckout(target: Plan) {
+    if (!team?.id) return;
+    setUpgradeErr(null);
+    setUpgrading(target);
+    try {
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ team_id: team.id, plan: target }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.url) {
+        setUpgradeErr(json.error ?? 'checkout_failed');
+        setUpgrading(null);
+        return;
+      }
+      window.location.assign(json.url);
+    } catch {
+      setUpgradeErr('network_error');
+      setUpgrading(null);
+    }
+  }
+
+  // Opens Stripe Customer Portal — phase-3 endpoint, but the button
+  // is rendered here defensively (no-op until the route exists).
+  async function openPortal() {
+    if (!team?.id) return;
+    setUpgradeErr(null);
+    setUpgrading('team');  // reuse spinner state
+    try {
+      const res = await fetch('/api/billing/portal', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ team_id: team.id }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.url) {
+        setUpgradeErr(json.error ?? 'portal_failed');
+        setUpgrading(null);
+        return;
+      }
+      window.location.assign(json.url);
+    } catch {
+      setUpgradeErr('network_error');
+      setUpgrading(null);
+    }
+  }
+
+  // Auto-launch checkout when the user arrives from /pricing with
+  // ?intent=upgrade&plan=team. We fire once and only on the free
+  // tier — landing on this URL while already paid would be a no-op
+  // (no Stripe Checkout for the plan they already have).
+  useEffect(() => {
+    if (!loaded || intent !== 'upgrade') return;
+    if (planRaw && planRaw !== 'free') return;
+    if (intentPlan !== 'team' && intentPlan !== 'program') return;
+    if (upgrading) return;
+    startCheckout(intentPlan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, intent, intentPlan, planRaw]);
+
   return (
     <>
       <PageHeader
@@ -71,6 +145,22 @@ export default function BillingPage() {
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {status === 'success' && (
+          <div
+            className="reveal rounded-xl border p-4 text-[13px]"
+            style={{ borderColor: 'var(--green)', background: 'var(--green-soft)', color: 'var(--green)' }}
+          >
+            <strong>Subscription active.</strong> It may take a few seconds for the new plan to show below — refresh if needed.
+          </div>
+        )}
+        {status === 'cancelled' && (
+          <div
+            className="reveal rounded-xl border p-4 text-[13px]"
+            style={{ borderColor: 'var(--border)', background: 'var(--paper-2)', color: 'var(--ink-soft)' }}
+          >
+            Checkout cancelled. Your plan is unchanged.
+          </div>
+        )}
         {/* Current plan card */}
         <section
           className="reveal reveal-1 rounded-2xl border p-6 md:p-8"
@@ -94,17 +184,64 @@ export default function BillingPage() {
               </p>
             </div>
             <div className="flex flex-col items-end gap-2">
-              {plan !== 'program' ? (
-                <a
-                  href={`mailto:hello@reflect-live.app?subject=Reflect%20upgrade%20—%20${team.name}`}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold text-white transition hover:opacity-90"
-                  style={{ background: 'var(--blue)' }}
+              {plan === 'free' && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => startCheckout('team')}
+                    disabled={upgrading !== null}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+                    style={{ background: 'var(--blue)' }}
+                  >
+                    {upgrading === 'team' ? 'Loading…' : 'Upgrade to Team →'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startCheckout('program')}
+                    disabled={upgrading !== null}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition hover:opacity-90 disabled:opacity-60"
+                    style={{ background: 'var(--paper)', color: 'var(--ink)', border: '1px solid var(--border-2)' }}
+                  >
+                    {upgrading === 'program' ? 'Loading…' : 'Program →'}
+                  </button>
+                </div>
+              )}
+              {plan === 'team' && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => startCheckout('program')}
+                    disabled={upgrading !== null}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+                    style={{ background: 'var(--blue)' }}
+                  >
+                    {upgrading === 'program' ? 'Loading…' : 'Upgrade to Program →'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openPortal}
+                    disabled={upgrading !== null}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition hover:opacity-90 disabled:opacity-60"
+                    style={{ background: 'var(--paper)', color: 'var(--ink)', border: '1px solid var(--border-2)' }}
+                  >
+                    Manage subscription
+                  </button>
+                </div>
+              )}
+              {plan === 'program' && (
+                <button
+                  type="button"
+                  onClick={openPortal}
+                  disabled={upgrading !== null}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition hover:opacity-90 disabled:opacity-60"
+                  style={{ background: 'var(--paper)', color: 'var(--ink)', border: '1px solid var(--border-2)' }}
                 >
-                  Upgrade plan →
-                </a>
-              ) : (
-                <span className="text-[12px] text-[color:var(--ink-mute)]">
-                  You're on the top tier.
+                  Manage subscription
+                </button>
+              )}
+              {upgradeErr && (
+                <span className="text-[10.5px]" style={{ color: 'var(--red)' }}>
+                  {upgradeErr === 'forbidden' ? 'Only coaches can change billing.' : upgradeErr}
                 </span>
               )}
               {!loaded && (

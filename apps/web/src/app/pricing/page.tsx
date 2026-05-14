@@ -12,7 +12,8 @@ import Link from 'next/link';
 import { Brand } from '@/components/v3/brand';
 import { MagicCard } from '@/components/ui/magic-card';
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
-import { PLANS, PLAN_ORDER, formatPrice, type Plan } from '@/lib/billing-plans';
+import { UpgradeButton } from '@/components/billing/upgrade-button';
+import { PLANS, PLAN_ORDER, type Plan } from '@/lib/billing-plans';
 
 export const dynamic = 'force-dynamic';
 
@@ -183,17 +184,23 @@ function PricingCard({ planId, highlighted }: { planId: Plan; highlighted: boole
           ))}
         </ul>
 
-        <a
-          href={`mailto:hello@reflect-live.app?subject=Reflect%20${plan.name}%20plan`}
-          className="block text-center px-5 py-3 rounded-xl text-[13px] font-bold transition hover:opacity-90"
-          style={{
-            background: highlighted ? 'var(--blue)' : 'var(--paper)',
-            color: highlighted ? 'white' : 'var(--ink)',
-            border: highlighted ? 'none' : '1px solid var(--border-2)',
-          }}
-        >
-          {plan.pricePerSeason === 0 ? 'Get started free' : `Choose ${plan.name}`}
-        </a>
+        <UpgradeButton
+          plan={planId}
+          highlighted={highlighted}
+          label={plan.pricePerSeason === 0 ? 'Get started free' : `Choose ${plan.name}`}
+        />
+        {plan.pricePerSeason > 0 && (
+          <p className="mt-3 text-center text-[10.5px] text-[color:var(--ink-mute)]">
+            Need a PO / ACH invoice?{' '}
+            <a
+              href={`mailto:hello@reflect-live.app?subject=Reflect%20${plan.name}%20plan%20—%20invoice%20request`}
+              className="text-[color:var(--blue)] hover:underline"
+            >
+              Email us
+            </a>
+            .
+          </p>
+        )}
       </article>
     </MagicCard>
   );
