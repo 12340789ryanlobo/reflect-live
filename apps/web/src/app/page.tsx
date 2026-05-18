@@ -65,7 +65,7 @@ export default async function Landing() {
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
             style={{ background: 'var(--blue)' }}
           >
-            Open the dashboard
+            Create account
             <span aria-hidden>→</span>
           </Link>
           <Link
@@ -213,7 +213,7 @@ export default async function Landing() {
               className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-[14px] font-bold text-white transition hover:opacity-90"
               style={{ background: 'var(--blue)' }}
             >
-              Open the dashboard
+              Create account
               <span aria-hidden>→</span>
             </Link>
           </div>
