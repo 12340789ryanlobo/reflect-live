@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { Pill } from '@/components/v3/pill';
+import { DangerZone } from '@/components/dashboard/danger-zone';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Team, UserPreferences, WorkerState, Player, UserRole } from '@reflect-live/shared';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,10 @@ function KV({ label, value, mono, tone }: { label: string; value: React.ReactNod
 }
 
 export default function SettingsPage() {
-  const { role: currentRole, refresh: refreshShell } = useDashboard();
+  // useDashboard()'s `team` collides with the local `team` state set
+  // by the page's own load. Rename the shell-side one so both stay
+  // available without conflict.
+  const { role: currentRole, refresh: refreshShell, team: shellTeam } = useDashboard();
   const sb = useSupabase();
   const { user } = useUser();
 
@@ -906,6 +910,16 @@ export default function SettingsPage() {
             </ul>
           </section>
         </div>
+
+        {/* Self-service destructive actions. Lives at the bottom of
+            the page on purpose — every reasonable setting has been
+            seen first, and the red border + confirm-by-typing UI
+            makes accidental clicks hard. */}
+        <DangerZone
+          activeTeamId={shellTeam?.id ?? team?.id ?? null}
+          activeTeamName={shellTeam?.name ?? team?.name ?? null}
+          canDeleteActiveTeam={currentRole === 'coach'}
+        />
       </main>
     </>
   );
