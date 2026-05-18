@@ -385,7 +385,17 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         // they did. The bot tags inbound messages by the player_id
         // resolved from their phone, so no team-code or marker needed
         // in the body.
-        const teamNum = (team as { twilio_phone_number?: string | null } | null)?.twilio_phone_number ?? null;
+        // Platform fallback: Salus runs on one Twilio number that
+        // serves every team, so when a team row doesn't override it,
+        // read from NEXT_PUBLIC_TWILIO_WHATSAPP_FROM. This matches
+        // the pattern used by apps/web/src/lib/twilio-sms.ts and the
+        // worker, where the per-team columns are opt-in overrides
+        // rather than required config. New teams therefore need zero
+        // Twilio setup for this button to work.
+        const teamNum =
+          (team as { twilio_phone_number?: string | null } | null)?.twilio_phone_number
+          || process.env.NEXT_PUBLIC_TWILIO_WHATSAPP_FROM
+          || null;
         const href = chatHrefForTeamNumber(teamNum, 'Workout: ');
         if (href) {
           window.open(href, '_blank', 'noopener,noreferrer');
