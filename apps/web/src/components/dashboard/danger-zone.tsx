@@ -106,7 +106,22 @@ export function DangerZone({ activeTeamId, activeTeamName, canDeleteActiveTeam }
       const r = await fetch(`/api/teams/${activeTeamId}`, { method: 'DELETE' });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        setErr(j.error ?? 'team_delete_failed');
+        // Surface the underlying Postgres error (j.detail) plus any
+        // per-table cleanup failures (j.steps), so when an unknown
+        // FK blocks the cascade we know which table to add to the
+        // sweep. Falling back to j.error keeps the simpler messages
+        // for the everyday cases.
+        const detail = typeof j.detail === 'string' ? j.detail : null;
+        const failedSteps = Array.isArray(j.steps)
+          ? j.steps.filter((s: { error: string | null }) => s.error)
+            .map((s: { name: string; error: string }) => `${s.name}: ${s.error}`)
+            .join('; ')
+          : null;
+        const message =
+          [j.error ?? 'team_delete_failed', detail, failedSteps]
+            .filter(Boolean)
+            .join(' — ');
+        setErr(message);
         return;
       }
       window.location.assign('/dashboard');
