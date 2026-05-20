@@ -13,6 +13,15 @@ interface AdminCounts {
   activity: number;
 }
 
+interface ReflectStats {
+  configured: boolean;
+  total_players?: number;
+  active_players?: number;
+  teams?: number;
+  reflect_url?: string;
+  error?: string;
+}
+
 const quickLinks: Array<{
   href: string;
   title: string;
@@ -49,15 +58,27 @@ export default function AdminOverview() {
   const { prefs } = useDashboard();
   const sb = useSupabase();
   const [counts, setCounts] = useState<AdminCounts>({ users: 0, messages: 0, activity: 0 });
+  const [reflectStats, setReflectStats] = useState<ReflectStats | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [{ count: users }, { count: msgs }, { count: acts }] = await Promise.all([
-        sb.from('user_preferences').select('clerk_user_id', { count: 'exact', head: true }),
+      // Total user count goes through /api/users (service-role) so we
+      // bypass the user_preferences RLS policy that limits the browser
+      // client to seeing only the caller's own row. messages + activity
+      // stay on the browser client because they're scoped to the
+      // active team anyway and RLS allows that read.
+      const [usersRes, msgsRes, actsRes, reflectRes] = await Promise.all([
+        fetch('/api/users', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { users: [] })),
         sb.from('twilio_messages').select('sid', { count: 'exact', head: true }).eq('team_id', prefs.team_id),
         sb.from('activity_logs').select('id', { count: 'exact', head: true }).eq('team_id', prefs.team_id),
+        fetch('/api/admin/reflect-stats', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { configured: false })),
       ]);
-      setCounts({ users: users ?? 0, messages: msgs ?? 0, activity: acts ?? 0 });
+      setCounts({
+        users: (usersRes.users ?? []).length,
+        messages: msgsRes.count ?? 0,
+        activity: actsRes.count ?? 0,
+      });
+      setReflectStats(reflectRes);
     })();
   }, [sb, prefs.team_id]);
 
@@ -79,6 +100,51 @@ export default function AdminOverview() {
             <div className="p-6"><WorkerHealthCard /></div>
           </div>
         </section>
+
+        {/* Reflect (reflectsalus.app) — live, read-only. Surfaces the
+            scope of the legacy app so we can compare "how many
+            athletes are on reflect" vs "how many users on reflect-live"
+            at a glance. No data is imported into our DB; this is a
+            proxy call gated by the admin guard + server-side
+            REFLECT_ADMIN_KEY. */}
+        {reflectStats && reflectStats.configured && !reflectStats.error && (
+          <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div>
+                <h2 className="text-base font-bold text-[color:var(--ink)]">Reflect (legacy app)</h2>
+                <p className="text-[12px] text-[color:var(--ink-mute)]">
+                  Live read from{' '}
+                  <a
+                    href={reflectStats.reflect_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[color:var(--blue)] hover:underline"
+                  >
+                    {reflectStats.reflect_url?.replace(/^https?:\/\//, '')}
+                  </a>
+                </p>
+              </div>
+              <span className="text-[10.5px] uppercase tracking-wide font-semibold text-[color:var(--ink-mute)]">read-only</span>
+            </header>
+            <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--border)' }}>
+              <div className="p-6"><StatCell label="Athletes" value={reflectStats.total_players ?? 0} sub="across all teams" tone="blue" /></div>
+              <div className="p-6"><StatCell label="Active" value={reflectStats.active_players ?? 0} sub="receiving surveys" tone="green" /></div>
+              <div className="p-6"><StatCell label="Teams" value={reflectStats.teams ?? 0} sub="distinct rosters" /></div>
+            </div>
+          </section>
+        )}
+        {reflectStats && !reflectStats.configured && (
+          <section className="reveal reveal-2 rounded-2xl border p-6 text-[12px] text-[color:var(--ink-mute)]" style={{ borderColor: 'var(--border)', background: 'var(--paper-2)' }}>
+            <span className="font-semibold text-[color:var(--ink)]">Reflect stats unavailable.</span>{' '}
+            Add <span className="mono text-[11px]">REFLECT_URL</span> and{' '}
+            <span className="mono text-[11px]">REFLECT_ADMIN_KEY</span> to env to enable this card.
+          </section>
+        )}
+        {reflectStats?.error && (
+          <section className="reveal reveal-2 rounded-2xl border p-6 text-[12px]" style={{ borderColor: 'var(--red)', background: 'var(--red-soft)', color: 'var(--red)' }}>
+            Reflect call failed: {reflectStats.error}
+          </section>
+        )}
 
         {/* Quick links */}
         <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
