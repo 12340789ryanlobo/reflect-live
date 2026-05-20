@@ -1,20 +1,20 @@
 // GET /api/admin/people-stats — platform-wide count of distinct
-// humans who have interacted with reflect-live in any way.
+// humans reflect-live serves.
 //
-// "Interacted" means at least one of:
-//   - has a Clerk account (user_preferences row) — coaches / admins /
-//     athletes who signed up
-//   - has sent at least one inbound SMS/WhatsApp message (twilio_messages
-//     row with player_id resolved)
-//   - has logged at least one activity (activity_logs row)
-//   - has answered at least one survey question (responses row)
-//   - has filed at least one injury report (injury_reports row)
+// Headcount definition:
+//   - Every athlete on a roster (`players` table) — deduped by phone
+//     in case an athlete is on multiple teams (e.g. swim + dive).
+//   - Plus any Clerk user whose account isn't linked to a player
+//     (coaches / admins / pending join requests).
 //
-// Dedupe across these sources happens via player_id (linked to a
-// Clerk user via user_preferences.impersonate_player_id). The output
-// is intentionally platform-wide, not team-scoped — this powers the
-// admin overview where the question is "how many people total use
-// this thing", not "how many on my team".
+// "Engaged" is a sub-stat: athletes who've sent an inbound message,
+// logged activity, answered a survey, or filed an injury report. Not
+// every athlete on roster has engaged yet, but they're still people
+// the platform tracks.
+//
+// Output is intentionally platform-wide, not team-scoped — this
+// powers the admin overview where the question is "how many people
+// total use this thing", not "how many on my team".
 //
 // Why a dedicated endpoint instead of doing it in the browser:
 // the browser Supabase client is RLS-restricted, so player counts
@@ -49,7 +49,7 @@ export async function GET() {
     sb.from('activity_logs').select('player_id, team_id'),
     sb.from('responses').select('player_id, session_id'),
     sb.from('injury_reports').select('player_id, team_id'),
-    sb.from('players').select('id, team_id'),
+    sb.from('players').select('id, team_id, phone_e164'),
     sb.from('teams').select('id, name').order('name'),
   ]);
 
@@ -58,6 +58,15 @@ export async function GET() {
   const playerTeam = new Map<number, number>();
   for (const p of playersRes.data ?? []) {
     playerTeam.set(p.id as number, p.team_id as number);
+  }
+
+  // Distinct phones across every team — an athlete on swim AND dive
+  // is one person, not two. Falls back to the player_id when phone
+  // is missing so we don't drop legacy rows without a phone.
+  const distinctRosterIdentities = new Set<string>();
+  for (const p of playersRes.data ?? []) {
+    const key = (p.phone_e164 as string | null) || `pid:${p.id}`;
+    distinctRosterIdentities.add(key);
   }
 
   const prefs = prefsRes.data ?? [];
@@ -93,8 +102,14 @@ export async function GET() {
     }
   }
 
-  const distinctPlayerIds = new Set<number>([...engagedPlayerIds, ...clerkLinkedPlayerIds]);
-  const totalPeople = distinctPlayerIds.size + dashboardOnlyUsers;
+  // Headline: roster headcount (distinct phones) + Clerk users who
+  // aren't on a roster. Coaches with no player_id are net-new people;
+  // athletes who linked their Clerk account are already in the
+  // roster set so we don't double-count.
+  const totalPeople = distinctRosterIdentities.size + dashboardOnlyUsers;
+
+  // Kept for the API consumer if they want a stricter count later.
+  const distinctEngagedPlusLinked = new Set<number>([...engagedPlayerIds, ...clerkLinkedPlayerIds]);
 
   // Build the per-team table. For each team, count:
   //   - engaged athletes (from engagedByTeam)
@@ -119,7 +134,9 @@ export async function GET() {
 
   return NextResponse.json({
     total_people: totalPeople,
+    roster_headcount: distinctRosterIdentities.size,
     engaged_athletes: engagedPlayerIds.size,
+    engaged_or_linked: distinctEngagedPlusLinked.size,
     clerk_users: prefs.length,
     dashboard_only_users: dashboardOnlyUsers,
     per_team: perTeam,

@@ -9,6 +9,7 @@ import { Users, Building2, Cpu, Database } from 'lucide-react';
 
 interface AdminCounts {
   totalPeople: number;
+  rosterHeadcount: number;
   engagedAthletes: number;
   dashboardOnly: number;
   messages: number;
@@ -75,6 +76,7 @@ export default function AdminOverview() {
   const sb = useSupabase();
   const [counts, setCounts] = useState<AdminCounts>({
     totalPeople: 0,
+    rosterHeadcount: 0,
     engagedAthletes: 0,
     dashboardOnly: 0,
     messages: 0,
@@ -97,6 +99,7 @@ export default function AdminOverview() {
       ]);
       setCounts({
         totalPeople: peopleRes.total_people ?? 0,
+        rosterHeadcount: peopleRes.roster_headcount ?? 0,
         engagedAthletes: peopleRes.engaged_athletes ?? 0,
         dashboardOnly: peopleRes.dashboard_only_users ?? 0,
         messages: msgsRes.count ?? 0,
@@ -122,7 +125,7 @@ export default function AdminOverview() {
               <StatCell
                 label="Total people"
                 value={counts.totalPeople}
-                sub={`${counts.engagedAthletes} athletes engaged · ${counts.dashboardOnly} dashboard-only`}
+                sub={`${counts.rosterHeadcount} on roster · ${counts.engagedAthletes} engaged · ${counts.dashboardOnly} dashboard-only`}
                 tone="blue"
               />
             </div>
