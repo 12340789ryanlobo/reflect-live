@@ -125,9 +125,18 @@ export async function GET() {
       clerkUnassigned += 1;
     }
   }
+  // Roster size per team. Includes imported athletes who haven't
+  // engaged yet, so newly-onboarded teams don't read as empty even
+  // when their `engaged_athletes` is still 0.
+  const rosterByTeam = new Map<number, number>();
+  for (const p of playersRes.data ?? []) {
+    const tid = p.team_id as number;
+    rosterByTeam.set(tid, (rosterByTeam.get(tid) ?? 0) + 1);
+  }
   const perTeam = teams.map((t) => ({
     team_id: t.id,
     name: t.name,
+    roster: rosterByTeam.get(t.id) ?? 0,
     engaged_athletes: engagedByTeam.get(t.id)?.size ?? 0,
     clerk_users: clerkUsersByTeam.get(t.id) ?? 0,
   }));

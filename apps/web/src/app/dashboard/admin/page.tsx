@@ -19,6 +19,7 @@ interface AdminCounts {
 interface PerTeamRow {
   team_id: number;
   name: string;
+  roster: number;
   engaged_athletes: number;
   clerk_users: number;
 }
@@ -163,13 +164,14 @@ export default function AdminOverview() {
           <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
             <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold text-[color:var(--ink)]">People by team</h2>
-              <span className="text-[11px] text-[color:var(--ink-mute)]">athletes who reported or responded · dashboard users on this team</span>
+              <span className="text-[11px] text-[color:var(--ink-mute)]">roster · engaged (reported anything) · dashboard users</span>
             </header>
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
                   <th className="px-6 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Team</th>
-                  <th className="px-4 py-3 text-right text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Engaged athletes</th>
+                  <th className="px-4 py-3 text-right text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Roster</th>
+                  <th className="px-4 py-3 text-right text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Engaged</th>
                   <th className="px-4 py-3 text-right text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Dashboard users</th>
                 </tr>
               </thead>
@@ -177,7 +179,8 @@ export default function AdminOverview() {
                 {perTeam.map((t) => (
                   <tr key={t.team_id} className="border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
                     <td className="px-6 py-3 text-[color:var(--ink)]">{t.name}</td>
-                    <td className="px-4 py-3 text-right mono tabular text-[color:var(--ink)]">{t.engaged_athletes}</td>
+                    <td className="px-4 py-3 text-right mono tabular text-[color:var(--ink)]">{t.roster}</td>
+                    <td className="px-4 py-3 text-right mono tabular text-[color:var(--ink-soft)]">{t.engaged_athletes}</td>
                     <td className="px-4 py-3 text-right mono tabular text-[color:var(--ink-soft)]">{t.clerk_users}</td>
                   </tr>
                 ))}
