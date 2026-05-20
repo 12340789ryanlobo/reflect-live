@@ -15,6 +15,13 @@ interface AdminCounts {
   activity: number;
 }
 
+interface PerTeamRow {
+  team_id: number;
+  name: string;
+  engaged_athletes: number;
+  clerk_users: number;
+}
+
 // Reflect (reflectsalus.app) is the legacy SMS-survey app that
 // reflect-live replaces. We capture a one-time count of its rosters
 // here so the admin page can show the migration scope. Per-coach
@@ -73,6 +80,7 @@ export default function AdminOverview() {
     messages: 0,
     activity: 0,
   });
+  const [perTeam, setPerTeam] = useState<PerTeamRow[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -94,6 +102,7 @@ export default function AdminOverview() {
         messages: msgsRes.count ?? 0,
         activity: actsRes.count ?? 0,
       });
+      setPerTeam(peopleRes.per_team ?? []);
     })();
   }, [sb, prefs.team_id]);
 
@@ -122,6 +131,38 @@ export default function AdminOverview() {
             <div className="p-6"><WorkerHealthCard /></div>
           </div>
         </section>
+
+        {/* Per-team engagement table. Splits the headline "total
+            people" number into how each team contributes, so the
+            admin can see at a glance which rosters are actually
+            using reflect-live. Engaged = at least one inbound
+            message / activity log / response / injury report. */}
+        {perTeam.length > 0 && (
+          <section className="reveal reveal-2 rounded-2xl bg-[color:var(--card)] border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">People by team</h2>
+              <span className="text-[11px] text-[color:var(--ink-mute)]">athletes who reported or responded · dashboard users on this team</span>
+            </header>
+            <table className="w-full border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
+                  <th className="px-6 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Team</th>
+                  <th className="px-4 py-3 text-right text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Engaged athletes</th>
+                  <th className="px-4 py-3 text-right text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Dashboard users</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perTeam.map((t) => (
+                  <tr key={t.team_id} className="border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+                    <td className="px-6 py-3 text-[color:var(--ink)]">{t.name}</td>
+                    <td className="px-4 py-3 text-right mono tabular text-[color:var(--ink)]">{t.engaged_athletes}</td>
+                    <td className="px-4 py-3 text-right mono tabular text-[color:var(--ink-soft)]">{t.clerk_users}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
 
         {/* Reflect (reflectsalus.app) — static snapshot. Numbers
             captured via scripts/count-legacy-users.ts on the date
