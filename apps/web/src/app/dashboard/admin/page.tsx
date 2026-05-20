@@ -118,19 +118,33 @@ export default function AdminOverview() {
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
-        {/* Top stats */}
+        {/* Top stats. Combined-Salus athletes = the union of reflect-live's
+            current roster + reflect's historically-engaged athletes from
+            the snapshot. Since the import of reflect's rosters pulled
+            them into reflect-live's `players` table, the two populations
+            mostly overlap; we use max() as a defensive lower bound on
+            "humans Salus has ever served" without needing phone-level
+            dedup we don't have. */}
         <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
-          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x" style={{ borderColor: 'var(--border)' }}>
             <div className="p-6">
               <StatCell
                 label="Total people"
                 value={counts.totalPeople}
-                sub={`${counts.rosterHeadcount} on roster · ${counts.engagedAthletes} engaged · ${counts.dashboardOnly} dashboard-only`}
+                sub={`${counts.rosterHeadcount} on roster · ${counts.dashboardOnly} dashboard-only`}
                 tone="blue"
               />
             </div>
+            <div className="p-6">
+              <StatCell
+                label="Athletes in Salus"
+                value={Math.max(counts.rosterHeadcount, REFLECT_SNAPSHOT.activePhones)}
+                sub={`${counts.engagedAthletes} engaged here · ${REFLECT_SNAPSHOT.activePhones} on reflect (legacy)`}
+                tone="green"
+              />
+            </div>
             <div className="p-6"><StatCell label="Total messages" value={counts.messages} sub="twilio-indexed" /></div>
-            <div className="p-6"><StatCell label="Total activity" value={counts.activity} sub="reflect import" tone="green" /></div>
+            <div className="p-6"><StatCell label="Total activity" value={counts.activity} sub="reflect import" /></div>
             <div className="p-6"><WorkerHealthCard /></div>
           </div>
         </section>
