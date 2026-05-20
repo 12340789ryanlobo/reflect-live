@@ -118,13 +118,18 @@ export default function AdminOverview() {
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
-        {/* Top stats. Combined-Salus athletes = the union of reflect-live's
-            current roster + reflect's historically-engaged athletes from
-            the snapshot. Since the import of reflect's rosters pulled
-            them into reflect-live's `players` table, the two populations
-            mostly overlap; we use max() as a defensive lower bound on
-            "humans Salus has ever served" without needing phone-level
-            dedup we don't have. */}
+        {/* Top stats. 'Athletes in Salus' = the union of reflect-live's
+            roster + reflect's engaged athletes. After the legacy import
+            (scripts/import-legacy-teams.ts on 2026-05-20) every reflect
+            phone is also a reflect-live phone, so max(roster, reflect)
+            happens to equal the precise union — verified via phone-
+            level diff:
+              reflect-live phones: 109
+              reflect phones: 108 (overlap 108, only-in-reflect 0)
+              precise union: 109
+            If you re-run the legacy import and the overlap changes,
+            max() will still be a correct lower bound; for true precision
+            re-run the union diff and update the comment. */}
         <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x" style={{ borderColor: 'var(--border)' }}>
             <div className="p-6">
