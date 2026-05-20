@@ -8,7 +8,9 @@ import { useSupabase } from '@/lib/supabase-browser';
 import { Users, Building2, Cpu, Database } from 'lucide-react';
 
 interface AdminCounts {
-  users: number;
+  totalPeople: number;
+  engagedAthletes: number;
+  dashboardOnly: number;
   messages: number;
   activity: number;
 }
@@ -64,22 +66,31 @@ const quickLinks: Array<{
 export default function AdminOverview() {
   const { prefs } = useDashboard();
   const sb = useSupabase();
-  const [counts, setCounts] = useState<AdminCounts>({ users: 0, messages: 0, activity: 0 });
+  const [counts, setCounts] = useState<AdminCounts>({
+    totalPeople: 0,
+    engagedAthletes: 0,
+    dashboardOnly: 0,
+    messages: 0,
+    activity: 0,
+  });
 
   useEffect(() => {
     (async () => {
-      // Total user count goes through /api/users (service-role) so we
-      // bypass the user_preferences RLS policy that limits the browser
-      // client to seeing only the caller's own row. messages + activity
-      // stay on the browser client because they're scoped to the
-      // active team anyway and RLS allows that read.
-      const [usersRes, msgsRes, actsRes] = await Promise.all([
-        fetch('/api/users', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { users: [] })),
+      // Total people = engaged athletes ∪ Clerk users. Computed in
+      // /api/admin/people-stats with the service-role client because
+      // browser RLS can't see other teams' players. messages +
+      // activity stay on the browser client (RLS-scoped to active
+      // team, which is fine — those cards are 'on this team').
+      const [peopleRes, msgsRes, actsRes] = await Promise.all([
+        fetch('/api/admin/people-stats', { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : { total_people: 0, engaged_athletes: 0, dashboard_only_users: 0 })),
         sb.from('twilio_messages').select('sid', { count: 'exact', head: true }).eq('team_id', prefs.team_id),
         sb.from('activity_logs').select('id', { count: 'exact', head: true }).eq('team_id', prefs.team_id),
       ]);
       setCounts({
-        users: (usersRes.users ?? []).length,
+        totalPeople: peopleRes.total_people ?? 0,
+        engagedAthletes: peopleRes.engaged_athletes ?? 0,
+        dashboardOnly: peopleRes.dashboard_only_users ?? 0,
         messages: msgsRes.count ?? 0,
         activity: actsRes.count ?? 0,
       });
@@ -98,7 +109,14 @@ export default function AdminOverview() {
         {/* Top stats */}
         <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
-            <div className="p-6"><StatCell label="Total users" value={counts.users} sub="registered" tone="blue" /></div>
+            <div className="p-6">
+              <StatCell
+                label="Total people"
+                value={counts.totalPeople}
+                sub={`${counts.engagedAthletes} athletes engaged · ${counts.dashboardOnly} dashboard-only`}
+                tone="blue"
+              />
+            </div>
             <div className="p-6"><StatCell label="Total messages" value={counts.messages} sub="twilio-indexed" /></div>
             <div className="p-6"><StatCell label="Total activity" value={counts.activity} sub="reflect import" tone="green" /></div>
             <div className="p-6"><WorkerHealthCard /></div>
