@@ -144,6 +144,24 @@ export async function computeLeaderboard(
 }
 
 /**
+ * Round a points value to 4 decimal places to suppress IEEE 754
+ * accumulation artifacts that surface whenever a competition uses
+ * fractional weights (the canonical example: 22 × 0.6 evaluates to
+ * 13.200000000000001 in JavaScript, not 13.2). 4 decimals is enough
+ * to preserve any real-world scoring config — competitions don't
+ * meaningfully need sub-0.0001 point granularity — while killing
+ * the float noise at the 10th–15th decimal that was leaking through
+ * to the leaderboard UI.
+ *
+ * Applied in `aggregateCompetition` to base_points, bonus_total, and
+ * the summed `points` so every downstream consumer (API responses,
+ * athlete-page card, exports, LLM prompts) receives clean numbers.
+ */
+function roundPoints(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+/**
  * Competition-aware leaderboard row. Carries the per-kind counts so the UI
  * can show "X swims · Y workouts · Z rehabs" alongside the headline points.
  * `bonus_total` is the sum of all signed stacking adjustments applied to
@@ -238,14 +256,21 @@ export function aggregateCompetition(
       }
     }
 
+    // Round at the source so float-arithmetic noise (22 × 0.6 →
+    // 13.200000000000001 etc.) never reaches the API or the UI.
+    // base_points and bonus_total are each rounded independently
+    // before being summed, and the sum is rounded again because
+    // base + bonus can itself reintroduce a tiny epsilon.
+    const baseRounded = roundPoints(basePoints);
+    const bonusRounded = roundPoints(bonusTotal);
     rows.push({
       player_id,
       name: player.name,
       group: player.group,
       counts,
-      base_points: basePoints,
-      bonus_total: bonusTotal,
-      points: basePoints + bonusTotal,
+      base_points: baseRounded,
+      bonus_total: bonusRounded,
+      points: roundPoints(baseRounded + bonusRounded),
     });
   }
 

@@ -164,6 +164,51 @@ describe('aggregateCompetition — tiered rules composing', () => {
   });
 });
 
+describe('aggregateCompetition — float precision (no IEEE 754 leaks)', () => {
+  // Reproduces the leaderboard bug seen in Spring 2026 production:
+  // Pierre Chan (22 rehabs × 0.6 = 13.2) + (51 workouts × 1 = 51) was
+  // returning 64.20000000000002 because 22 × 0.6 in JS = 13.2000…001.
+  // The aggregator must round at the source so consumers never see
+  // float noise.
+  test('22 × 0.6 + 51 × 1 returns exactly 64.2, not 64.20000…002', () => {
+    const entries: CompetitionInputEntry[] = [];
+    // 22 rehabs spread across 22 different days (so the inner loop
+    // increments by 0.6 twenty-two times — the path that historically
+    // accumulated error)
+    for (let i = 0; i < 22; i++) entries.push(entry(1, 'rehab', `2026-03-${String(i + 1).padStart(2, '0')}`));
+    for (let i = 0; i < 51; i++) entries.push(entry(1, 'workout', `2026-04-${String((i % 30) + 1).padStart(2, '0')}`));
+    const rows = aggregateCompetition(PLAYERS, entries, SCORING, []);
+    expect(rows[0].base_points).toBe(64.2);
+    expect(rows[0].points).toBe(64.2);
+    // Defensive: confirm the value is genuinely 64.2 not a near-miss
+    // that happens to print as 64.2 — the bug rendered as 64.20000…002.
+    expect(String(rows[0].points)).toBe('64.2');
+  });
+
+  test('19 × 0.6 + 50 × 1 returns 61.4 (Misha Kojanov case from prod)', () => {
+    const entries: CompetitionInputEntry[] = [];
+    for (let i = 0; i < 19; i++) entries.push(entry(1, 'rehab', `2026-03-${String(i + 1).padStart(2, '0')}`));
+    for (let i = 0; i < 50; i++) entries.push(entry(1, 'workout', `2026-04-${String((i % 30) + 1).padStart(2, '0')}`));
+    const rows = aggregateCompetition(PLAYERS, entries, SCORING, []);
+    expect(rows[0].points).toBe(61.4);
+    expect(String(rows[0].points)).toBe('61.4');
+  });
+
+  test('signed bonus subtraction also rounds clean', () => {
+    // 22 rehabs in one day (= 22 × 0.6 = 13.2) then a -0.6 penalty.
+    // Naive math would land at 12.600000000000001.
+    const entries = Array.from({ length: 22 }, () => entry(1, 'rehab', '2026-06-01'));
+    const rules: CompetitionBonusRule[] = [
+      { kind: 'rehab', min_per_day: 2, bonus_points: -0.6 },
+    ];
+    const rows = aggregateCompetition(PLAYERS, entries, SCORING, rules);
+    expect(rows[0].base_points).toBe(13.2);
+    expect(rows[0].bonus_total).toBe(-0.6);
+    expect(rows[0].points).toBe(12.6);
+    expect(String(rows[0].points)).toBe('12.6');
+  });
+});
+
 describe('aggregateCompetition — edge cases', () => {
   test('empty entries returns empty rows', () => {
     expect(aggregateCompetition(PLAYERS, [], SCORING, [])).toEqual([]);
