@@ -8,7 +8,7 @@
 //
 // All tests target the pure function directly; no Supabase needed.
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { aggregateCompetition, type CompetitionInputEntry, type LeaderboardInputPlayer } from './scoring';
 import type { CompetitionBonusRule } from '@reflect-live/shared';
 

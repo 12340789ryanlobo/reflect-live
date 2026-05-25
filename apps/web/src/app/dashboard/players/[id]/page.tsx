@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Pencil } from 'lucide-react';
 import { PageHeader, useDashboard } from '@/components/dashboard-shell';
 import { AthleteHero, type ActionVerb } from '@/components/v3/athlete-hero';
+import { CompetitionStandingCard } from '@/components/v3/competition-standing-card';
 import { HeatmapTabs, type InjurySideRow } from '@/components/v3/heatmap-tabs';
 import { UnifiedTimeline } from '@/components/v3/unified-timeline';
 import { EditAthleteDialog } from '@/components/v3/edit-athlete-dialog';
@@ -501,6 +502,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           }
           alternatePhoneCount={alternatePhoneCount}
         />
+        <CompetitionStandingCard teamId={team.id} playerId={player.id} />
         <HeatmapTabs
           injuryCounts={injuryCounts}
           activityCounts={activityCounts}

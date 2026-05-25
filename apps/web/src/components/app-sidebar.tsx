@@ -24,6 +24,7 @@ import {
   ClipboardList,
   UserPlus,
   CreditCard,
+  Trophy,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -79,6 +80,7 @@ const COACH_NAV: NavItem[] = [
   { href: '/dashboard/players', label: 'Athletes', icon: Users },
   { href: '/dashboard/requests', label: 'Requests', icon: UserPlus },
   { href: '/dashboard/fitness', label: 'Activity', icon: Dumbbell },
+  { href: '/dashboard/competitions', label: 'Competitions', icon: Trophy },
   { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
   {
     href: '/dashboard/sessions',
@@ -96,6 +98,7 @@ const COACH_NAV: NavItem[] = [
 const ATHLETE_NAV_BASE: NavItem[] = [
   { href: '/dashboard/athlete', label: 'My view', icon: UserIcon },
   { href: '/dashboard/fitness', label: 'Team activity', icon: Dumbbell },
+  { href: '/dashboard/competitions', label: 'Competitions', icon: Trophy },
 ];
 
 const CAPTAIN_NAV: NavItem[] = [
