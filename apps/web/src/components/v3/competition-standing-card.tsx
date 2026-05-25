@@ -16,6 +16,10 @@ import Link from 'next/link';
 import type { Competition } from '@reflect-live/shared';
 import { Trophy } from 'lucide-react';
 
+// Top-3 medals match the legacy reflect leaderboard look so athletes
+// who used the old app recognize the rank affordance instantly.
+const MEDALS = ['🥇', '🥈', '🥉'] as const;
+
 interface Props {
   teamId: number;
   playerId: number;
@@ -94,24 +98,34 @@ export function CompetitionStandingCard({ teamId, playerId }: Props) {
         <h2 className="text-base font-bold text-[color:var(--ink)]">Active competitions</h2>
       </header>
       <ul>
-        {standings.map((s) => (
+        {standings.map((s) => {
+          const medal = s.rank && s.rank <= 3 ? MEDALS[s.rank - 1] : null;
+          // Days remaining for the urgency cue. Inclusive of today.
+          const today = new Date().toISOString().slice(0, 10);
+          const a = new Date(today + 'T00:00:00Z').getTime();
+          const b = new Date(s.competition.ends_at + 'T00:00:00Z').getTime();
+          const daysLeft = Math.max(0, Math.round((b - a) / 86_400_000) + 1);
+          return (
           <li key={s.competition.id} className="border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
             <Link
               href={`/dashboard/competitions/${s.competition.id}`}
-              className="grid grid-cols-[1fr_auto_auto] items-center gap-6 px-6 py-3 hover:bg-[color:var(--card-hover)] transition"
+              className="grid grid-cols-[1fr_auto_auto] items-center gap-6 px-6 py-3.5 hover:bg-[color:var(--card-hover)] transition"
             >
               <div>
-                <div className="font-semibold text-[13.5px] text-[color:var(--ink)]">{s.competition.name}</div>
-                <div className="text-[11.5px] text-[color:var(--ink-mute)] mono">
-                  {s.competition.starts_at} → {s.competition.ends_at}
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-[14px] text-[color:var(--ink)]">{s.competition.name}</span>
+                  <span className="inline-block size-1.5 rounded-full bg-[color:var(--green)] animate-pulse" aria-label="live" />
+                </div>
+                <div className="text-[11.5px] text-[color:var(--ink-mute)] mt-0.5">
+                  {daysLeft} day{daysLeft === 1 ? '' : 's'} left · ends {s.competition.ends_at}
                 </div>
               </div>
               <div className="text-right">
-                <div className="tabular text-[20px] font-bold leading-none" style={{ color: 'var(--blue)' }}>
+                <div className="tabular text-[22px] font-bold leading-none" style={{ color: 'var(--blue)' }}>
                   {s.points}
                 </div>
                 <div className="text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] mt-1">
-                  points
+                  pts
                   {s.bonus_total !== 0 && (
                     <span className="ml-1 mono" style={{ color: s.bonus_total > 0 ? 'var(--green)' : 'var(--red)' }}>
                       ({s.bonus_total > 0 ? '+' : ''}{s.bonus_total})
@@ -119,16 +133,18 @@ export function CompetitionStandingCard({ teamId, playerId }: Props) {
                   )}
                 </div>
               </div>
-              <div className="text-right min-w-[80px]">
-                <div className="tabular text-[20px] font-bold leading-none text-[color:var(--ink)]">
-                  {s.rank ? `${s.rank}` : '—'}
-                  {s.rank && <span className="text-[12px] font-normal text-[color:var(--ink-mute)]"> / {s.total}</span>}
+              <div className="text-right min-w-[88px]">
+                <div className="tabular text-[22px] font-bold leading-none text-[color:var(--ink)] flex items-baseline justify-end gap-1">
+                  {medal && <span className="text-[20px] leading-none">{medal}</span>}
+                  {s.rank ? <span>{s.rank}</span> : <span className="text-[color:var(--ink-dim)]">—</span>}
+                  {s.rank && <span className="text-[12px] font-normal text-[color:var(--ink-mute)]">/ {s.total}</span>}
                 </div>
                 <div className="text-[10.5px] uppercase tracking-wide text-[color:var(--ink-mute)] mt-1">rank</div>
               </div>
             </Link>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );
