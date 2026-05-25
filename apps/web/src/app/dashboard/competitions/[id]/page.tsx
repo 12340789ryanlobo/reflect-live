@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState, use } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import type { Competition } from '@reflect-live/shared';
-import { Archive, ChevronLeft } from 'lucide-react';
+import { Archive, ChevronLeft, Pencil } from 'lucide-react';
 
 // Top-3 medal glyphs. We use real emoji rather than icon components
 // because they read as 'competition' across every render context
@@ -129,16 +129,26 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ id
             <ChevronLeft className="size-4" /> All competitions
           </Link>
           {canEdit && (
-            <button
-              type="button"
-              onClick={toggleArchive}
-              disabled={archiveBusy}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-[12px] font-semibold transition hover:bg-[color:var(--paper-2)] disabled:opacity-60"
-              style={{ borderColor: 'var(--border-2)', color: 'var(--ink-soft)' }}
-            >
-              <Archive className="size-3.5" />
-              {comp.archived_at ? 'Unarchive' : 'Archive'}
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/dashboard/competitions/${id}/edit`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-semibold text-white transition hover:opacity-90"
+                style={{ background: 'var(--blue)' }}
+              >
+                <Pencil className="size-3.5" />
+                Edit
+              </Link>
+              <button
+                type="button"
+                onClick={toggleArchive}
+                disabled={archiveBusy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-[12px] font-semibold transition hover:bg-[color:var(--paper-2)] disabled:opacity-60"
+                style={{ borderColor: 'var(--border-2)', color: 'var(--ink-soft)' }}
+              >
+                <Archive className="size-3.5" />
+                {comp.archived_at ? 'Unarchive' : 'Archive'}
+              </button>
+            </div>
           )}
         </div>
 
