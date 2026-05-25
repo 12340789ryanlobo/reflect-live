@@ -4,12 +4,19 @@
 // Pure aggregation lives in `aggregateLeaderboard`; the supabase-aware fetch
 // is `computeLeaderboard`. Tests target the pure function directly.
 //
+// Migration 0029 added per-team configurable Competitions with arbitrary
+// kind→points scoring + signed per-day stacking bonuses. The
+// competition-aware aggregator is `aggregateCompetition` below; the legacy
+// `aggregateLeaderboard` stays as the fallback when a team has no
+// competitions row, so existing teams keep working without backfill.
+//
 // Source-of-truth: `activity_logs` is the canonical fitness record. The
 // worker dual-writes SMS-tagged workouts/rehabs into it on every poll, and
 // scripts/backfill-activity-logs.ts seeded historical SMS activity. Hidden
 // rows (coach-deleted mistake uploads) are filtered out.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Competition, CompetitionBonusRule } from '@reflect-live/shared';
 
 export interface TeamScoring {
   workout_score: number;
@@ -134,6 +141,177 @@ export async function computeLeaderboard(
   }
 
   return aggregateLeaderboard(players, entries, scoring);
+}
+
+/**
+ * Competition-aware leaderboard row. Carries the per-kind counts so the UI
+ * can show "X swims · Y workouts · Z rehabs" alongside the headline points.
+ * `bonus_total` is the sum of all signed stacking adjustments applied to
+ * this player; surfaced separately so coaches can see how much of the
+ * total came from rule triggers vs. base scoring.
+ */
+export interface CompetitionLeaderboardRow {
+  player_id: number;
+  name: string;
+  group: string | null;
+  /** Per-kind counts inside the date window. */
+  counts: Record<string, number>;
+  /** Sum of base points (counts × scoring[kind]). */
+  base_points: number;
+  /** Sum of signed adjustments from bonus_rules (positive or negative). */
+  bonus_total: number;
+  /** base_points + bonus_total. */
+  points: number;
+}
+
+/**
+ * Entry for the competition aggregator. Same as `LeaderboardInputEntry`
+ * but includes the day so stacking rules can group by (player, day).
+ * `day` should be an ISO date string (YYYY-MM-DD); the caller derives it
+ * from `activity_logs.logged_at` truncated to a local timezone.
+ */
+export interface CompetitionInputEntry {
+  player_id: number;
+  kind: string;
+  day: string;
+}
+
+/**
+ * Pure competition aggregator. Given the roster, entries inside the
+ * competition window, and the competition's scoring + bonus rules, compute
+ * the leaderboard.
+ *
+ * Bonus-rule semantics:
+ *   For each (player, day, kind) combination, count occurrences. For each
+ *   bonus rule matching that kind, if count >= rule.min_per_day, apply
+ *   rule.bonus_points ONCE (not per-extra). Multiple rules on the same
+ *   kind compose additively, so coaches can express tiered adjustments
+ *   ("≥2 swims = -1, ≥3 swims = -1" → 3 swims in a day eats 2pts).
+ *
+ * Sort: points DESC → base_points DESC → name ASC. Players with zero
+ * scoring contribution (no counted entries) are excluded.
+ */
+export function aggregateCompetition(
+  players: LeaderboardInputPlayer[],
+  entries: CompetitionInputEntry[],
+  scoring: Record<string, number>,
+  bonusRules: CompetitionBonusRule[],
+): CompetitionLeaderboardRow[] {
+  // Group: player_id → day → kind → count
+  const byPlayerDay = new Map<number, Map<string, Map<string, number>>>();
+  for (const e of entries) {
+    // Silently skip kinds the coach hasn't scored — keeps the aggregator
+    // future-proof when new kinds appear in activity_logs before the
+    // competition's scoring map is updated.
+    if (!(e.kind in scoring)) continue;
+    let days = byPlayerDay.get(e.player_id);
+    if (!days) { days = new Map(); byPlayerDay.set(e.player_id, days); }
+    let kinds = days.get(e.day);
+    if (!kinds) { kinds = new Map(); days.set(e.day, kinds); }
+    kinds.set(e.kind, (kinds.get(e.kind) ?? 0) + 1);
+  }
+
+  const playerById = new Map(players.map((p) => [p.id, p]));
+  const rows: CompetitionLeaderboardRow[] = [];
+
+  for (const [player_id, days] of byPlayerDay) {
+    const player = playerById.get(player_id);
+    if (!player) continue;  // unknown / removed player — drop
+
+    const counts: Record<string, number> = {};
+    let basePoints = 0;
+    let bonusTotal = 0;
+
+    for (const [, kindMap] of days) {
+      for (const [kind, count] of kindMap) {
+        counts[kind] = (counts[kind] ?? 0) + count;
+        basePoints += count * (scoring[kind] ?? 0);
+      }
+      // Apply bonus rules per-day. Each matching rule fires once per
+      // (player, day) when the threshold is met, regardless of how
+      // many entries are over the threshold.
+      for (const rule of bonusRules) {
+        const dayCount = kindMap.get(rule.kind) ?? 0;
+        if (dayCount >= rule.min_per_day) {
+          bonusTotal += rule.bonus_points;
+        }
+      }
+    }
+
+    rows.push({
+      player_id,
+      name: player.name,
+      group: player.group,
+      counts,
+      base_points: basePoints,
+      bonus_total: bonusTotal,
+      points: basePoints + bonusTotal,
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.base_points !== a.base_points) return b.base_points - a.base_points;
+    return a.name.localeCompare(b.name);
+  });
+
+  return rows;
+}
+
+/**
+ * Fetch + aggregate against a specific competition. Pulls `activity_logs`
+ * inside [competition.starts_at, competition.ends_at] and runs them
+ * through `aggregateCompetition`. Returns a row per player who has at
+ * least one counted entry in the window.
+ */
+export async function computeCompetitionLeaderboard(
+  sb: SupabaseClient,
+  competition: Competition,
+): Promise<CompetitionLeaderboardRow[]> {
+  const { data: playersData } = await sb
+    .from('players')
+    .select('id,name,group')
+    .eq('team_id', competition.team_id)
+    .eq('active', true);
+  const players = (playersData ?? []) as LeaderboardInputPlayer[];
+
+  // We need logged_at to derive `day`; selecting kind + logged_at +
+  // player_id keeps the payload narrow. The half-open date range
+  // [starts_at, ends_at + 1 day) is implemented as <= ends_at on a
+  // date column because logged_at is timestamptz — anything on the
+  // ends_at calendar day inclusive is counted by adding 'T23:59:59'
+  // to the upper bound.
+  const lowerISO = competition.starts_at;
+  const upperISO = competition.ends_at + 'T23:59:59';
+
+  const entries: CompetitionInputEntry[] = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await sb
+      .from('activity_logs')
+      .select('player_id, kind, logged_at')
+      .eq('team_id', competition.team_id)
+      .eq('hidden', false)
+      .not('player_id', 'is', null)
+      .gte('logged_at', lowerISO)
+      .lte('logged_at', upperISO)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    for (const r of data as Array<{ player_id: number; kind: string; logged_at: string }>) {
+      // Day key in the team's own time zone would be more accurate, but
+      // we don't store team timezone yet; UTC date slice is good enough
+      // for typical "American university 9am-9pm" patterns and keeps the
+      // function pure / testable.
+      const day = r.logged_at.slice(0, 10);
+      entries.push({ player_id: r.player_id, kind: r.kind, day });
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  return aggregateCompetition(players, entries, competition.scoring, competition.bonus_rules);
 }
 
 /**

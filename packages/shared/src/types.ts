@@ -7,6 +7,37 @@ export interface TeamScoring {
   rehab_score: number;
 }
 
+/**
+ * Per-team configurable competition (migration 0029). Replaces the
+ * legacy single-competition slot on `teams.scoring_json` + `teams.competition_start_date`.
+ * Multiple competitions allowed per team (overlapping OK).
+ */
+export interface Competition {
+  id: number;
+  team_id: number;
+  name: string;
+  /** ISO date string (YYYY-MM-DD). */
+  starts_at: string;
+  /** ISO date string (YYYY-MM-DD). On-or-after starts_at (DB constraint). */
+  ends_at: string;
+  /** kind→points map. e.g. { swim: 2, workout: 1, rehab: 0.6 }. Empty {} valid. */
+  scoring: Record<string, number>;
+  /** Stacking adjustments applied once per (player, day) where the kind count
+   *  meets `min_per_day`. `bonus_points` is signed: positive rewards
+   *  stacking, negative discourages it. Coaches stack multiple rules for
+   *  tiered effects. */
+  bonus_rules: CompetitionBonusRule[];
+  created_by: string;
+  created_at: string;
+  archived_at: string | null;
+}
+
+export interface CompetitionBonusRule {
+  kind: string;
+  min_per_day: number;
+  bonus_points: number;
+}
+
 export interface Team {
   id: number;
   name: string;
