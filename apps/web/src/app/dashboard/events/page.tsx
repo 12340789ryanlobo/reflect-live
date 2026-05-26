@@ -147,6 +147,10 @@ export default function EventsPage() {
     const hasWeather = e.lat != null && snap;
     return (
       <li key={e.id} className="relative flex items-center gap-4 px-5 py-3.5" style={{ borderColor: 'var(--border)' }}>
+        {/* Left accent as an inner stripe (not a CSS border) so it clips
+            to the card's rounded corners exactly like... itself across
+            rows. Amber for key events, blue for the single next-up. */}
+        {inKey && <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: 'var(--amber)' }} />}
         {isNext && <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: 'var(--blue)' }} />}
         <div className="w-[88px] shrink-0">
           <div className="mono text-[12px] tabular text-[color:var(--ink)]">{prettyCalendarDate(e.event_date!)}</div>
@@ -227,11 +231,12 @@ export default function EventsPage() {
                   <Star className="size-3.5" fill="var(--amber)" />
                   Key events
                 </h2>
-                {/* Single warm left-accent instead of a full amber outline
-                    — one consistent color, no clash with per-row rails. */}
+                {/* Same card shape as every other group — the amber
+                    accent is a per-row inner stripe (see renderRow), so
+                    it clips to the rounded corners identically. */}
                 <ul
                   className="rounded-2xl border overflow-hidden divide-y"
-                  style={{ borderColor: 'var(--border)', borderLeft: '3px solid var(--amber)', background: 'var(--card)' }}
+                  style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
                 >
                   {keyEvents.map((e) => renderRow(e, false, true))}
                 </ul>
