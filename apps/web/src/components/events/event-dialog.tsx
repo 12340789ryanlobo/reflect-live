@@ -210,12 +210,12 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
                 </button>
               </div>
             ) : keepExistingWeather ? (
-              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2" style={{ borderColor: 'var(--border)' }}>
-                <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink-soft)] min-w-0">
+              <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2" style={{ borderColor: 'var(--border)' }}>
+                <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink-soft)] min-w-0 flex-1">
                   <MapPin className="size-3.5 shrink-0" style={{ color: 'var(--green)' }} />
-                  <span className="truncate">{existing?.place_label ?? 'Weather tracking on'}</span>
+                  <span className="truncate min-w-0">{existing?.place_label ?? 'Weather tracking on'}</span>
                 </span>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                   <button type="button" onClick={() => setKeepExistingWeather(false)} className="text-[11px] font-semibold text-[color:var(--blue)] hover:underline">Change</button>
                   <button type="button" onClick={clearWeather} className="text-[11px] font-semibold text-[color:var(--red)] hover:underline">Remove</button>
                 </div>

@@ -15,7 +15,8 @@ import { useSupabase } from '@/lib/supabase-browser';
 import type {
   Location, WeatherSnapshot, ActivityLog, TwilioMessage,
 } from '@reflect-live/shared';
-import { prettyDate, relativeTime } from '@/lib/format';
+import { prettyDate, prettyCalendarDate, daysUntilCalendarDate, relativeTime } from '@/lib/format';
+import { Star } from 'lucide-react';
 
 const PERIOD_OPTIONS: readonly Period[] = [1, 7, 14, 30, 'all'] as const;
 
@@ -46,6 +47,7 @@ export default function Dashboard() {
   // uses, just aggregated across the whole roster).
   const [scopedMsgs, setScopedMsgs] = useState<TwilioMessage[]>([]);
   const [nextMeet, setNextMeet] = useState<(Location & { daysUntil: number; weather?: WeatherSnapshot }) | null>(null);
+  const [keyEvents, setKeyEvents] = useState<Array<Location & { daysUntil: number; weather?: WeatherSnapshot }>>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityWithPlayer[]>([]);
 
   // Stats + trend
@@ -177,16 +179,26 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       const { data: locs } = await sb.from('locations').select('*').eq('team_id', prefs.team_id);
-      const meets = ((locs ?? []) as Location[])
+      const upcoming = ((locs ?? []) as Location[])
         .filter((l) => l.kind === 'meet' && l.event_date)
-        .map((l) => ({ ...l, daysUntil: Math.round((new Date(l.event_date!).getTime() - Date.now()) / 86400000) }))
+        // Calendar-safe day count (no UTC off-by-one).
+        .map((l) => ({ ...l, daysUntil: daysUntilCalendarDate(l.event_date!) }))
         .filter((l) => l.daysUntil >= 0)
         .sort((a, b) => a.daysUntil - b.daysUntil);
-      const next = meets[0];
-      if (!next) { setNextMeet(null); return; }
-      const { data: snaps } = await sb.from('weather_snapshots').select('*').eq('location_id', next.id).order('fetched_at', { ascending: false }).limit(1);
-      const weather = snaps && snaps.length ? (snaps[0] as WeatherSnapshot) : undefined;
-      setNextMeet({ ...next, weather });
+      const next = upcoming[0] ?? null;
+      const pinned = upcoming.filter((l) => l.is_pinned);
+
+      // Batch the latest weather for every location we'll render
+      // (next-meet widget + key-events strip) in one query.
+      const ids = Array.from(new Set([next?.id, ...pinned.map((p) => p.id)].filter((x): x is number => typeof x === 'number')));
+      const weatherByLoc: Record<number, WeatherSnapshot> = {};
+      if (ids.length) {
+        const { data: snaps } = await sb.from('weather_snapshots').select('*').in('location_id', ids).order('fetched_at', { ascending: false });
+        for (const s of (snaps ?? []) as WeatherSnapshot[]) if (!weatherByLoc[s.location_id]) weatherByLoc[s.location_id] = s;
+      }
+
+      setNextMeet(next ? { ...next, weather: weatherByLoc[next.id] } : null);
+      setKeyEvents(pinned.map((p) => ({ ...p, weather: weatherByLoc[p.id] })));
     })();
   }, [sb, prefs.team_id]);
 
@@ -215,6 +227,43 @@ export default function Dashboard() {
         actions={<PeriodToggle value={days} onChange={setDays} options={PERIOD_OPTIONS} />}
       />
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
+        {/* Key events — pinned upcoming events as countdown cards.
+            Mirrors the Events page's gold accent so coaches recognize
+            them as the same 'key' concept. Only renders when pinned
+            events exist. */}
+        {keyEvents.length > 0 && (
+          <section className="reveal rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', borderLeft: '3px solid var(--amber)', background: 'var(--card)' }}>
+            <header className="flex items-center gap-1.5 px-6 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+              <Star className="size-3.5" style={{ color: 'var(--amber)' }} fill="var(--amber)" />
+              <h2 className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--amber)' }}>Key events</h2>
+            </header>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3">
+              {keyEvents.map((e) => (
+                <Link
+                  key={e.id}
+                  href="/dashboard/events"
+                  className="p-5 border-b sm:border-b-0 sm:border-r last:border-r-0 hover:bg-[color:var(--card-hover)] transition"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  <div className="text-[14px] font-semibold text-[color:var(--ink)] truncate">{e.name}</div>
+                  {e.place_label && <div className="text-[11.5px] text-[color:var(--ink-mute)] truncate">{e.place_label}</div>}
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="text-[2.5rem] font-bold leading-none tabular text-[color:var(--ink)]">{e.daysUntil}</span>
+                    <span className="text-[12px] text-[color:var(--ink-mute)]">{e.daysUntil === 1 ? 'day' : 'days'}</span>
+                  </div>
+                  <div className="text-[11px] text-[color:var(--ink-dim)] mt-0.5">until {prettyCalendarDate(e.event_date!)}</div>
+                  {e.weather && e.weather.temp_c != null && (
+                    <div className="mt-2 mono text-[11.5px] tabular" style={{ color: 'var(--ink-soft)' }}>
+                      <span style={{ color: 'var(--blue)' }}>{Math.round(e.weather.temp_c)}°C</span>
+                      {e.weather.wind_kph != null && <span className="text-[color:var(--ink-mute)]"> · {Math.round(e.weather.wind_kph)}kph</span>}
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Hero stats strip */}
         <section className="reveal reveal-1 grid gap-6 lg:grid-cols-[minmax(360px,1fr)_2fr]">
           <div className="rounded-2xl bg-[color:var(--card)] border p-6" style={{ borderColor: 'var(--border)' }}>
