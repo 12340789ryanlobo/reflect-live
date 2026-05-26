@@ -79,6 +79,37 @@ export function prettyDate(iso: string | Date): string {
   });
 }
 
+/** Format a pure calendar date (YYYY-MM-DD) WITHOUT timezone shifting.
+ *  `new Date("2027-12-02")` parses as UTC midnight and then renders in
+ *  local time, which bumps US zones back to Dec 1. We split the parts
+ *  and build a local-midnight Date so the displayed day always matches
+ *  the stored calendar date (and the <input type="date"> value). Use
+ *  this for date-only columns like locations.event_date — NOT for
+ *  timestamps (prettyDate/prettyDateTime are correct for those). */
+export function prettyCalendarDate(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
+  if (!m) return ymd;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: sameYear ? undefined : 'numeric',
+  });
+}
+
+/** Whole-day difference between today and a YYYY-MM-DD calendar date,
+ *  both taken at LOCAL midnight so there's no UTC off-by-one. Positive
+ *  = future, 0 = today, negative = past. */
+export function daysUntilCalendarDate(ymd: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
+  if (!m) return 0;
+  const event = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const now = new Date();
+  const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((event.getTime() - todayMid.getTime()) / 86_400_000);
+}
+
 /** Given a Player[], build an O(1) lookup by phone_e164. */
 export function buildPhoneIndex(players: Player[]): Map<string, Player> {
   const m = new Map<string, Player>();

@@ -18,7 +18,7 @@ import { EventDialog } from '@/components/events/event-dialog';
 import { Button } from '@/components/ui/button';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Location, WeatherSnapshot } from '@reflect-live/shared';
-import { prettyDate } from '@/lib/format';
+import { prettyCalendarDate, daysUntilCalendarDate } from '@/lib/format';
 import { Plus, Pencil, Trash2, CalendarDays, MapPin } from 'lucide-react';
 
 type EventRow = Location & { daysUntil: number };
@@ -118,7 +118,9 @@ export default function EventsPage() {
         .filter((l) => l.kind === 'meet' && l.event_date)
         .map((l) => ({
           ...l,
-          daysUntil: Math.round((new Date(l.event_date!).getTime() - Date.now()) / 86_400_000),
+          // Calendar-date day count — no UTC parse, no off-by-one vs
+          // what the date picker shows.
+          daysUntil: daysUntilCalendarDate(l.event_date!),
         })),
     [locs],
   );
@@ -175,7 +177,7 @@ export default function EventsPage() {
                         )}
                         {/* Date block */}
                         <div className="w-[88px] shrink-0">
-                          <div className="mono text-[12px] tabular text-[color:var(--ink)]">{prettyDate(e.event_date!)}</div>
+                          <div className="mono text-[12px] tabular text-[color:var(--ink)]">{prettyCalendarDate(e.event_date!)}</div>
                           <div className="text-[11px]" style={{ color: isPast ? 'var(--ink-dim)' : e.daysUntil <= 1 ? 'var(--blue)' : 'var(--ink-mute)' }}>
                             {countdownLabel(e.daysUntil)}
                           </div>
