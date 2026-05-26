@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Location, WeatherSnapshot } from '@reflect-live/shared';
 import { prettyDate } from '@/lib/format';
-import { Plus, Pencil, Trash2, CalendarDays } from 'lucide-react';
+import { Plus, Pencil, Trash2, CalendarDays, MapPin } from 'lucide-react';
 
 type EventRow = Location & { daysUntil: number };
 
@@ -180,10 +180,19 @@ export default function EventsPage() {
                             {countdownLabel(e.daysUntil)}
                           </div>
                         </div>
-                        {/* Name */}
+                        {/* Name + location */}
                         <div className="flex-1 min-w-0">
                           <div className="text-[14px] font-semibold text-[color:var(--ink)] truncate">{e.name}</div>
-                          {isNext && (
+                          {e.place_label ? (
+                            <div className="flex items-center gap-1 text-[11.5px] text-[color:var(--ink-mute)] truncate">
+                              <MapPin className="size-3 shrink-0" />
+                              {e.place_label}
+                            </div>
+                          ) : isNext ? (
+                            <div className="text-[10.5px] font-bold uppercase tracking-widest text-[color:var(--blue)]">Next up</div>
+                          ) : null}
+                          {/* When there's a location, the 'Next up' marker moves to its own line below it. */}
+                          {e.place_label && isNext && (
                             <div className="text-[10.5px] font-bold uppercase tracking-widest text-[color:var(--blue)]">Next up</div>
                           )}
                         </div>

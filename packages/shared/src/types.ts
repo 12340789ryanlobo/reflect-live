@@ -137,6 +137,9 @@ export interface Location {
   /** Nullable since migration 0030 — events can exist without weather. */
   lat: number | null;
   lon: number | null;
+  /** Resolved place label (migration 0031), e.g. "Chicago, Illinois, US".
+   *  NULL when no weather location is set. */
+  place_label: string | null;
   event_date: string | null;
   created_at: string;
 }

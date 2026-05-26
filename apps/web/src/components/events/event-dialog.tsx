@@ -136,6 +136,7 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
       if (picked) {
         payload.lat = picked.lat;
         payload.lon = picked.lon;
+        payload.place_label = picked.label;
       } else if (editing && !keepExistingWeather) {
         payload.lat = null;
         payload.lon = null;
@@ -193,9 +194,9 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
               </div>
             ) : keepExistingWeather ? (
               <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2" style={{ borderColor: 'var(--border)' }}>
-                <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink-soft)]">
-                  <MapPin className="size-3.5" style={{ color: 'var(--green)' }} />
-                  Weather tracking on
+                <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink-soft)] min-w-0">
+                  <MapPin className="size-3.5 shrink-0" style={{ color: 'var(--green)' }} />
+                  <span className="truncate">{existing?.place_label ?? 'Weather tracking on'}</span>
                 </span>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setKeepExistingWeather(false)} className="text-[11px] font-semibold text-[color:var(--blue)] hover:underline">Change</button>

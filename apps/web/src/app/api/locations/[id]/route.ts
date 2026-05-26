@@ -60,6 +60,7 @@ interface PatchBody {
   place?: unknown;       // re-geocode
   lat?: unknown;
   lon?: unknown;
+  place_label?: unknown; // label for explicit coords
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -87,12 +88,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   if (typeof body.lat === 'number' && typeof body.lon === 'number') {
     patch.lat = body.lat; patch.lon = body.lon;
+    patch.place_label = typeof body.place_label === 'string' && body.place_label.trim() ? body.place_label.trim() : null;
   } else if (typeof body.place === 'string' && body.place.trim()) {
     const g = await geocode(body.place.trim());
     if (g) { patch.lat = g.lat; patch.lon = g.lon; }
   } else if (body.lat === null || body.lon === null) {
-    // Explicit clear → drop weather tracking.
-    patch.lat = null; patch.lon = null;
+    // Explicit clear → drop weather tracking + its label.
+    patch.lat = null; patch.lon = null; patch.place_label = null;
   }
 
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'nothing_to_update' }, { status: 400 });

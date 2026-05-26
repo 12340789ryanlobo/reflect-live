@@ -70,6 +70,7 @@ interface CreateBody {
   place?: unknown;         // optional place name to geocode
   lat?: unknown;           // optional explicit coords (skip geocode)
   lon?: unknown;
+  place_label?: unknown;   // human-readable label for explicit coords
 }
 
 export async function POST(req: Request) {
@@ -103,17 +104,19 @@ export async function POST(req: Request) {
   // place name; otherwise leave null (no weather).
   let lat: number | null = null;
   let lon: number | null = null;
-  let geocodedLabel: string | null = null;
+  let placeLabel: string | null = null;
   if (typeof body.lat === 'number' && typeof body.lon === 'number') {
     lat = body.lat; lon = body.lon;
+    // Client picked from the geocoder dropdown and sends the label too.
+    if (typeof body.place_label === 'string' && body.place_label.trim()) placeLabel = body.place_label.trim();
   } else if (typeof body.place === 'string' && body.place.trim()) {
     const g = await geocode(body.place.trim());
-    if (g) { lat = g.lat; lon = g.lon; geocodedLabel = g.label; }
+    if (g) { lat = g.lat; lon = g.lon; placeLabel = g.label; }
   }
 
   const { data, error } = await sb
     .from('locations')
-    .insert({ team_id: teamId, name, kind, event_date: eventDate, lat, lon })
+    .insert({ team_id: teamId, name, kind, event_date: eventDate, lat, lon, place_label: placeLabel })
     .select('*')
     .single();
   if (error) return NextResponse.json({ error: 'insert_failed', detail: error.message }, { status: 500 });
@@ -124,7 +127,7 @@ export async function POST(req: Request) {
     await captureWeatherSnapshot(sb, data.id, teamId, lat, lon);
   }
 
-  return NextResponse.json({ location: data, geocoded: geocodedLabel });
+  return NextResponse.json({ location: data, geocoded: placeLabel });
 }
 
 export const dynamic = 'force-dynamic';
