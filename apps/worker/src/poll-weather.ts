@@ -3,7 +3,15 @@ import { fetchWeather, toSnapshot } from './weather';
 import { updateWorkerState } from './state';
 
 export async function pollWeatherOnce(sb: SupabaseClient): Promise<number> {
-  const { data: locs, error } = await sb.from('locations').select('id,team_id,lat,lon');
+  // Only poll locations that have coordinates. Since migration 0030,
+  // coaches can create events with no lat/lon (weather opt-out), so we
+  // filter them out here rather than firing a doomed Open-Meteo
+  // request for every coordinate-less event each cycle.
+  const { data: locs, error } = await sb
+    .from('locations')
+    .select('id,team_id,lat,lon')
+    .not('lat', 'is', null)
+    .not('lon', 'is', null);
   if (error) throw error;
   if (!locs?.length) {
     await updateWorkerState(sb, { last_weather_poll_at: new Date().toISOString() });

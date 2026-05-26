@@ -1,41 +1,64 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { StatCell } from '@/components/v3/stat-cell';
 import { WeatherGrid } from '@/components/weather-grid';
+import { EventDialog } from '@/components/events/event-dialog';
+import { Button } from '@/components/ui/button';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Location, WeatherSnapshot } from '@reflect-live/shared';
 import { prettyDate, relativeTime } from '@/lib/format';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 
 export default function EventsPage() {
-  const { prefs } = useDashboard();
+  const { prefs, team, role } = useDashboard();
   const sb = useSupabase();
   const [locs, setLocs] = useState<Location[]>([]);
   const [latest, setLatest] = useState<Record<number, WeatherSnapshot>>({});
+  const canManage = role === 'coach' || role === 'admin';
 
-  useEffect(() => {
-    (async () => {
-      const { data: ls } = await sb
-        .from('locations')
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Location | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    const { data: ls } = await sb
+      .from('locations')
+      .select('*')
+      .eq('team_id', prefs.team_id)
+      .order('event_date');
+    setLocs((ls ?? []) as Location[]);
+    const ids = (ls ?? []).map((l: Location) => l.id);
+    if (ids.length) {
+      const { data: snaps } = await sb
+        .from('weather_snapshots')
         .select('*')
-        .eq('team_id', prefs.team_id)
-        .order('event_date');
-      setLocs((ls ?? []) as Location[]);
-      const ids = (ls ?? []).map((l: Location) => l.id);
-      if (ids.length) {
-        const { data: snaps } = await sb
-          .from('weather_snapshots')
-          .select('*')
-          .in('location_id', ids)
-          .order('fetched_at', { ascending: false });
-        const byLoc: Record<number, WeatherSnapshot> = {};
-        for (const s of (snaps ?? []) as WeatherSnapshot[]) {
-          if (!byLoc[s.location_id]) byLoc[s.location_id] = s;
-        }
-        setLatest(byLoc);
+        .in('location_id', ids)
+        .order('fetched_at', { ascending: false });
+      const byLoc: Record<number, WeatherSnapshot> = {};
+      for (const s of (snaps ?? []) as WeatherSnapshot[]) {
+        if (!byLoc[s.location_id]) byLoc[s.location_id] = s;
       }
-    })();
+      setLatest(byLoc);
+    } else {
+      setLatest({});
+    }
   }, [sb, prefs.team_id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openCreate() { setEditTarget(null); setDialogOpen(true); }
+  function openEdit(loc: Location) { setEditTarget(loc); setDialogOpen(true); }
+
+  async function remove(loc: Location) {
+    if (deleting !== null) return;
+    if (!confirm(`Delete "${loc.name}"? This also removes its weather history.`)) return;
+    setDeleting(loc.id);
+    const res = await fetch(`/api/locations/${loc.id}`, { method: 'DELETE' });
+    setDeleting(null);
+    if (res.ok) load();
+    else alert('Delete failed.');
+  }
 
   const meetsWithDates = useMemo(
     () =>
@@ -62,6 +85,12 @@ export default function EventsPage() {
         title="Events"
         subtitle={`${future.length} upcoming · ${training.length} training · ${past.length} past`}
         live
+        actions={canManage ? (
+          <Button size="sm" onClick={openCreate} className="gap-1.5">
+            <Plus className="size-3.5" />
+            Add event
+          </Button>
+        ) : undefined}
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
@@ -130,11 +159,23 @@ export default function EventsPage() {
                       <div className="mono text-[11px] font-semibold uppercase tracking-widest text-[color:var(--ink-mute)]">
                         EVT · {String(e.id).padStart(3, '0')}
                       </div>
-                      {isNext && (
-                        <span className="text-[11px] font-semibold uppercase tracking-widest text-[color:var(--blue)]">
-                          Next up
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isNext && (
+                          <span className="text-[11px] font-semibold uppercase tracking-widest text-[color:var(--blue)]">
+                            Next up
+                          </span>
+                        )}
+                        {canManage && (
+                          <span className="flex items-center gap-1">
+                            <button type="button" onClick={() => openEdit(e)} className="text-[color:var(--ink-mute)] hover:text-[color:var(--blue)] transition" aria-label="Edit event">
+                              <Pencil className="size-3.5" />
+                            </button>
+                            <button type="button" onClick={() => remove(e)} disabled={deleting === e.id} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition disabled:opacity-50" aria-label="Delete event">
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="mt-2 text-[14px] font-semibold leading-tight text-[color:var(--ink)]">
                       {e.name}
@@ -181,6 +222,16 @@ export default function EventsPage() {
                   <div className="mono text-[12px] text-[color:var(--ink-dim)] tabular">
                     {Math.abs(e.daysUntil)}d ago
                   </div>
+                  {canManage && (
+                    <span className="flex items-center gap-1">
+                      <button type="button" onClick={() => openEdit(e)} className="text-[color:var(--ink-mute)] hover:text-[color:var(--blue)] transition" aria-label="Edit event">
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button type="button" onClick={() => remove(e)} disabled={deleting === e.id} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition disabled:opacity-50" aria-label="Delete event">
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -209,13 +260,44 @@ export default function EventsPage() {
                           : '— no weather yet —'}
                       </div>
                     </div>
+                    {canManage && (
+                      <span className="flex items-center gap-1">
+                        <button type="button" onClick={() => openEdit(t)} className="text-[color:var(--ink-mute)] hover:text-[color:var(--blue)] transition" aria-label="Edit training site">
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button type="button" onClick={() => remove(t)} disabled={deleting === t.id} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition disabled:opacity-50" aria-label="Delete training site">
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </span>
+                    )}
                   </li>
                 );
               })}
             </ul>
           </section>
         )}
+
+        {/* Empty state — only when a coach has nothing yet, so the
+            page never reads as broken on a fresh team. */}
+        {canManage && future.length === 0 && past.length === 0 && training.length === 0 && (
+          <section className="reveal rounded-2xl border border-dashed p-10 text-center" style={{ borderColor: 'var(--border-2)' }}>
+            <p className="text-[13px] text-[color:var(--ink-mute)]">No events or training sites yet.</p>
+            <Button size="sm" onClick={openCreate} className="mt-3 gap-1.5">
+              <Plus className="size-3.5" /> Add your first event
+            </Button>
+          </section>
+        )}
       </main>
+
+      {canManage && team?.id && (
+        <EventDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          teamId={team.id}
+          existing={editTarget}
+          onSaved={load}
+        />
+      )}
     </>
   );
 }

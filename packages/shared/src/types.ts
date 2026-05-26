@@ -134,8 +134,9 @@ export interface Location {
   team_id: number;
   name: string;
   kind: 'training' | 'meet';
-  lat: number;
-  lon: number;
+  /** Nullable since migration 0030 — events can exist without weather. */
+  lat: number | null;
+  lon: number | null;
   event_date: string | null;
   created_at: string;
 }
