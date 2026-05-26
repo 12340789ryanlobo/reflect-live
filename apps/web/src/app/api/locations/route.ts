@@ -14,6 +14,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { captureWeatherSnapshot } from '@/lib/weather-snapshot';
 
 function serviceClient() {
   return createClient(
@@ -116,6 +117,12 @@ export async function POST(req: Request) {
     .select('*')
     .single();
   if (error) return NextResponse.json({ error: 'insert_failed', detail: error.message }, { status: 500 });
+
+  // Grab weather now so the chip shows immediately rather than waiting
+  // for the worker's next 10-minute poll.
+  if (lat != null && lon != null) {
+    await captureWeatherSnapshot(sb, data.id, teamId, lat, lon);
+  }
 
   return NextResponse.json({ location: data, geocoded: geocodedLabel });
 }

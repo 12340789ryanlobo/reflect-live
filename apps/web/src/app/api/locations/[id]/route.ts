@@ -6,6 +6,7 @@ import { auth } from '@clerk/nextjs/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import type { Location } from '@reflect-live/shared';
+import { captureWeatherSnapshot } from '@/lib/weather-snapshot';
 
 function serviceClient() {
   return createClient(
@@ -98,6 +99,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { data, error } = await sb.from('locations').update(patch).eq('id', id).select('*').single();
   if (error) return NextResponse.json({ error: 'update_failed', detail: error.message }, { status: 500 });
+
+  // If coords were just set/changed, capture weather now so the chip
+  // updates immediately instead of waiting for the worker's next poll.
+  if (typeof patch.lat === 'number' && typeof patch.lon === 'number') {
+    await captureWeatherSnapshot(sb, id, data.team_id as number, patch.lat as number, patch.lon as number);
+  }
+
   return NextResponse.json({ location: data });
 }
 

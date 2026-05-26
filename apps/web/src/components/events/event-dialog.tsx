@@ -61,7 +61,13 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
   const [keepExistingWeather, setKeepExistingWeather] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function syncFromExisting() {
+  // Prefill whenever the dialog opens or the target changes. This must
+  // be an effect, not an onOpenChange handler: the parent opens the
+  // dialog programmatically (setDialogOpen(true)), and Radix only fires
+  // onOpenChange for USER-initiated open/close — so a handler-based
+  // prefill never ran on the edit path, leaving the form blank.
+  useEffect(() => {
+    if (!open) return;
     setName(existing?.name ?? '');
     setEventDate(existing?.event_date ?? '');
     setQuery('');
@@ -69,7 +75,8 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
     setPicked(null);
     setErr(null);
     setKeepExistingWeather(existing?.lat != null);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, existing?.id]);
 
   // Debounced geocoding search. Skips when a place is already picked
   // or the query is too short.
@@ -151,10 +158,7 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => { if (o) syncFromExisting(); onOpenChange(o); }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editing ? 'Edit event' : 'Add event'}</DialogTitle>
