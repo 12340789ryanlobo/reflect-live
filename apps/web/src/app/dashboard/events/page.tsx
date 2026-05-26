@@ -59,7 +59,7 @@ export default function EventsPage() {
     <>
       <PageHeader
         eyebrow="Events & venues"
-        title="Schedule"
+        title="Events"
         subtitle={`${future.length} upcoming · ${training.length} training · ${past.length} past`}
         live
       />

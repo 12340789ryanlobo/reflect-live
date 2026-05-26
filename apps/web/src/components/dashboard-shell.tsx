@@ -285,10 +285,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       //   /dashboard/athlete*           — picker fallback
       //   /dashboard/players/[their-id] — canonical own-player URL
       //   /dashboard/settings           — personal settings
-      //   /dashboard/fitness            — team activity / leaderboard
-      //                                   (peer accountability)
-      const isFitnessPath = pathname === '/dashboard/fitness';
-      if (role === 'athlete' && !isAthletePath && !isSettings && !isFitnessPath) {
+      //   /dashboard/competitions*      — standings / leaderboards
+      //                                   (peer accountability; was
+      //                                   /dashboard/fitness before the
+      //                                   Activity→Competitions merge)
+      const isCompetitionsPath = pathname.startsWith('/dashboard/competitions');
+      if (role === 'athlete' && !isAthletePath && !isSettings && !isCompetitionsPath) {
         const ownPlayerPath = result.prefs?.impersonate_player_id
           ? `/dashboard/players/${result.prefs.impersonate_player_id}`
           : null;

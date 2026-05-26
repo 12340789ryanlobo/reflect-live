@@ -318,8 +318,8 @@ export default function SessionsPage() {
     <>
       <PageHeader
         eyebrow="Survey engine"
-        title="Sessions"
-        subtitle={`${stats.total} session${stats.total === 1 ? '' : 's'} — ${stats.practice} practice · ${stats.match} competition · ${stats.lifting} lifting · ${periodLabel(period).toLowerCase()}`}
+        title="Surveys"
+        subtitle={`${stats.total} survey${stats.total === 1 ? '' : 's'} — ${stats.practice} practice · ${stats.match} competition · ${stats.lifting} lifting · ${periodLabel(period).toLowerCase()}`}
         actions={
           <div className="flex items-center gap-3">
             <PeriodToggle value={period} onChange={setPeriod} />

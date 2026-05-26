@@ -7,7 +7,6 @@ import { useUser, useClerk } from '@clerk/nextjs';
 import {
   LayoutDashboard,
   Users,
-  Dumbbell,
   Calendar,
   Settings,
   Shield,
@@ -79,16 +78,22 @@ const COACH_NAV: NavItem[] = [
   { href: '/dashboard/live', label: 'Live', icon: Radio },
   { href: '/dashboard/players', label: 'Athletes', icon: Users },
   { href: '/dashboard/requests', label: 'Requests', icon: UserPlus },
-  { href: '/dashboard/fitness', label: 'Activity', icon: Dumbbell },
+  // 'Activity' merged into Competitions — the volume strip lives at the
+  // top of the competitions page now, so there's one place for standings
+  // + activity rather than two leaderboards reading different scoring.
   { href: '/dashboard/competitions', label: 'Competitions', icon: Trophy },
   { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
   {
+    // 'Surveys' (was 'Sessions') — the outbound SMS check-in engine.
+    // Renamed so it doesn't read as 'training sessions'.
     href: '/dashboard/sessions',
-    label: 'Sessions',
+    label: 'Surveys',
     icon: ClipboardList,
     children: [{ href: '/dashboard/templates', label: 'Templates' }],
   },
-  { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
+  // 'Events' (was 'Schedule') — physical events / match days / venues.
+  // Sport-agnostic; doesn't collide with survey-send scheduling.
+  { href: '/dashboard/events', label: 'Events', icon: Calendar },
 ];
 
 // The 'My view' href is dynamic — when the athlete has a linked player
@@ -97,7 +102,6 @@ const COACH_NAV: NavItem[] = [
 // athleteOwnPlayerId through to AppSidebar.
 const ATHLETE_NAV_BASE: NavItem[] = [
   { href: '/dashboard/athlete', label: 'My view', icon: UserIcon },
-  { href: '/dashboard/fitness', label: 'Team activity', icon: Dumbbell },
   { href: '/dashboard/competitions', label: 'Competitions', icon: Trophy },
 ];
 
@@ -109,11 +113,11 @@ const CAPTAIN_NAV: NavItem[] = [
   { href: '/dashboard/heatmap', label: 'Heatmap', icon: HeartPulse },
   {
     href: '/dashboard/sessions',
-    label: 'Sessions',
+    label: 'Surveys',
     icon: ClipboardList,
     children: [{ href: '/dashboard/templates', label: 'Templates' }],
   },
-  { href: '/dashboard/events', label: 'Schedule', icon: Calendar },
+  { href: '/dashboard/events', label: 'Events', icon: Calendar },
 ];
 
 const ADMIN_NAV: NavItem[] = [

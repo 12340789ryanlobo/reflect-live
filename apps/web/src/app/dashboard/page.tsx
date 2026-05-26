@@ -273,7 +273,7 @@ export default function Dashboard() {
         <section className="reveal reveal-4 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
           <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2 className="text-base font-bold text-[color:var(--ink)]">Recent activity</h2>
-            <Link href="/dashboard/fitness" className="text-[12px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition">
+            <Link href="/dashboard/competitions" className="text-[12px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition">
               View all →
             </Link>
           </header>

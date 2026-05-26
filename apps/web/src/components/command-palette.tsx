@@ -82,13 +82,13 @@ export function CommandPalette({ teamId, isAdmin }: { teamId: number; isAdmin: b
             <span>Athletes</span>
             <CommandShortcut>⌘R</CommandShortcut>
           </CommandItem>
-          <CommandItem onSelect={() => go('/dashboard/fitness')}>
+          <CommandItem onSelect={() => go('/dashboard/competitions')}>
             <Dumbbell />
-            <span>Activity</span>
+            <span>Competitions</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/events')}>
             <Calendar />
-            <span>Schedule</span>
+            <span>Events</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/dashboard/athlete')}>
             <UserIcon />
