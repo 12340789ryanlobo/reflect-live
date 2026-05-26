@@ -140,6 +140,9 @@ export interface Location {
   /** Resolved place label (migration 0031), e.g. "Chicago, Illinois, US".
    *  NULL when no weather location is set. */
   place_label: string | null;
+  /** Coach-flagged key event (migration 0032) — pinned to the top of
+   *  the Events timeline. */
+  is_pinned: boolean;
   event_date: string | null;
   created_at: string;
 }

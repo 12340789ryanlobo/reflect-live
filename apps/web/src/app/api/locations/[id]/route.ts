@@ -61,6 +61,7 @@ interface PatchBody {
   lat?: unknown;
   lon?: unknown;
   place_label?: unknown; // label for explicit coords
+  is_pinned?: unknown;
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -81,6 +82,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     patch.name = body.name.trim();
   }
   if ('kind' in body) patch.kind = body.kind === 'training' ? 'training' : 'meet';
+  if ('is_pinned' in body) patch.is_pinned = body.is_pinned === true;
   if ('event_date' in body) {
     if (body.event_date === null) patch.event_date = null;
     else if (typeof body.event_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.event_date)) patch.event_date = body.event_date;

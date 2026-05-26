@@ -71,6 +71,7 @@ interface CreateBody {
   lat?: unknown;           // optional explicit coords (skip geocode)
   lon?: unknown;
   place_label?: unknown;   // human-readable label for explicit coords
+  is_pinned?: unknown;     // key-event flag
 }
 
 export async function POST(req: Request) {
@@ -116,7 +117,7 @@ export async function POST(req: Request) {
 
   const { data, error } = await sb
     .from('locations')
-    .insert({ team_id: teamId, name, kind, event_date: eventDate, lat, lon, place_label: placeLabel })
+    .insert({ team_id: teamId, name, kind, event_date: eventDate, lat, lon, place_label: placeLabel, is_pinned: body.is_pinned === true })
     .select('*')
     .single();
   if (error) return NextResponse.json({ error: 'insert_failed', detail: error.message }, { status: 500 });

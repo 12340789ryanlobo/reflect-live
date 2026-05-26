@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Location, WeatherSnapshot } from '@reflect-live/shared';
 import { prettyCalendarDate, daysUntilCalendarDate } from '@/lib/format';
-import { Plus, Pencil, Trash2, CalendarDays, MapPin } from 'lucide-react';
+import { Plus, Pencil, Trash2, CalendarDays, MapPin, Star } from 'lucide-react';
 
 type EventRow = Location & { daysUntil: number };
 
@@ -124,9 +124,68 @@ export default function EventsPage() {
         })),
     [locs],
   );
-  const buckets = useMemo(() => bucketize(events), [events]);
+  // Pinned upcoming events get their own "Key events" group at the top
+  // and are pulled OUT of the regular time buckets so they don't show
+  // twice. Pinned PAST events stay in the Past bucket (a key event
+  // that's over isn't "key" anymore).
+  const keyEvents = useMemo(
+    () => events.filter((e) => e.is_pinned && e.daysUntil >= 0).sort((a, b) => a.daysUntil - b.daysUntil),
+    [events],
+  );
+  const keyIds = useMemo(() => new Set(keyEvents.map((e) => e.id)), [keyEvents]);
+  const buckets = useMemo(() => bucketize(events.filter((e) => !keyIds.has(e.id))), [events, keyIds]);
   const upcomingCount = events.filter((e) => e.daysUntil >= 0).length;
   const nextEvent = events.filter((e) => e.daysUntil >= 0).sort((a, b) => a.daysUntil - b.daysUntil)[0];
+
+  // Shared row renderer so the Key-events group and the time buckets
+  // render identical rows.
+  function renderRow(e: EventRow, isPast: boolean) {
+    const isNext = !isPast && nextEvent?.id === e.id;
+    const snap = latest[e.id];
+    const hasWeather = e.lat != null && snap;
+    return (
+      <li key={e.id} className="relative flex items-center gap-4 px-5 py-3.5" style={{ borderColor: 'var(--border)' }}>
+        {isNext && <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: 'var(--blue)' }} />}
+        <div className="w-[88px] shrink-0">
+          <div className="mono text-[12px] tabular text-[color:var(--ink)]">{prettyCalendarDate(e.event_date!)}</div>
+          <div className="text-[11px]" style={{ color: isPast ? 'var(--ink-dim)' : e.daysUntil <= 1 ? 'var(--blue)' : 'var(--ink-mute)' }}>
+            {countdownLabel(e.daysUntil)}
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {e.is_pinned && <Star className="size-3.5 shrink-0" style={{ color: 'var(--amber)' }} fill="var(--amber)" aria-label="Key event" />}
+            <span className="text-[14px] font-semibold text-[color:var(--ink)] truncate">{e.name}</span>
+          </div>
+          {e.place_label && (
+            <div className="flex items-center gap-1 text-[11.5px] text-[color:var(--ink-mute)] truncate">
+              <MapPin className="size-3 shrink-0" />
+              {e.place_label}
+            </div>
+          )}
+          {isNext && (
+            <div className="text-[10.5px] font-bold uppercase tracking-widest text-[color:var(--blue)]">Next up</div>
+          )}
+        </div>
+        {hasWeather && (
+          <div className="mono text-[12px] tabular shrink-0" style={{ color: 'var(--ink-soft)' }}>
+            <span style={{ color: 'var(--blue)' }}>{snap.temp_c != null ? `${Math.round(snap.temp_c)}°C` : '—'}</span>
+            {snap.wind_kph != null && <span className="text-[color:var(--ink-mute)]"> · {Math.round(snap.wind_kph)}kph</span>}
+          </div>
+        )}
+        {canManage && (
+          <span className="flex items-center gap-1.5 shrink-0">
+            <button type="button" onClick={() => openEdit(e)} className="text-[color:var(--ink-mute)] hover:text-[color:var(--blue)] transition" aria-label="Edit event">
+              <Pencil className="size-3.5" />
+            </button>
+            <button type="button" onClick={() => remove(e)} disabled={deleting === e.id} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition disabled:opacity-50" aria-label="Delete event">
+              <Trash2 className="size-3.5" />
+            </button>
+          </span>
+        )}
+      </li>
+    );
+  }
 
   return (
     <>
@@ -158,73 +217,34 @@ export default function EventsPage() {
             )}
           </section>
         ) : (
-          buckets.map((bucket, bi) => {
-            const isPast = bucket.key === 'past';
-            return (
-              <section key={bucket.key} className={`reveal reveal-${Math.min(bi + 1, 4)}`}>
-                <h2 className="text-[11px] font-bold uppercase tracking-widest text-[color:var(--ink-mute)] mb-2 px-1">
-                  {bucket.label}
+          <>
+            {/* Key events — pinned + upcoming, emphasized at the top. */}
+            {keyEvents.length > 0 && (
+              <section className="reveal reveal-1">
+                <h2 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest mb-2 px-1" style={{ color: 'var(--amber)' }}>
+                  <Star className="size-3.5" fill="var(--amber)" />
+                  Key events
                 </h2>
-                <ul className="rounded-2xl border overflow-hidden divide-y" style={{ borderColor: 'var(--border)', background: 'var(--card)', opacity: isPast ? 0.7 : 1 }}>
-                  {bucket.rows.map((e, i) => {
-                    const isNext = !isPast && nextEvent?.id === e.id;
-                    const snap = latest[e.id];
-                    const hasWeather = e.lat != null && snap;
-                    return (
-                      <li key={e.id} className="relative flex items-center gap-4 px-5 py-3.5" style={{ borderColor: 'var(--border)' }}>
-                        {isNext && (
-                          <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: 'var(--blue)' }} />
-                        )}
-                        {/* Date block */}
-                        <div className="w-[88px] shrink-0">
-                          <div className="mono text-[12px] tabular text-[color:var(--ink)]">{prettyCalendarDate(e.event_date!)}</div>
-                          <div className="text-[11px]" style={{ color: isPast ? 'var(--ink-dim)' : e.daysUntil <= 1 ? 'var(--blue)' : 'var(--ink-mute)' }}>
-                            {countdownLabel(e.daysUntil)}
-                          </div>
-                        </div>
-                        {/* Name + location */}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[14px] font-semibold text-[color:var(--ink)] truncate">{e.name}</div>
-                          {e.place_label ? (
-                            <div className="flex items-center gap-1 text-[11.5px] text-[color:var(--ink-mute)] truncate">
-                              <MapPin className="size-3 shrink-0" />
-                              {e.place_label}
-                            </div>
-                          ) : isNext ? (
-                            <div className="text-[10.5px] font-bold uppercase tracking-widest text-[color:var(--blue)]">Next up</div>
-                          ) : null}
-                          {/* When there's a location, the 'Next up' marker moves to its own line below it. */}
-                          {e.place_label && isNext && (
-                            <div className="text-[10.5px] font-bold uppercase tracking-widest text-[color:var(--blue)]">Next up</div>
-                          )}
-                        </div>
-                        {/* Weather chip */}
-                        {hasWeather && (
-                          <div className="mono text-[12px] tabular shrink-0" style={{ color: 'var(--ink-soft)' }}>
-                            <span style={{ color: 'var(--blue)' }}>
-                              {snap.temp_c != null ? `${Math.round(snap.temp_c)}°C` : '—'}
-                            </span>
-                            {snap.wind_kph != null && <span className="text-[color:var(--ink-mute)]"> · {Math.round(snap.wind_kph)}kph</span>}
-                          </div>
-                        )}
-                        {/* Coach controls */}
-                        {canManage && (
-                          <span className="flex items-center gap-1.5 shrink-0">
-                            <button type="button" onClick={() => openEdit(e)} className="text-[color:var(--ink-mute)] hover:text-[color:var(--blue)] transition" aria-label="Edit event">
-                              <Pencil className="size-3.5" />
-                            </button>
-                            <button type="button" onClick={() => remove(e)} disabled={deleting === e.id} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition disabled:opacity-50" aria-label="Delete event">
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
+                <ul className="rounded-2xl border-2 overflow-hidden divide-y" style={{ borderColor: 'var(--amber)', background: 'var(--card)' }}>
+                  {keyEvents.map((e) => renderRow(e, false))}
                 </ul>
               </section>
-            );
-          })
+            )}
+
+            {buckets.map((bucket, bi) => {
+              const isPast = bucket.key === 'past';
+              return (
+                <section key={bucket.key} className={`reveal reveal-${Math.min(bi + 2, 4)}`}>
+                  <h2 className="text-[11px] font-bold uppercase tracking-widest text-[color:var(--ink-mute)] mb-2 px-1">
+                    {bucket.label}
+                  </h2>
+                  <ul className="rounded-2xl border overflow-hidden divide-y" style={{ borderColor: 'var(--border)', background: 'var(--card)', opacity: isPast ? 0.7 : 1 }}>
+                    {bucket.rows.map((e) => renderRow(e, isPast))}
+                  </ul>
+                </section>
+              );
+            })}
+          </>
         )}
       </main>
 

@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Location } from '@reflect-live/shared';
-import { MapPin, X, Loader2 } from 'lucide-react';
+import { MapPin, X, Loader2, Star } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -25,13 +25,13 @@ interface Props {
   onSaved: () => void;
 }
 
+// Matches the /api/geocode (Nominatim) response — indexes universities,
+// venues, and cities, not just populated places.
 interface GeoHit {
   id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
-  admin1?: string;
-  country_code?: string;
+  label: string;
+  lat: number;
+  lon: number;
 }
 
 interface PickedPlace {
@@ -40,14 +40,11 @@ interface PickedPlace {
   lon: number;
 }
 
-function hitLabel(h: GeoHit): string {
-  return [h.name, h.admin1, h.country_code].filter(Boolean).join(', ');
-}
-
 export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: Props) {
   const editing = !!existing;
   const [name, setName] = useState('');
   const [eventDate, setEventDate] = useState('');
+  const [pinned, setPinned] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -70,6 +67,7 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
     if (!open) return;
     setName(existing?.name ?? '');
     setEventDate(existing?.event_date ?? '');
+    setPinned(existing?.is_pinned ?? false);
     setQuery('');
     setResults([]);
     setPicked(null);
@@ -90,8 +88,7 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
     setSearching(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=6&language=en&format=json`;
-        const r = await fetch(url);
+        const r = await fetch(`/api/geocode?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store' });
         const j = (await r.json()) as { results?: GeoHit[] };
         setResults(j.results ?? []);
       } catch {
@@ -99,12 +96,12 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
       } finally {
         setSearching(false);
       }
-    }, 300);
+    }, 350);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, picked]);
 
   function pick(h: GeoHit) {
-    setPicked({ label: hitLabel(h), lat: h.latitude, lon: h.longitude });
+    setPicked({ label: h.label, lat: h.lat, lon: h.lon });
     setQuery('');
     setResults([]);
     setKeepExistingWeather(false);
@@ -128,6 +125,7 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
         name: name.trim(),
         kind: 'meet',
         event_date: eventDate,
+        is_pinned: pinned,
       };
       // Coordinate resolution:
       //   - picked a new place → send its exact lat/lon
@@ -175,6 +173,25 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
             <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Date</span>
             <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="mono" />
           </label>
+
+          {/* Pin / key-event toggle */}
+          <button
+            type="button"
+            onClick={() => setPinned((p) => !p)}
+            className="flex items-center justify-between gap-2 rounded-md border px-3 py-2.5 text-left transition"
+            style={{
+              borderColor: pinned ? 'var(--amber)' : 'var(--border)',
+              background: pinned ? 'var(--amber-soft)' : 'transparent',
+            }}
+          >
+            <span className="flex items-center gap-2 text-[13px]">
+              <Star className="size-4" style={{ color: pinned ? 'var(--amber)' : 'var(--ink-mute)' }} fill={pinned ? 'var(--amber)' : 'none'} />
+              <span className="text-[color:var(--ink)]">Key event</span>
+            </span>
+            <span className="text-[11px] text-[color:var(--ink-mute)]">
+              {pinned ? 'Pinned to top' : 'Tap to pin'}
+            </span>
+          </button>
 
           {/* Location picker */}
           <div className="flex flex-col gap-1">
@@ -224,7 +241,7 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-[color:var(--card-hover)] transition"
                         >
                           <MapPin className="size-3.5 shrink-0 text-[color:var(--ink-mute)]" />
-                          <span className="text-[color:var(--ink)]">{hitLabel(h)}</span>
+                          <span className="text-[color:var(--ink)]">{h.label}</span>
                         </button>
                       </li>
                     ))}
