@@ -138,9 +138,11 @@ export default function EventsPage() {
   const nextEvent = events.filter((e) => e.daysUntil >= 0).sort((a, b) => a.daysUntil - b.daysUntil)[0];
 
   // Shared row renderer so the Key-events group and the time buckets
-  // render identical rows.
-  function renderRow(e: EventRow, isPast: boolean) {
-    const isNext = !isPast && nextEvent?.id === e.id;
+  // render identical rows. `inKey` suppresses the blue "Next up" rail —
+  // inside the amber Key-events group that blue stripe clashed with the
+  // group's warm accent, and the group already signals importance.
+  function renderRow(e: EventRow, isPast: boolean, inKey = false) {
+    const isNext = !isPast && !inKey && nextEvent?.id === e.id;
     const snap = latest[e.id];
     const hasWeather = e.lat != null && snap;
     return (
@@ -225,8 +227,13 @@ export default function EventsPage() {
                   <Star className="size-3.5" fill="var(--amber)" />
                   Key events
                 </h2>
-                <ul className="rounded-2xl border-2 overflow-hidden divide-y" style={{ borderColor: 'var(--amber)', background: 'var(--card)' }}>
-                  {keyEvents.map((e) => renderRow(e, false))}
+                {/* Single warm left-accent instead of a full amber outline
+                    — one consistent color, no clash with per-row rails. */}
+                <ul
+                  className="rounded-2xl border overflow-hidden divide-y"
+                  style={{ borderColor: 'var(--border)', borderLeft: '3px solid var(--amber)', background: 'var(--card)' }}
+                >
+                  {keyEvents.map((e) => renderRow(e, false, true))}
                 </ul>
               </section>
             )}
