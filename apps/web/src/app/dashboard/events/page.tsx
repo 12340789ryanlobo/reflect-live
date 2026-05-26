@@ -147,11 +147,10 @@ export default function EventsPage() {
     const hasWeather = e.lat != null && snap;
     return (
       <li key={e.id} className="relative flex items-center gap-4 px-5 py-3.5" style={{ borderColor: 'var(--border)' }}>
-        {/* Left accent as an inner stripe (not a CSS border) so it clips
-            to the card's rounded corners exactly like... itself across
-            rows. Amber for key events, blue for the single next-up. */}
-        {inKey && <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: 'var(--amber)' }} />}
-        {isNext && <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: 'var(--blue)' }} />}
+        {/* The left accent is a colored card-level border-left (set on the
+            <ul>), not a per-row stripe — it wraps the rounded corner,
+            which is the look we want. Amber for the Key-events card,
+            blue for whichever bucket holds the next-up event. */}
         <div className="w-[88px] shrink-0">
           <div className="mono text-[12px] tabular text-[color:var(--ink)]">{prettyCalendarDate(e.event_date!)}</div>
           <div className="text-[11px]" style={{ color: isPast ? 'var(--ink-dim)' : e.daysUntil <= 1 ? 'var(--blue)' : 'var(--ink-mute)' }}>
@@ -231,12 +230,9 @@ export default function EventsPage() {
                   <Star className="size-3.5" fill="var(--amber)" />
                   Key events
                 </h2>
-                {/* Same card shape as every other group — the amber
-                    accent is a per-row inner stripe (see renderRow), so
-                    it clips to the rounded corners identically. */}
                 <ul
                   className="rounded-2xl border overflow-hidden divide-y"
-                  style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
+                  style={{ borderColor: 'var(--border)', borderLeft: '3px solid var(--amber)', background: 'var(--card)' }}
                 >
                   {keyEvents.map((e) => renderRow(e, false, true))}
                 </ul>
@@ -245,12 +241,24 @@ export default function EventsPage() {
 
             {buckets.map((bucket, bi) => {
               const isPast = bucket.key === 'past';
+              // The bucket holding the next-up event gets the blue
+              // left-border accent — same card-level treatment as the
+              // amber Key-events card, so the two read as a set.
+              const hasNext = !isPast && !!nextEvent && bucket.rows.some((r) => r.id === nextEvent.id);
               return (
                 <section key={bucket.key} className={`reveal reveal-${Math.min(bi + 2, 4)}`}>
                   <h2 className="text-[11px] font-bold uppercase tracking-widest text-[color:var(--ink-mute)] mb-2 px-1">
                     {bucket.label}
                   </h2>
-                  <ul className="rounded-2xl border overflow-hidden divide-y" style={{ borderColor: 'var(--border)', background: 'var(--card)', opacity: isPast ? 0.7 : 1 }}>
+                  <ul
+                    className="rounded-2xl border overflow-hidden divide-y"
+                    style={{
+                      borderColor: 'var(--border)',
+                      borderLeft: hasNext ? '3px solid var(--blue)' : undefined,
+                      background: 'var(--card)',
+                      opacity: isPast ? 0.7 : 1,
+                    }}
+                  >
                     {bucket.rows.map((e) => renderRow(e, isPast))}
                   </ul>
                 </section>
