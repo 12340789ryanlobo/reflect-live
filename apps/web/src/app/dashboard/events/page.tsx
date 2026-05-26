@@ -144,7 +144,7 @@ export default function EventsPage() {
         ) : undefined}
       />
 
-      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8 max-w-[840px]">
+      <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8 w-full max-w-[1100px] mx-auto">
         {events.length === 0 ? (
           <section className="reveal rounded-2xl border border-dashed p-12 text-center" style={{ borderColor: 'var(--border-2)' }}>
             <CalendarDays className="size-7 mx-auto mb-3" style={{ color: 'var(--ink-dim)' }} />
