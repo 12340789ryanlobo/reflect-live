@@ -209,6 +209,37 @@ export default function Dashboard() {
 
   const periodSubtitle = periodLabel(days).toLowerCase();
 
+  // Split upcoming into the two labeled groups the Upcoming box shows.
+  const pinnedEvents = upcoming.filter((e) => e.is_pinned);
+  const regularEvents = upcoming.filter((e) => !e.is_pinned);
+
+  // One row renderer for both groups. `isKey` adds the star + a faint
+  // amber wash so key events read as a distinct block.
+  function upcomingRow(e: Location & { daysUntil: number }, isKey: boolean) {
+    return (
+      <li key={e.id} style={{ borderColor: 'var(--border)' }}>
+        <Link
+          href="/dashboard/events"
+          className="flex items-center justify-between gap-4 px-6 py-3.5 transition hover:bg-[color:var(--card-hover)]"
+          style={isKey ? { background: 'color-mix(in srgb, var(--amber-soft) 55%, transparent)' } : undefined}
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {isKey && <Star className="size-3.5 shrink-0" style={{ color: 'var(--amber)' }} fill="var(--amber)" />}
+              <span className="text-[14.5px] font-semibold text-[color:var(--ink)] truncate">{e.name}</span>
+            </div>
+            <div className="text-[11.5px] text-[color:var(--ink-mute)] truncate mt-0.5">
+              {[e.place_label, prettyCalendarDate(e.event_date!)].filter(Boolean).join(' · ')}
+            </div>
+          </div>
+          <span className="text-[12.5px] font-semibold shrink-0" style={{ color: e.daysUntil <= 7 ? 'var(--blue)' : 'var(--ink-mute)' }}>
+            {humanizeDaysUntil(e.daysUntil)}
+          </span>
+        </Link>
+      </li>
+    );
+  }
+
   return (
     <>
       <PageHeader
@@ -232,33 +263,34 @@ export default function Dashboard() {
                 Events →
               </Link>
             </header>
-            <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {upcoming.slice(0, 5).map((e) => (
-                <li key={e.id} className="relative">
-                  {e.is_pinned && <span aria-hidden className="absolute left-0 top-0 h-full w-[3px] z-10" style={{ background: 'var(--amber)' }} />}
-                  <Link
-                    href="/dashboard/events"
-                    className="flex items-center justify-between gap-4 px-6 py-3.5 hover:bg-[color:var(--card-hover)] transition"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        {e.is_pinned && <Star className="size-3.5 shrink-0" style={{ color: 'var(--amber)' }} fill="var(--amber)" />}
-                        <span className="text-[14.5px] font-semibold text-[color:var(--ink)] truncate">{e.name}</span>
-                      </div>
-                      <div className="text-[11.5px] text-[color:var(--ink-mute)] truncate mt-0.5">
-                        {[e.place_label, prettyCalendarDate(e.event_date!)].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
-                    <span
-                      className="text-[12.5px] font-semibold shrink-0"
-                      style={{ color: e.daysUntil <= 7 ? 'var(--blue)' : 'var(--ink-mute)' }}
-                    >
-                      {humanizeDaysUntil(e.daysUntil)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+
+            {/* Key events — labeled, amber-washed group at the top. */}
+            {pinnedEvents.length > 0 && (
+              <>
+                <div className="flex items-center gap-1.5 px-6 pt-3 pb-1.5">
+                  <Star className="size-3" style={{ color: 'var(--amber)' }} fill="var(--amber)" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--amber)' }}>Key events</span>
+                </div>
+                <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                  {pinnedEvents.map((e) => upcomingRow(e, true))}
+                </ul>
+              </>
+            )}
+
+            {/* Everything else. The label only appears when there's a
+                key group above it to distinguish from. */}
+            {regularEvents.length > 0 && (
+              <div className={pinnedEvents.length > 0 ? 'border-t' : ''} style={{ borderColor: 'var(--border)' }}>
+                {pinnedEvents.length > 0 && (
+                  <div className="px-6 pt-3 pb-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[color:var(--ink-mute)]">More upcoming</span>
+                  </div>
+                )}
+                <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                  {regularEvents.slice(0, 5).map((e) => upcomingRow(e, false))}
+                </ul>
+              </div>
+            )}
           </section>
         )}
 
