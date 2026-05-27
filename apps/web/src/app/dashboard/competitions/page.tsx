@@ -214,11 +214,10 @@ export default function CompetitionsPage() {
                 : <>Nothing archived.</>}
             </div>
           ) : (
-            {/* table-fixed + a colgroup: column widths are pinned so the
-                headers don't shift when switching tabs (auto layout would
-                resize columns to whatever content the active/archived list
-                happens to have). */}
             <table className="w-full table-fixed border-collapse text-[13px]">
+              {/* Pinned column widths (table-fixed): headers don't shift
+                  when switching tabs — auto layout would resize columns to
+                  the active/archived list's content. */}
               <colgroup>
                 <col className="w-[34%]" />
                 <col className="w-[24%]" />
