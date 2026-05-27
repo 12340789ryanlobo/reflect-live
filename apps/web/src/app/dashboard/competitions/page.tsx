@@ -172,17 +172,29 @@ export default function CompetitionsPage() {
         <section className="reveal reveal-3 rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
           <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2 className="text-base font-bold text-[color:var(--ink)]">All competitions</h2>
-            <nav className="flex items-center gap-1 rounded-lg border p-1" style={{ borderColor: 'var(--border)' }}>
-              {(['active', 'archived'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className="text-[12px] font-semibold px-3 py-1 rounded transition"
-                  style={{ background: tab === t ? 'var(--paper-2)' : 'transparent', color: tab === t ? 'var(--ink)' : 'var(--ink-mute)' }}
-                >
-                  {t === 'active' ? 'Active & upcoming' : 'Archived'}
-                </button>
-              ))}
+            {/* Matches the date-pill toggle (PeriodToggle): one bordered
+                segment, selected = solid dark fill so it's unmistakably
+                the active tab. */}
+            <nav className="inline-flex rounded-md border overflow-hidden" style={{ borderColor: 'var(--border)' }} role="radiogroup" aria-label="Competition status">
+              {(['active', 'archived'] as const).map((t) => {
+                const isActive = tab === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    onClick={() => setTab(t)}
+                    className={`px-3 py-1 text-[12px] font-semibold transition ${
+                      isActive
+                        ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
+                        : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]'
+                    }`}
+                  >
+                    {t === 'active' ? 'Active & upcoming' : 'Archived'}
+                  </button>
+                );
+              })}
             </nav>
           </header>
           {!loaded ? (
