@@ -272,16 +272,21 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
               </div>
             ) : (
               <div className="relative">
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search a city or venue — e.g. Chicago"
-                  autoComplete="off"
-                  autoFocus={changing}
-                />
-                {searching && (
-                  <Loader2 className="size-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--ink-mute)]" />
-                )}
+                {/* Input + spinner share their own relative box so the
+                    spinner's top-1/2 centers on the INPUT, not the whole
+                    block (which also holds the 'Keep current' link). */}
+                <div className="relative">
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search a city or venue — e.g. Chicago"
+                    autoComplete="off"
+                    autoFocus={changing}
+                  />
+                  {searching && (
+                    <Loader2 className="size-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--ink-mute)]" />
+                  )}
+                </div>
                 {results.length > 0 && (
                   <ul className="absolute z-10 mt-1 w-full rounded-md border bg-[color:var(--card)] shadow-[var(--shadow)] overflow-hidden" style={{ borderColor: 'var(--border)' }}>
                     {results.map((h) => (
