@@ -224,8 +224,9 @@ export default function Dashboard() {
           style={isKey ? { background: 'color-mix(in srgb, var(--amber-soft) 55%, transparent)' } : undefined}
         >
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0">
-              {isKey && <Star className="size-3.5 shrink-0" style={{ color: 'var(--amber)' }} fill="var(--amber)" />}
+            {/* No per-row star — the 'KEY EVENTS' label + amber wash
+                already mark these as key, so a star here is redundant. */}
+            <div className="min-w-0">
               <span className="text-[14.5px] font-semibold text-[color:var(--ink)] truncate">{e.name}</span>
             </div>
             <div className="text-[11.5px] text-[color:var(--ink-mute)] truncate mt-0.5">
