@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
 import { StatCell } from '@/components/v3/stat-cell';
+import { prettyCalendarDate } from '@/lib/format';
 import type { Competition } from '@reflect-live/shared';
 import { Plus, Trophy } from 'lucide-react';
 
@@ -249,7 +250,7 @@ export default function CompetitionsPage() {
                           {c.name}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 mono tabular text-[12px] text-[color:var(--ink-soft)]">{c.starts_at} → {c.ends_at}</td>
+                      <td className="px-4 py-3 text-[12.5px] text-[color:var(--ink-soft)]">{prettyCalendarDate(c.starts_at)} – {prettyCalendarDate(c.ends_at)}</td>
                       <td className="px-4 py-3">
                         <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: status.tone }}>{status.label}</span>
                       </td>
