@@ -53,10 +53,17 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
   const [results, setResults] = useState<GeoHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [picked, setPicked] = useState<PickedPlace | null>(null);
-  // True when editing an event that already has coords but the coach
-  // hasn't touched the picker — we keep its weather as-is on save.
-  const [keepExistingWeather, setKeepExistingWeather] = useState(false);
+  // Location editing intent (only meaningful when editing an event that
+  // already has weather):
+  //   changing — coach hit "Change" → show the search box, but the
+  //              original is preserved unless they pick a new place.
+  //   removed  — coach hit "Remove" → weather will be cleared on save
+  //              (distinct from Change, which keeps it).
+  const [changing, setChanging] = useState(false);
+  const [removed, setRemoved] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hasExistingWeather = !!existing && existing.lat != null;
 
   // Prefill whenever the dialog opens or the target changes. This must
   // be an effect, not an onOpenChange handler: the parent opens the
@@ -72,7 +79,8 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
     setResults([]);
     setPicked(null);
     setErr(null);
-    setKeepExistingWeather(existing?.lat != null);
+    setChanging(false);
+    setRemoved(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, existing?.id]);
 
@@ -104,14 +112,40 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
     setPicked({ label: h.label, lat: h.lat, lon: h.lon });
     setQuery('');
     setResults([]);
-    setKeepExistingWeather(false);
+    setChanging(false);
+    setRemoved(false);
   }
 
-  function clearWeather() {
-    setPicked(null);
+  // "Change" — open the search box. The original location stays put
+  // until a new place is picked (or save), so changing-then-cancelling
+  // doesn't lose the existing location.
+  function startChange() {
+    setChanging(true);
     setQuery('');
     setResults([]);
-    setKeepExistingWeather(false);
+  }
+
+  // "Remove" — mark weather for removal (cleared on save). Distinct
+  // from Change: this drops weather entirely.
+  function removeWeather() {
+    setPicked(null);
+    setRemoved(true);
+    setChanging(false);
+    setQuery('');
+    setResults([]);
+  }
+
+  function undoRemove() {
+    setRemoved(false);
+  }
+
+  // X on a freshly-picked place: discard the pick and fall back to the
+  // existing location (edit) or the search box (new event).
+  function discardPick() {
+    setPicked(null);
+    setChanging(false);
+    setQuery('');
+    setResults([]);
   }
 
   async function save() {
@@ -129,15 +163,18 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
       };
       // Coordinate resolution:
       //   - picked a new place → send its exact lat/lon
-      //   - editing + keeping existing weather → omit coords (PATCH leaves them)
-      //   - otherwise → explicitly clear (null) so "remove weather" works
+      //   - removed → explicitly clear
+      //   - otherwise → omit coords (PATCH keeps existing; new event has none)
+      // Note: "Change" without picking lands here and keeps the
+      // original — only an explicit pick or Remove changes weather.
       if (picked) {
         payload.lat = picked.lat;
         payload.lon = picked.lon;
         payload.place_label = picked.label;
-      } else if (editing && !keepExistingWeather) {
+      } else if (removed) {
         payload.lat = null;
         payload.lon = null;
+        payload.place_label = null;
       }
 
       const res = editing
@@ -200,26 +237,36 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
             </span>
 
             {picked ? (
+              // A new place was just chosen (overrides whatever was there).
               <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2" style={{ borderColor: 'var(--blue)', background: 'var(--blue-soft)' }}>
                 <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink)] min-w-0 flex-1">
                   <MapPin className="size-3.5 shrink-0" style={{ color: 'var(--blue)' }} />
                   <span className="truncate min-w-0">{picked.label}</span>
                 </span>
-                <button type="button" onClick={clearWeather} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition shrink-0" aria-label="Clear location">
+                <button type="button" onClick={discardPick} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition shrink-0" aria-label="Discard chosen location">
                   <X className="size-3.5" />
                 </button>
               </div>
-            ) : keepExistingWeather ? (
-              // Actions stacked BELOW the label so a long venue name can
-              // never collide with Change/Remove on the same line.
+            ) : removed ? (
+              // Weather marked for removal — distinct from Change. Undo brings it back.
+              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2.5" style={{ borderColor: 'var(--border)' }}>
+                <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink-mute)] min-w-0">
+                  <MapPin className="size-3.5 shrink-0" style={{ color: 'var(--ink-dim)' }} />
+                  <span className="truncate">Weather removed</span>
+                </span>
+                <button type="button" onClick={undoRemove} className="text-[11px] font-semibold text-[color:var(--blue)] hover:underline shrink-0">Undo</button>
+              </div>
+            ) : (hasExistingWeather && !changing) ? (
+              // Existing location, untouched. Change = pick a different
+              // place (keeps this until you do); Remove = drop weather.
               <div className="rounded-md border px-3 py-2.5" style={{ borderColor: 'var(--border)' }}>
                 <div className="flex items-center gap-2 text-[13px] text-[color:var(--ink-soft)] min-w-0">
                   <MapPin className="size-3.5 shrink-0" style={{ color: 'var(--green)' }} />
                   <span className="truncate">{existing?.place_label ?? 'Weather tracking on'}</span>
                 </div>
                 <div className="flex items-center gap-4 mt-2 pl-[22px]">
-                  <button type="button" onClick={() => setKeepExistingWeather(false)} className="text-[11px] font-semibold text-[color:var(--blue)] hover:underline">Change</button>
-                  <button type="button" onClick={clearWeather} className="text-[11px] font-semibold text-[color:var(--red)] hover:underline">Remove</button>
+                  <button type="button" onClick={startChange} className="text-[11px] font-semibold text-[color:var(--blue)] hover:underline">Change</button>
+                  <button type="button" onClick={removeWeather} className="text-[11px] font-semibold text-[color:var(--red)] hover:underline">Remove</button>
                 </div>
               </div>
             ) : (
@@ -229,6 +276,7 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search a city or venue — e.g. Chicago"
                   autoComplete="off"
+                  autoFocus={changing}
                 />
                 {searching && (
                   <Loader2 className="size-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--ink-mute)]" />
@@ -251,6 +299,12 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
                 )}
                 {query.trim().length >= 2 && !searching && results.length === 0 && (
                   <p className="mt-1 text-[11px] text-[color:var(--ink-mute)]">No matches — try a city name.</p>
+                )}
+                {/* Back out of a Change without losing the original. */}
+                {changing && hasExistingWeather && (
+                  <button type="button" onClick={() => setChanging(false)} className="mt-1.5 text-[11px] font-semibold text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]">
+                    ← Keep {existing?.place_label ?? 'current location'}
+                  </button>
                 )}
               </div>
             )}
