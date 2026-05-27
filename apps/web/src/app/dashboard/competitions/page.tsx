@@ -214,7 +214,17 @@ export default function CompetitionsPage() {
                 : <>Nothing archived.</>}
             </div>
           ) : (
-            <table className="w-full border-collapse text-[13px]">
+            {/* table-fixed + a colgroup: column widths are pinned so the
+                headers don't shift when switching tabs (auto layout would
+                resize columns to whatever content the active/archived list
+                happens to have). */}
+            <table className="w-full table-fixed border-collapse text-[13px]">
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[24%]" />
+                <col className="w-[14%]" />
+                <col className="w-[28%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
                   <th className="px-6 py-3 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[color:var(--ink-mute)]">Name</th>
