@@ -116,12 +116,13 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
     setRemoved(false);
   }
 
-  // "Change" — open the search box. The original location stays put
-  // until a new place is picked (or save), so changing-then-cancelling
-  // doesn't lose the existing location.
+  // "Change" — open the search box pre-filled with the current
+  // location's text so the coach edits from there rather than a blank
+  // field. The original stays put until a new place is picked (or
+  // save), so changing-then-cancelling doesn't lose it.
   function startChange() {
     setChanging(true);
-    setQuery('');
+    setQuery(existing?.place_label ?? '');
     setResults([]);
   }
 
