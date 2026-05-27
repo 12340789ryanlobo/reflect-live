@@ -201,21 +201,23 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
 
             {picked ? (
               <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2" style={{ borderColor: 'var(--blue)', background: 'var(--blue-soft)' }}>
-                <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink)]">
-                  <MapPin className="size-3.5" style={{ color: 'var(--blue)' }} />
-                  {picked.label}
+                <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink)] min-w-0 flex-1">
+                  <MapPin className="size-3.5 shrink-0" style={{ color: 'var(--blue)' }} />
+                  <span className="truncate min-w-0">{picked.label}</span>
                 </span>
-                <button type="button" onClick={clearWeather} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition" aria-label="Clear location">
+                <button type="button" onClick={clearWeather} className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition shrink-0" aria-label="Clear location">
                   <X className="size-3.5" />
                 </button>
               </div>
             ) : keepExistingWeather ? (
-              <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2" style={{ borderColor: 'var(--border)' }}>
-                <span className="flex items-center gap-2 text-[13px] text-[color:var(--ink-soft)] min-w-0 flex-1">
+              // Actions stacked BELOW the label so a long venue name can
+              // never collide with Change/Remove on the same line.
+              <div className="rounded-md border px-3 py-2.5" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex items-center gap-2 text-[13px] text-[color:var(--ink-soft)] min-w-0">
                   <MapPin className="size-3.5 shrink-0" style={{ color: 'var(--green)' }} />
-                  <span className="truncate min-w-0">{existing?.place_label ?? 'Weather tracking on'}</span>
-                </span>
-                <div className="flex items-center gap-3 shrink-0">
+                  <span className="truncate">{existing?.place_label ?? 'Weather tracking on'}</span>
+                </div>
+                <div className="flex items-center gap-4 mt-2 pl-[22px]">
                   <button type="button" onClick={() => setKeepExistingWeather(false)} className="text-[11px] font-semibold text-[color:var(--blue)] hover:underline">Change</button>
                   <button type="button" onClick={clearWeather} className="text-[11px] font-semibold text-[color:var(--red)] hover:underline">Remove</button>
                 </div>
