@@ -13,9 +13,9 @@ import { type Period, periodLabel, periodSinceIso } from '@/lib/period';
 import { stripProtocolPrefix } from '@/lib/timeline';
 import { useSupabase } from '@/lib/supabase-browser';
 import type {
-  Location, WeatherSnapshot, ActivityLog, TwilioMessage,
+  Location, ActivityLog, TwilioMessage,
 } from '@reflect-live/shared';
-import { prettyDate, prettyCalendarDate, daysUntilCalendarDate, relativeTime } from '@/lib/format';
+import { prettyCalendarDate, daysUntilCalendarDate, humanizeDaysUntil, relativeTime } from '@/lib/format';
 import { Star } from 'lucide-react';
 
 const PERIOD_OPTIONS: readonly Period[] = [1, 7, 14, 30, 'all'] as const;
@@ -46,8 +46,9 @@ export default function Dashboard() {
   // produce per-metric team trends (the same machinery the athlete page
   // uses, just aggregated across the whole roster).
   const [scopedMsgs, setScopedMsgs] = useState<TwilioMessage[]>([]);
-  const [nextMeet, setNextMeet] = useState<(Location & { daysUntil: number; weather?: WeatherSnapshot }) | null>(null);
-  const [keyEvents, setKeyEvents] = useState<Array<Location & { daysUntil: number; weather?: WeatherSnapshot }>>([]);
+  // Upcoming events, pinned-first then soonest. Drives the single
+  // "Upcoming" box (replaces the separate next-meet widget + key strip).
+  const [upcoming, setUpcoming] = useState<Array<Location & { daysUntil: number }>>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityWithPlayer[]>([]);
 
   // Stats + trend
@@ -179,26 +180,16 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       const { data: locs } = await sb.from('locations').select('*').eq('team_id', prefs.team_id);
-      const upcoming = ((locs ?? []) as Location[])
+      const up = ((locs ?? []) as Location[])
         .filter((l) => l.kind === 'meet' && l.event_date)
         // Calendar-safe day count (no UTC off-by-one).
         .map((l) => ({ ...l, daysUntil: daysUntilCalendarDate(l.event_date!) }))
         .filter((l) => l.daysUntil >= 0)
-        .sort((a, b) => a.daysUntil - b.daysUntil);
-      const next = upcoming[0] ?? null;
-      const pinned = upcoming.filter((l) => l.is_pinned);
-
-      // Batch the latest weather for every location we'll render
-      // (next-meet widget + key-events strip) in one query.
-      const ids = Array.from(new Set([next?.id, ...pinned.map((p) => p.id)].filter((x): x is number => typeof x === 'number')));
-      const weatherByLoc: Record<number, WeatherSnapshot> = {};
-      if (ids.length) {
-        const { data: snaps } = await sb.from('weather_snapshots').select('*').in('location_id', ids).order('fetched_at', { ascending: false });
-        for (const s of (snaps ?? []) as WeatherSnapshot[]) if (!weatherByLoc[s.location_id]) weatherByLoc[s.location_id] = s;
-      }
-
-      setNextMeet(next ? { ...next, weather: weatherByLoc[next.id] } : null);
-      setKeyEvents(pinned.map((p) => ({ ...p, weather: weatherByLoc[p.id] })));
+        // Pinned events lead, then soonest-first within each group.
+        .sort((a, b) =>
+          a.is_pinned !== b.is_pinned ? (a.is_pinned ? -1 : 1) : a.daysUntil - b.daysUntil,
+        );
+      setUpcoming(up);
     })();
   }, [sb, prefs.team_id]);
 
@@ -227,40 +218,47 @@ export default function Dashboard() {
         actions={<PeriodToggle value={days} onChange={setDays} options={PERIOD_OPTIONS} />}
       />
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
-        {/* Key events — pinned upcoming events as countdown cards.
-            Mirrors the Events page's gold accent so coaches recognize
-            them as the same 'key' concept. Only renders when pinned
-            events exist. */}
-        {keyEvents.length > 0 && (
-          <section className="reveal rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', borderLeft: '3px solid var(--amber)', background: 'var(--card)' }}>
-            <header className="flex items-center gap-1.5 px-6 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-              <Star className="size-3.5" style={{ color: 'var(--amber)' }} fill="var(--amber)" />
-              <h2 className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--amber)' }}>Key events</h2>
+        {/* Upcoming — one box for all upcoming events. Name leads,
+            countdown is a quiet supporting chip (humanized: "in 9
+            months", not "260 d"). Pinned 'key' events sort to the top
+            with a gold star + gold left accent. Replaces both the old
+            next-competition widget and the separate key-events strip.
+            Hidden when there are no upcoming events. */}
+        {upcoming.length > 0 && (
+          <section className="reveal reveal-1 rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+            <header className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold text-[color:var(--ink)]">Upcoming</h2>
+              <Link href="/dashboard/events" className="text-[12px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition">
+                Events →
+              </Link>
             </header>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3">
-              {keyEvents.map((e) => (
-                <Link
-                  key={e.id}
-                  href="/dashboard/events"
-                  className="p-5 border-b sm:border-b-0 sm:border-r last:border-r-0 hover:bg-[color:var(--card-hover)] transition"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <div className="text-[14px] font-semibold text-[color:var(--ink)] truncate">{e.name}</div>
-                  {e.place_label && <div className="text-[11.5px] text-[color:var(--ink-mute)] truncate">{e.place_label}</div>}
-                  <div className="mt-3 flex items-baseline gap-1.5">
-                    <span className="text-[2.5rem] font-bold leading-none tabular text-[color:var(--ink)]">{e.daysUntil}</span>
-                    <span className="text-[12px] text-[color:var(--ink-mute)]">{e.daysUntil === 1 ? 'day' : 'days'}</span>
-                  </div>
-                  <div className="text-[11px] text-[color:var(--ink-dim)] mt-0.5">until {prettyCalendarDate(e.event_date!)}</div>
-                  {e.weather && e.weather.temp_c != null && (
-                    <div className="mt-2 mono text-[11.5px] tabular" style={{ color: 'var(--ink-soft)' }}>
-                      <span style={{ color: 'var(--blue)' }}>{Math.round(e.weather.temp_c)}°C</span>
-                      {e.weather.wind_kph != null && <span className="text-[color:var(--ink-mute)]"> · {Math.round(e.weather.wind_kph)}kph</span>}
+            <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {upcoming.slice(0, 5).map((e) => (
+                <li key={e.id} className="relative">
+                  {e.is_pinned && <span aria-hidden className="absolute left-0 top-0 h-full w-[3px] z-10" style={{ background: 'var(--amber)' }} />}
+                  <Link
+                    href="/dashboard/events"
+                    className="flex items-center justify-between gap-4 px-6 py-3.5 hover:bg-[color:var(--card-hover)] transition"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {e.is_pinned && <Star className="size-3.5 shrink-0" style={{ color: 'var(--amber)' }} fill="var(--amber)" />}
+                        <span className="text-[14.5px] font-semibold text-[color:var(--ink)] truncate">{e.name}</span>
+                      </div>
+                      <div className="text-[11.5px] text-[color:var(--ink-mute)] truncate mt-0.5">
+                        {[e.place_label, prettyCalendarDate(e.event_date!)].filter(Boolean).join(' · ')}
+                      </div>
                     </div>
-                  )}
-                </Link>
+                    <span
+                      className="text-[12.5px] font-semibold shrink-0"
+                      style={{ color: e.daysUntil <= 7 ? 'var(--blue)' : 'var(--ink-mute)' }}
+                    >
+                      {humanizeDaysUntil(e.daysUntil)}
+                    </span>
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
         )}
 
@@ -287,35 +285,10 @@ export default function Dashboard() {
           <SurveyTrendsCard trends={trends} period={days} />
         </section>
 
-        {/* Needs attention + Next meet */}
-        <section className="reveal reveal-3 grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2"><NeedsAttention teamId={prefs.team_id} /></div>
-          <div className="rounded-2xl bg-[color:var(--card)] border p-6 flex flex-col" style={{ borderColor: 'var(--border)' }}>
-            <header className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-[color:var(--ink)]">Next competition</h2>
-              <Link href="/dashboard/events" className="text-[12px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition">
-                Schedule →
-              </Link>
-            </header>
-            {nextMeet ? (
-              <>
-                <div className="text-[15px] font-semibold text-[color:var(--ink)]">{nextMeet.name}</div>
-                <div className="mt-3 flex items-baseline gap-1.5">
-                  <div className="text-[3rem] font-bold leading-none tabular text-[color:var(--ink)]">{nextMeet.daysUntil}</div>
-                  <div className="text-[14px] text-[color:var(--ink-mute)]">d</div>
-                </div>
-                <div className="text-[12px] text-[color:var(--ink-mute)]">until {prettyDate(nextMeet.event_date!)}</div>
-                {nextMeet.weather && nextMeet.weather.temp_c != null && (
-                  <div className="mt-auto pt-4 text-[12px] text-[color:var(--ink-soft)]">
-                    Currently <span style={{ color: 'var(--blue)' }}>{Math.round(nextMeet.weather.temp_c)}°C</span>
-                    {nextMeet.weather.wind_kph != null && ` · wind ${Math.round(nextMeet.weather.wind_kph)} kph`}
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-[13px] text-[color:var(--ink-mute)]">— no upcoming competitions —</p>
-            )}
-          </div>
+        {/* Needs attention — full width now that upcoming events live
+            in their own box at the top. */}
+        <section className="reveal reveal-3">
+          <NeedsAttention teamId={prefs.team_id} />
         </section>
 
         {/* Recent activity teaser */}

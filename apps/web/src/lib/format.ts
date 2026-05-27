@@ -110,6 +110,19 @@ export function daysUntilCalendarDate(ymd: string): number {
   return Math.round((event.getTime() - todayMid.getTime()) / 86_400_000);
 }
 
+/** Human-friendly relative countdown for a calendar day-count. Reads
+ *  the way a person thinks about time — "in 3 days", "in 2 weeks",
+ *  "in 9 months" — instead of a raw day number (260d). Negative =
+ *  past. Pair with daysUntilCalendarDate. */
+export function humanizeDaysUntil(days: number): string {
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  if (days === -1) return 'yesterday';
+  const a = Math.abs(days);
+  const unit = a < 14 ? `${a} days` : a < 60 ? `${Math.round(a / 7)} weeks` : `${Math.round(a / 30)} months`;
+  return days > 0 ? `in ${unit}` : `${unit} ago`;
+}
+
 /** Given a Player[], build an O(1) lookup by phone_e164. */
 export function buildPhoneIndex(players: Player[]): Map<string, Player> {
   const m = new Map<string, Player>();
