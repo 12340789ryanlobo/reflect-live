@@ -172,10 +172,15 @@ export default function CompetitionsPage() {
         <section className="reveal reveal-3 rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
           <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2 className="text-base font-bold text-[color:var(--ink)]">All competitions</h2>
-            {/* Matches the date-pill toggle (PeriodToggle): one bordered
-                segment, selected = solid dark fill so it's unmistakably
-                the active tab. */}
-            <nav className="inline-flex rounded-md border overflow-hidden" style={{ borderColor: 'var(--border)' }} role="radiogroup" aria-label="Competition status">
+            {/* Segmented control: a padded track where the selected
+                segment is a fully-rounded pill (not an edge-to-edge
+                rectangle), so the highlight matches the pill shape. */}
+            <nav
+              className="inline-flex items-center gap-1 rounded-full border p-1"
+              style={{ borderColor: 'var(--border)', background: 'var(--paper-2)' }}
+              role="radiogroup"
+              aria-label="Competition status"
+            >
               {(['active', 'archived'] as const).map((t) => {
                 const isActive = tab === t;
                 return (
@@ -185,11 +190,12 @@ export default function CompetitionsPage() {
                     role="radio"
                     aria-checked={isActive}
                     onClick={() => setTab(t)}
-                    className={`px-3 py-1 text-[12px] font-semibold transition ${
+                    className={`rounded-full px-3.5 py-1 text-[12px] font-semibold transition ${
                       isActive
-                        ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
+                        ? 'text-[color:var(--paper)]'
                         : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]'
                     }`}
+                    style={isActive ? { background: 'var(--ink)' } : undefined}
                   >
                     {t === 'active' ? 'Active & upcoming' : 'Archived'}
                   </button>
