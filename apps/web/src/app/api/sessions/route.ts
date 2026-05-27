@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireFeature } from '@/lib/feature-gate';
 
 const SESSION_TYPES = ['practice', 'match', 'lifting'] as const;
 type SessionType = (typeof SESSION_TYPES)[number];
@@ -84,6 +85,13 @@ export async function POST(req: NextRequest) {
   const role = (pref.role ?? 'coach') as string;
   if (!['coach', 'captain', 'admin'].includes(role)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
+  // Queuing an outbound scheduled send is the paid feature. Creating a
+  // bare session record (no scheduled_at) stays free.
+  if (scheduledAt) {
+    const gate = await requireFeature(pref.team_id as number, 'scheduledSends', sb);
+    if (!gate.ok) return gate.response;
   }
 
   // Ensure the template (if any) belongs to the same team.

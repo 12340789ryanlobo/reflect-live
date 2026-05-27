@@ -24,6 +24,7 @@ import {
   type SummaryResult,
 } from '@/lib/player-summary';
 import { parsePeriod, periodSinceIso } from '@/lib/period';
+import { requireFeature } from '@/lib/feature-gate';
 
 function serviceClient() {
   return createClient(
@@ -72,6 +73,11 @@ export async function POST(
   if (!isMember && !isPlatformAdmin) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
+
+  // Paid-tier gate — bail before any data fetch or LLM call so free
+  // teams never run up an OpenAI bill.
+  const gate = await requireFeature(player.team_id, 'llmBriefings', sb);
+  if (!gate.ok) return gate.response;
 
   const sinceIso = periodSinceIso(days);
 

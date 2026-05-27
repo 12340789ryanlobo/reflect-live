@@ -12,6 +12,8 @@ import { PeriodToggle } from '@/components/v3/period-toggle';
 import { ReadinessBar } from '@/components/v3/readiness-bar';
 import { type Period, periodKey } from '@/lib/period';
 import { prettyPhone, relativeTime } from '@/lib/format';
+import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
+import type { Plan } from '@/lib/billing-plans';
 import type { Player } from '@reflect-live/shared';
 
 interface Derived {
@@ -105,6 +107,9 @@ export function AthleteHero({
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Set when the endpoint replies 402 (plan doesn't include briefings).
+  // Distinct from `err` so we render an upgrade nudge, not a red error.
+  const [locked, setLocked] = useState<Plan | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const inFlightRef = useRef<AbortController | null>(null);
 
@@ -115,6 +120,7 @@ export function AthleteHero({
     (async () => {
       setLoading(true);
       setErr(null);
+      setLocked(null);
       try {
         const qs = new URLSearchParams({ days: periodKey(period) });
         const r = await fetch(`/api/players/${player.id}/summary?${qs}`, {
@@ -122,7 +128,14 @@ export function AthleteHero({
           signal: ac.signal,
         });
         if (!r.ok) {
-          if (!ac.signal.aborted) setErr(`Request failed (${r.status}).`);
+          if (!ac.signal.aborted) {
+            if (r.status === 402) {
+              const j = (await r.json().catch(() => ({}))) as { required_plan?: Plan };
+              setLocked(j.required_plan ?? 'team');
+            } else {
+              setErr(`Request failed (${r.status}).`);
+            }
+          }
           return;
         }
         const j = (await r.json()) as SummaryResult;
@@ -143,6 +156,7 @@ export function AthleteHero({
     inFlightRef.current = ac;
     setLoading(true);
     setErr(null);
+    setLocked(null);
     try {
       const qs = new URLSearchParams({ days: periodKey(period), force: '1' });
       const r = await fetch(`/api/players/${player.id}/summary?${qs}`, {
@@ -150,7 +164,14 @@ export function AthleteHero({
         signal: ac.signal,
       });
       if (!r.ok) {
-        if (!ac.signal.aborted) setErr(`Request failed (${r.status}).`);
+        if (!ac.signal.aborted) {
+          if (r.status === 402) {
+            const j = (await r.json().catch(() => ({}))) as { required_plan?: Plan };
+            setLocked(j.required_plan ?? 'team');
+          } else {
+            setErr(`Request failed (${r.status}).`);
+          }
+        }
         return;
       }
       const j = (await r.json()) as SummaryResult;
@@ -281,7 +302,10 @@ export function AthleteHero({
             {loading && !summary && (
               <p className="text-[13px] text-[color:var(--ink-mute)]">— generating —</p>
             )}
-            {err && !summary && (
+            {locked && !summary && (
+              <UpgradePrompt feature="LLM briefings" requiredPlan={locked} />
+            )}
+            {err && !locked && !summary && (
               <p className="text-[13px]" style={{ color: 'var(--red)' }}>{err}</p>
             )}
             {summary && (() => {

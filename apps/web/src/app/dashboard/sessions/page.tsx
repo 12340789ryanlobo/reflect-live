@@ -294,6 +294,8 @@ export default function SessionsPage() {
     if (res.ok) {
       setOpen(false);
       await load();
+    } else if (res.status === 402) {
+      setErrMsg('Scheduled surveys are on the Team plan — upgrade in Billing to send them.');
     } else {
       const j = await res.json().catch(() => ({}));
       setErrMsg(j.error ?? 'save failed');
