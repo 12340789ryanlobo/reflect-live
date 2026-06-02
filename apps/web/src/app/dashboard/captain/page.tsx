@@ -9,7 +9,7 @@ import { WeatherGrid } from '@/components/weather-grid';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, Location } from '@reflect-live/shared';
 import { bucketize } from '@/components/sparkline';
-import { relativeTime, prettyDate } from '@/lib/format';
+import { relativeTime, prettyCalendarDate, daysUntilCalendarDate } from '@/lib/format';
 
 function initials(n: string) {
   return n.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -91,7 +91,7 @@ export default function CaptainHome() {
         .filter((l: Location) => l.kind === 'meet' && l.event_date)
         .map((l: Location) => ({
           ...l,
-          daysUntil: Math.round((new Date(l.event_date!).getTime() - Date.now()) / 86400000),
+          daysUntil: daysUntilCalendarDate(l.event_date!),
         }))
         .filter((l) => l.daysUntil >= 0)
         .sort((a, b) => a.daysUntil - b.daysUntil)
@@ -249,7 +249,7 @@ export default function CaptainHome() {
                     <span className="text-[13px] text-[color:var(--ink-mute)]">d</span>
                   </div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-dim)] mt-0.5">
-                    until {prettyDate(m.event_date!)}
+                    until {prettyCalendarDate(m.event_date!)}
                   </div>
                 </div>
               ))}

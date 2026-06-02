@@ -12,7 +12,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useSupabase } from '@/lib/supabase-browser';
-import { prettyDate } from '@/lib/format';
+import { prettyCalendarDate, daysUntilCalendarDate } from '@/lib/format';
 import type { Location } from '@reflect-live/shared';
 
 interface Props {
@@ -45,7 +45,7 @@ export function UpcomingMeets({ teamId, limit = 3, hideWhenEmpty = true }: Props
         .filter((l) => l.event_date)
         .map((l) => ({
           ...l,
-          daysUntil: Math.round((new Date(l.event_date!).getTime() - Date.now()) / 86400000),
+          daysUntil: daysUntilCalendarDate(l.event_date!),
         }))
         .filter((l) => l.daysUntil >= 0)
         .sort((a, b) => a.daysUntil - b.daysUntil)
@@ -96,7 +96,7 @@ export function UpcomingMeets({ teamId, limit = 3, hideWhenEmpty = true }: Props
                 <span className="text-[13px] text-[color:var(--ink-mute)]">d</span>
               </div>
               <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-dim)] mt-0.5">
-                until {prettyDate(m.event_date!)}
+                until {prettyCalendarDate(m.event_date!)}
               </div>
             </div>
           ))}
