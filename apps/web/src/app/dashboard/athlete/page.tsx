@@ -95,6 +95,7 @@ export default function AthletePage() {
           .from('twilio_messages')
           .select('*')
           .eq('player_id', me.id)
+          .eq('hidden', false)
           .gte('date_sent', since)
           .order('date_sent', { ascending: false })
           .limit(100),

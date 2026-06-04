@@ -42,7 +42,8 @@ export default function LivePage() {
       const msgQ = sb
         .from('twilio_messages')
         .select('from_number,direction,category,body,player_id,date_sent')
-        .eq('team_id', prefs.team_id);
+        .eq('team_id', prefs.team_id)
+        .eq('hidden', false);
       const { data: msgs } = await (since ? msgQ.gte('date_sent', since) : msgQ);
       const allMsgs = (msgs ?? []) as Array<{
         from_number: string | null; direction: string; category: string;

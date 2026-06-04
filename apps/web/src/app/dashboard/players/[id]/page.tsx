@@ -124,6 +124,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         .from('twilio_messages')
         .select('*')
         .eq('player_id', playerId)
+        .eq('hidden', false)
         .order('date_sent', { ascending: false })
         .limit(1000);
       const logQ = sb
@@ -214,6 +215,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         .from('twilio_messages')
         .select('date_sent')
         .eq('player_id', playerId)
+        .eq('hidden', false)
         .eq('direction', 'inbound')
         .order('date_sent', { ascending: false })
         .limit(1)

@@ -47,7 +47,7 @@ export function LiveFeed({ teamId }: { teamId: number }) {
     let cancelled = false;
     (async () => {
       const [{ data: m }, { data: p }] = await Promise.all([
-        sb.from('twilio_messages').select('*').eq('team_id', teamId).order('date_sent', { ascending: false }).limit(100),
+        sb.from('twilio_messages').select('*').eq('team_id', teamId).eq('hidden', false).order('date_sent', { ascending: false }).limit(100),
         sb.from('players').select('*').eq('team_id', teamId),
       ]);
       if (!cancelled) {

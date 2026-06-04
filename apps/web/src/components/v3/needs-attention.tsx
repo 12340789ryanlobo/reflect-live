@@ -34,6 +34,7 @@ export function NeedsAttention({ teamId }: { teamId: number }) {
           .from('twilio_messages')
           .select('player_id,direction,category,body,date_sent')
           .eq('team_id', teamId)
+          .eq('hidden', false)
           .gte('date_sent', since)
           .order('date_sent', { ascending: false }),
       ]);

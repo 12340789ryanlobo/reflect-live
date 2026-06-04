@@ -170,7 +170,15 @@ export function UnifiedTimeline({
 }: Props) {
   const [chip, setChip] = useState<Chip>('important');
 
-  const all = useMemo(() => buildTimeline(logs, messages), [logs, messages]);
+  // Drop hidden messages defensively — DB query already filters, but
+  // Realtime UPDATE events for hidden=true should disappear without
+  // a refetch.
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !m.hidden),
+    [messages],
+  );
+
+  const all = useMemo(() => buildTimeline(logs, visibleMessages), [logs, visibleMessages]);
 
   // Region filter: when the user has clicked a muscle on the body
   // heatmap, narrow to entries whose parsed regions overlap. Composes
