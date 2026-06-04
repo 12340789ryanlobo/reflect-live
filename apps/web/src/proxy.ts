@@ -6,7 +6,15 @@ const isProtected = createRouteMatcher(['/dashboard(.*)', '/onboarding', '/api/(
 // carry Clerk session cookies — they authenticate via signed
 // request bodies. Without this allow-list, Clerk's middleware
 // rewrites them to /404 before our handler runs.
-const isPublicApi = createRouteMatcher(['/api/billing/webhook']);
+//
+// /api/teams/[id]/allowed-kinds is read by the reflect FastAPI webhook
+// (server-to-server from Railway) to resolve the per-team SMS prefix
+// allow-list. The data is non-sensitive (it's the same kind names the
+// leaderboard already exposes to team members), so no auth is needed.
+const isPublicApi = createRouteMatcher([
+  '/api/billing/webhook',
+  '/api/teams/(.*)/allowed-kinds',
+]);
 
 export default clerkMiddleware(async (auth, req) => {
   if (isPublicApi(req)) return;
