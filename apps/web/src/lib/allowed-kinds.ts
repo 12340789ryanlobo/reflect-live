@@ -26,12 +26,16 @@ export async function computeAllowedKinds(
     .gte('ends_at', today);
   if (error) throw error;
 
-  const kinds = new Set<string>(BASELINE_KINDS);
+  const extras = new Set<string>();
   for (const row of (data ?? []) as Array<{ scoring: Record<string, unknown> | null }>) {
     for (const key of Object.keys(row.scoring ?? {})) {
       const k = key.trim().toLowerCase();
-      if (KIND_RE.test(k)) kinds.add(k);
+      if (KIND_RE.test(k) && !BASELINE_KINDS.includes(k as (typeof BASELINE_KINDS)[number])) {
+        extras.add(k);
+      }
     }
   }
-  return [...kinds].sort();
+  // Baseline kinds lead (workout first — the common default), then any
+  // competition-specific kinds alphabetically. Stable, predictable order.
+  return [...BASELINE_KINDS, ...[...extras].sort()];
 }
