@@ -8,6 +8,7 @@ import {
 import { PhoneCache } from './phone-cache';
 import { toRow, type TwilioMessageLike } from './twilio-row';
 import { getWorkerState, updateWorkerState } from './state';
+import { extractActivityKind } from './categorize';
 
 export interface PollDeps {
   sb: SupabaseClient;
@@ -81,7 +82,10 @@ export async function pollOnce(deps: PollDeps): Promise<number> {
       .map((r) => ({
         player_id: r.player_id as number,
         team_id: r.team_id as number,
-        kind: r.category,
+        // Use the specific prefix (swim, lift, ...) instead of the broad
+        // category so leaderboards can score per-kind. Falls back to the
+        // category when there's no prefix (legacy "Workout done" style).
+        kind: extractActivityKind(r.body, r.category as 'workout' | 'rehab'),
         description: r.body ?? '',
         // Mirror media_sids onto activity_logs so the past-activity feed
         // doesn't have to JOIN twilio_messages for thumbnail rendering.
