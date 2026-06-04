@@ -4,7 +4,7 @@
 // Default chip is 'all' — interleaved by timestamp desc.
 
 import { useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 import { Pill } from '@/components/v3/pill';
 import { TwilioMediaStrip } from '@/components/v3/twilio-media-strip';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -67,6 +67,20 @@ interface Props {
   selectedRegions?: string[];
   /** Called when the user clears the region filter from the banner. */
   onClearRegionFilter?: () => void;
+  /**
+   * Per-entry delete handler. When provided AND canDelete returns true,
+   * a trash icon renders on the row and clicking it dispatches to the
+   * right backend (activity_logs vs self-report) via this callback.
+   * The parent owns optimistic UI removal.
+   */
+  onDelete?: (entry: TimelineEntry) => void;
+  /**
+   * Predicate the row renderer calls to decide whether to show the
+   * trash icon for a given entry. Centralizes the athlete-self /
+   * coach-any policy at the parent so this component doesn't need
+   * permission context.
+   */
+  canDelete?: (entry: TimelineEntry) => boolean;
 }
 
 const CHIPS: Array<{ key: Chip; label: string }> = [
@@ -167,6 +181,8 @@ export function UnifiedTimeline({
   period,
   selectedRegions,
   onClearRegionFilter,
+  onDelete,
+  canDelete,
 }: Props) {
   const [chip, setChip] = useState<Chip>('important');
 
@@ -294,7 +310,7 @@ export function UnifiedTimeline({
               return (
                 <li
                   key={e.id}
-                  className="border-b px-5 py-3 last:border-0 relative"
+                  className="group border-b px-5 py-3 last:border-0 relative"
                   style={{
                     borderColor: 'var(--border)',
                     background: flagScore != null
@@ -349,6 +365,20 @@ export function UnifiedTimeline({
                         </div>
                       )}
                     </div>
+                    {onDelete && canDelete?.(e) && (
+                      <button
+                        type="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          onDelete(e);
+                        }}
+                        className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition opacity-0 group-hover:opacity-100 shrink-0"
+                        aria-label="Hide this entry"
+                        title="Hide this entry"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
                   </div>
                 </li>
               );
