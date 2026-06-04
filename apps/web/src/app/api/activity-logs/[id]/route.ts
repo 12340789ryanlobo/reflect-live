@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { canDeleteActivityRow } from '@/lib/delete-permissions';
 
 function serviceClient() {
   return createClient(
@@ -30,23 +31,37 @@ export async function DELETE(
   }
 
   const sb = serviceClient();
+
+  // Fetch the row so we can authorize against its player_id + team_id.
+  const { data: row } = await sb
+    .from('activity_logs')
+    .select('player_id, team_id')
+    .eq('id', id)
+    .maybeSingle<{ player_id: number; team_id: number }>();
+  if (!row) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+
   const { data: pref } = await sb
     .from('user_preferences')
-    .select('team_id, role')
+    .select('role, team_id, impersonate_player_id, is_platform_admin')
     .eq('clerk_user_id', userId)
-    .maybeSingle();
-  if (!pref) return NextResponse.json({ error: 'no_team' }, { status: 403 });
+    .maybeSingle<{
+      role: string | null;
+      team_id: number | null;
+      impersonate_player_id: number | null;
+      is_platform_admin: boolean | null;
+    }>();
 
-  const role = (pref.role ?? 'coach') as string;
-  if (role !== 'coach' && role !== 'admin') {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
-  }
+  const allowed = canDeleteActivityRow({
+    pref,
+    rowPlayerId: row.player_id,
+    rowTeamId: row.team_id,
+  });
+  if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
   const { error } = await sb
     .from('activity_logs')
     .update({ hidden: true })
-    .eq('id', id)
-    .eq('team_id', pref.team_id);
+    .eq('id', id);
 
   if (error) {
     return NextResponse.json({ error: 'update_failed', detail: error.message }, { status: 500 });
