@@ -43,12 +43,13 @@ export async function DELETE(
 
   // Find one row to authorize against (every row in the session shares
   // player_id + team_id by construction in /api/self-report).
-  const { data: sample } = await sb
+  const { data: rows } = await sb
     .from('twilio_messages')
     .select('sid, player_id, team_id')
     .eq('session_id', sessionId)
     .limit(1)
-    .maybeSingle<{ sid: string; player_id: number | null; team_id: number | null }>();
+    .returns<Array<{ sid: string; player_id: number | null; team_id: number | null }>>();
+  const sample = rows?.[0] ?? null;
 
   if (!sample) return NextResponse.json({ error: 'not_found' }, { status: 404 });
   if (sample.player_id == null || sample.team_id == null) {
