@@ -14,6 +14,7 @@ const isProtected = createRouteMatcher(['/dashboard(.*)', '/onboarding', '/api/(
 const isPublicApi = createRouteMatcher([
   '/api/billing/webhook',
   '/api/teams/(.*)/allowed-kinds',
+  '/api/sms-bridge/allowed-kinds',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
