@@ -14,8 +14,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-
-const BASELINE = ['workout', 'rehab'] as const;
+import { computeAllowedKinds } from '@/lib/allowed-kinds';
 
 function serviceClient() {
   return createClient(
@@ -36,28 +35,18 @@ export async function GET(
   }
 
   const sb = serviceClient();
-  const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await sb
-    .from('competitions')
-    .select('scoring')
-    .eq('team_id', teamId)
-    .is('archived_at', null)
-    .lte('starts_at', today)
-    .gte('ends_at', today);
-  if (error) {
-    return NextResponse.json({ error: 'lookup_failed', detail: error.message }, { status: 500 });
-  }
-
-  const kinds = new Set<string>(BASELINE);
-  for (const row of (data ?? []) as Array<{ scoring: Record<string, unknown> | null }>) {
-    for (const key of Object.keys(row.scoring ?? {})) {
-      const k = key.trim().toLowerCase();
-      if (/^[a-z][a-z0-9_-]{0,31}$/.test(k)) kinds.add(k);
-    }
+  let kinds: string[];
+  try {
+    kinds = await computeAllowedKinds(sb, teamId);
+  } catch (e) {
+    return NextResponse.json(
+      { error: 'lookup_failed', detail: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json(
-    { kinds: [...kinds].sort() },
+    { kinds },
     { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60' } },
   );
 }

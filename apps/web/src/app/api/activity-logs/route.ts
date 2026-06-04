@@ -23,6 +23,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { computeAllowedKinds, KIND_RE } from '@/lib/allowed-kinds';
 
 function serviceClient() {
   return createClient(
@@ -49,8 +50,10 @@ export async function POST(req: NextRequest) {
   if (!Number.isInteger(playerId) || playerId <= 0) {
     return NextResponse.json({ error: 'bad_player_id' }, { status: 400 });
   }
-  const kind = body.kind;
-  if (kind !== 'workout' && kind !== 'rehab') {
+  // Format-check the kind up front; whether it's actually loggable depends
+  // on the player's team competitions, validated after we resolve the team.
+  const kind = typeof body.kind === 'string' ? body.kind.trim().toLowerCase() : '';
+  if (!KIND_RE.test(kind)) {
     return NextResponse.json({ error: 'bad_kind' }, { status: 400 });
   }
   const descriptionRaw = typeof body.description === 'string' ? body.description.trim() : '';
@@ -109,6 +112,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'forbidden', detail: 'Only coaches or admins can log activity for someone else.' },
       { status: 403 },
+    );
+  }
+
+  // Kind must be currently loggable for this team: baseline {workout, rehab}
+  // plus any active competition's scoring keys.
+  let allowedKinds: string[];
+  try {
+    allowedKinds = await computeAllowedKinds(sb, player.team_id);
+  } catch (e) {
+    return NextResponse.json(
+      { error: 'kind_lookup_failed', detail: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    );
+  }
+  if (!allowedKinds.includes(kind)) {
+    return NextResponse.json(
+      { error: 'kind_not_allowed', detail: `'${kind}' is not a loggable kind for this team right now.` },
+      { status: 400 },
     );
   }
 

@@ -190,8 +190,8 @@ export function AthleteHero({
   const actions: Array<{ verb: ActionVerb; label: string }> = viewerIsSelf
     ? [
         { verb: 'log_via_whatsapp', label: 'Text a workout' },
-        { verb: 'self_report', label: 'Self-report' },
         { verb: 'log_workout', label: 'Log workout' },
+        { verb: 'self_report', label: 'Self-report' },
         { verb: 'report_injury', label: 'Report injury' },
       ]
     : [

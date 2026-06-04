@@ -456,6 +456,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         <LogActivityDialog
           open={logActivityOpen}
           onOpenChange={setLogActivityOpen}
+          teamId={team.id}
           playerId={player.id}
           playerName={player.name}
           viewerIsSelf={viewerIsSelf}

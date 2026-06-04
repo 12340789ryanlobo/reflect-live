@@ -1,9 +1,12 @@
 'use client';
 
-// Manual workout / rehab logging from the athlete page. Used by both
-// athletes (self) and coaches (logging on behalf). Posts to
-// POST /api/activity-logs. Kind toggle defaults to whatever the action
-// button asked for ('workout' or 'rehab').
+// Manual activity logging from the athlete page. Used by both athletes
+// (self) and coaches (logging on behalf). Posts to POST /api/activity-logs.
+// The kind options are fetched live from /api/teams/[id]/allowed-kinds —
+// baseline {workout, rehab} plus whatever the active competition scores —
+// so athletes can log anything the current competition rewards. Kind toggle
+// defaults to whatever the action button asked for, falling back to the
+// first allowed kind if that one isn't currently loggable.
 //
 // 'Notes for coach' is a free-form addendum that gets appended to the
 // description server-side as a 'Notes for coach: …' paragraph. We only
@@ -22,11 +25,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-type Kind = 'workout' | 'rehab';
+type Kind = string;
+
+const FALLBACK_KINDS = ['workout', 'rehab'];
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Team whose active competitions decide which kinds are loggable. */
+  teamId: number;
   playerId: number;
   playerName: string;
   /** True when the viewer is the athlete themselves — surfaces the
@@ -40,12 +47,14 @@ interface Props {
 export function LogActivityDialog({
   open,
   onOpenChange,
+  teamId,
   playerId,
   playerName,
   viewerIsSelf,
   defaultKind = 'workout',
   onSaved,
 }: Props) {
+  const [kinds, setKinds] = useState<string[]>(FALLBACK_KINDS);
   const [kind, setKind] = useState<Kind>(defaultKind);
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
@@ -59,6 +68,27 @@ export function LogActivityDialog({
     setNotes('');
     setErr(null);
   }, [open, defaultKind]);
+
+  // Fetch the live allowed-kinds for this team each time the dialog opens.
+  // On failure we keep the {workout, rehab} fallback so logging still works.
+  useEffect(() => {
+    if (!open) return;
+    const ac = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/teams/${teamId}/allowed-kinds`, { signal: ac.signal });
+        if (!res.ok) return;
+        const j = (await res.json()) as { kinds?: string[] };
+        const next = Array.isArray(j.kinds) && j.kinds.length ? j.kinds : FALLBACK_KINDS;
+        setKinds(next);
+        // Keep the requested default if it's allowed; otherwise pick the first.
+        setKind((cur) => (next.includes(cur) ? cur : next[0]));
+      } catch {
+        // aborted or network error — keep the fallback kinds
+      }
+    })();
+    return () => ac.abort();
+  }, [open, teamId]);
 
   async function save() {
     const desc = description.trim();
@@ -107,12 +137,11 @@ export function LogActivityDialog({
               Kind
             </label>
             <div
-              className="inline-flex rounded-md border overflow-hidden"
-              style={{ borderColor: 'var(--border)' }}
+              className="flex flex-wrap gap-1.5"
               role="radiogroup"
               aria-label="Activity kind"
             >
-              {(['workout', 'rehab'] as Kind[]).map((k) => {
+              {kinds.map((k) => {
                 const active = kind === k;
                 return (
                   <button
@@ -121,13 +150,14 @@ export function LogActivityDialog({
                     role="radio"
                     aria-checked={active}
                     onClick={() => setKind(k)}
-                    className={`px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wide transition ${
+                    className={`rounded-md border px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wide transition ${
                       active
-                        ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
+                        ? 'bg-[color:var(--ink)] text-[color:var(--paper)] border-[color:var(--ink)]'
                         : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]'
                     }`}
+                    style={active ? undefined : { borderColor: 'var(--border)' }}
                   >
-                    {k}
+                    {k.replace(/[_-]/g, ' ')}
                   </button>
                 );
               })}
@@ -143,7 +173,13 @@ export function LogActivityDialog({
               autoFocus
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={kind === 'workout' ? 'e.g. squats 4×8, hamstring curls, 30 min stationary bike' : 'e.g. shoulder mobility, band rotations, 15 min'}
+              placeholder={
+                kind === 'workout'
+                  ? 'e.g. squats 4×8, hamstring curls, 30 min stationary bike'
+                  : kind === 'rehab'
+                    ? 'e.g. shoulder mobility, band rotations, 15 min'
+                    : `e.g. what you did for ${kind.replace(/[_-]/g, ' ')} — sets, distance, duration`
+              }
               rows={4}
               maxLength={2000}
               className="w-full rounded-md border bg-[color:var(--paper)] px-3 py-2 text-[13px] text-[color:var(--ink)] placeholder:text-[color:var(--ink-dim)] focus:outline-none focus:ring-2 focus:ring-[color:var(--blue)]"
