@@ -160,6 +160,7 @@ async function refreshSurveyInjuries(
       .from('twilio_messages')
       .select('sid,direction,body,date_sent,player_id,team_id,from_number,to_number,status,category,media_sids')
       .eq('player_id', playerId)
+      .eq('hidden', false)
       .gte('date_sent', SINCE)
       .order('date_sent', { ascending: true })
       .limit(2000);
