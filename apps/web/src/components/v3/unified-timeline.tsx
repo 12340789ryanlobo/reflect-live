@@ -3,7 +3,7 @@
 // Merged activity_logs + twilio_messages feed with three fixed tabs:
 // Competition inputs / Surveys / Messages.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trash2, X } from 'lucide-react';
 import { Pill } from '@/components/v3/pill';
 import { TwilioMediaStrip } from '@/components/v3/twilio-media-strip';
@@ -218,21 +218,28 @@ export function UnifiedTimeline({
     return { competition, surveys, messages };
   }, [all]);
 
-  const initialTab = useMemo(
-    () =>
+  // Default to the competition tab, then jump to the highest-signal tab
+  // ONCE the first time real data is present. logs/messages arrive async
+  // from the parent, so we can't compute the default at mount (counts
+  // are all zero then). A ref guard makes this fire exactly once and
+  // never override a user's manual tab switch afterward.
+  const [tab, setTab] = useState<Tab>('competition');
+  const defaultApplied = useRef(false);
+
+  useEffect(() => {
+    if (defaultApplied.current) return;
+    const total = counts.competition + counts.surveys + counts.messages;
+    if (total === 0) return; // wait for data
+    defaultApplied.current = true;
+    setTab(
       defaultTab({
         hasActiveCompetition: hasActiveCompetition ?? false,
         competitionCount: counts.competition,
         surveyCount: counts.surveys,
         messageCount: counts.messages,
       }),
-    // Only the FIRST computed value matters — the user can switch freely
-    // after. Recomputing on every count change would yank their tab.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const [tab, setTab] = useState<Tab>(initialTab);
+    );
+  }, [counts, hasActiveCompetition]);
 
   // Region filter: when the user has clicked a muscle on the body
   // heatmap, narrow to entries whose parsed regions overlap. Composes
