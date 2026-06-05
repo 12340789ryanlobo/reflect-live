@@ -112,6 +112,8 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // the identity card so the coach knows alternates exist without
   // opening the dialog. Refetched whenever rosterTick bumps.
   const [alternatePhoneCount, setAlternatePhoneCount] = useState(0);
+  const [activeScoring, setActiveScoring] = useState<Record<string, number> | undefined>(undefined);
+  const [hasActiveComp, setHasActiveComp] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -279,6 +281,29 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     })();
     return () => { alive = false; };
   }, [sb, team.id, playerId, rosterTick]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/competitions?team_id=${team.id}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const { competitions = [] } = (await res.json()) as {
+          competitions: Array<{ scoring: Record<string, number> | null; starts_at: string; ends_at: string; archived_at: string | null }>;
+        };
+        const today = new Date().toISOString().slice(0, 10);
+        const active = competitions.filter(
+          (c) => !c.archived_at && c.starts_at <= today && today <= c.ends_at,
+        );
+        if (!alive) return;
+        setHasActiveComp(active.length > 0);
+        setActiveScoring(active[0]?.scoring ?? undefined);
+      } catch {
+        // Non-fatal — point labels just won't show; default tab falls back.
+      }
+    })();
+    return () => { alive = false; };
+  }, [team.id]);
 
   const injuryCounts = useMemo<Record<string, number>>(() => {
     const c: Record<string, number> = {};
@@ -585,6 +610,8 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           onClearRegionFilter={() => setSelectedRegions([])}
           canDelete={canDelete}
           onDelete={onDelete}
+          scoring={activeScoring}
+          hasActiveCompetition={hasActiveComp}
         />
       </main>
     </>
