@@ -15,6 +15,11 @@ export interface TimelineEntry {
   /** Stable id: 'log:{id}' for activity_logs, 'msg:{sid}' for twilio_messages. */
   id: string;
   kind: TimelineKind;
+  /** Raw activity_logs.kind for log-sourced entries (swim, lift,
+   *  workout, rehab, ...). Null for message-sourced entries. Drives the
+   *  Competition inputs tab's per-kind label + point lookup. The coarse
+   *  `kind` field stays for tab routing + tone. */
+  activityKind: string | null;
   /** ISO timestamp the entry should be sorted by. */
   ts: string;
   /** Human-readable body — log description or message body. */
@@ -80,6 +85,7 @@ function logToEntry(l: ActivityLog): TimelineEntry {
   return {
     id: `log:${l.id}`,
     kind: l.kind === 'rehab' ? 'rehab' : 'workout',
+    activityKind: l.kind,
     ts: l.logged_at,
     body,
     regions: parseAllRegions(body),
@@ -105,6 +111,7 @@ function msgToEntry(m: TwilioMessage): TimelineEntry {
   return {
     id: `msg:${m.sid}`,
     kind,
+    activityKind: null,
     ts: m.date_sent,
     body,
     regions: parseAllRegions(body),
