@@ -1,92 +1,94 @@
-# reflect-live Architecture
+# reflect-live
 
-**Course:** MPCS 51238 · Spring 2026 · Assignment 4
-**Team:** UChicago Swim & Dive
+**Course:** MPCS 51238 · Spring 2026 · Assignment 4 · **Team:** UChicago Swim & Dive
 
-## Overview
-
-Real-time team-pulse dashboard. A single Railway worker runs two independent poll loops:
-- **Weather poll (every 10 min)** — Open-Meteo (free, no key) for the training pool + upcoming meet locations. This is the always-updating live data source the rubric asks for.
-- **Twilio poll (every 15 s)** — Twilio Messages REST API. Tags each message by category (workout / rehab / survey / chat). This is the integration with an existing FastAPI app (`reflect`) that sends swim-team SMS surveys via Twilio.
-
-Both streams write to Supabase; Realtime is enabled on both and the Next.js frontend subscribes to each.
-
-Built alongside (never inside) the existing `reflect` app. Same Twilio account, zero impact on reflect's code, data, or deployments.
-
-## Architecture
+Real-time team-pulse dashboard. One Railway worker runs two poll loops →
+Supabase (Realtime on) → Next.js on Vercel. Built alongside (never inside) the
+existing `reflect` FastAPI app; same Twilio account, zero impact on reflect.
 
 ```
-                       ┌───────────────────────────────────────┐
-                       │           Worker (Railway)            │
-Open-Meteo ──────────► │  weather loop (10m) → Supabase        │ ─► Supabase
-                       │  twilio loop  (15s) → Supabase        │   Postgres
-Twilio Messages ─────► │                                       │   + Realtime on
-                       └───────────────────────────────────────┘   weather_snapshots
-                                                                  + twilio_messages
-                                                                         │
-                                                                         ▼
-                                                                   Next.js (Vercel)
-                                                                   + Clerk, RLS by team
+Open-Meteo ──►┌ Worker (Railway) ─────────────┐
+Twilio Msgs ─►│ weather loop (10m) → Supabase  │─► Supabase Postgres + Realtime
+              │ twilio  loop (15s) → Supabase  │   ─► Next.js (Vercel) + Clerk, RLS
+              └───────────────────────────────┘
 ```
 
-## Services
-
-- **Worker** — `apps/worker/` · Node + TypeScript · Railway
 - **Web** — `apps/web/` · Next.js 16 App Router · Tailwind v4 · Clerk v7 · Vercel
-- **Shared** — `packages/shared/` · workspace-linked type definitions
-- **Seed scripts** — `scripts/` · CSV parser, path guard, seed team/players + optional reflect-DB activity log import, seed locations
-- **Database** — Supabase Postgres (`supabase/migrations/` holds the SQL)
+- **Worker** — `apps/worker/` · Node + TypeScript · Railway
+- **Shared** — `packages/shared/` · workspace-linked types
+- **Scripts** — `scripts/` · seed team/players/locations (path-guarded, read-only on reflect)
+- **DB** — Supabase Postgres; SQL in `supabase/migrations/` (sequential `00XX_name.sql`, currently …0034)
 
-## Data flow
+Deeper detail lives in the code and these docs — read them, don't restate here:
+schema → `supabase/migrations/`, design → `docs/superpowers/specs/`, plans →
+`docs/superpowers/plans/`, what's shipped → `docs/shipped.md`.
 
-**Twilio path:**
-1. Worker reads `worker_state.last_date_sent` cursor.
-2. Calls `twilio.messages.list({ dateSentAfter: cursor, pageSize: 1000 })`.
-3. Each message: categorize (workout / rehab / survey / chat), resolve phone → player_id via 5-min LRU, upsert into `twilio_messages` (dedup on `sid`).
-4. Supabase Realtime fires `INSERT` → dashboard prepends to live feed without refresh.
+## Commands
 
-**Weather path:**
-1. Worker reads all `locations` rows.
-2. For each, GETs `https://api.open-meteo.com/v1/forecast?latitude=…&longitude=…&current=...`.
-3. Inserts snapshot into `weather_snapshots`.
-4. Realtime fires `INSERT` → `WeatherGrid` updates the card for that location in place.
+| Task | Command |
+|------|---------|
+| Web dev | `bun run dev:web` |
+| Worker dev | `bun run dev:worker` |
+| Build web | `bun run build:web` |
+| Typecheck | `bun run typecheck` (web; worker runs via bun, no tsc gate) |
+| Lint | `bun run lint` (eslint + react-hooks) |
+| Test | `bun run test` (worker + scripts) |
+| Seed | `bun run scripts/seed.ts` then `scripts/seed-locations.ts` |
 
-## Schema (8 tables)
+## Definition of done (run before claiming a web change works)
 
-- `teams` — team identity (single row: UChicago Swim & Dive)
-- `players` — swim roster, seeded from `data/swim_team_contacts.csv`
-- `twilio_messages` — **Realtime ON**, worker writes, dedup on `sid`, indexed by team/date/category
-- `activity_logs` — historical workouts + rehabs (optional one-time import from reflect's prod DB)
-- `locations` — training pool + upcoming meet venues (hand-seeded)
-- `weather_snapshots` — **Realtime ON**, worker inserts every 10 min per location
-- `worker_state` — single-row cursor + last-poll timestamps + error count (service role only)
-- `user_preferences` — per-Clerk-user team + watchlist + group filter
+1. `bun run typecheck` — clean
+2. `bun run lint` — clean (catches the rules-of-hooks bugs that used to ship silently)
+3. `bun run build:web` — succeeds
+4. Only after 1–3 are green, commit + push.
 
-## RLS
+A 200 in Vercel logs ≠ the page rendered. Build success ≠ runtime success.
+If a change touches a hook or a Realtime subscription, say what you actually
+verified, not what you assume.
 
-All end-user tables are scoped via `user_preferences.team_id` matched against `auth.jwt()->>'sub'`. `worker_state` has no RLS and is only touched by the worker's service-role client.
+## Conventions
 
-## Safety stance toward reflect
+- TypeScript ES modules (import/export), never CommonJS.
+- API routes: `apps/web/src/app/api/**/route.ts`. Pages: `apps/web/src/app/**`.
+- New DB change = a new `supabase/migrations/00XX_name.sql` (next number, never
+  edit a shipped migration). Note in the PR/commit that it must be applied in
+  the Supabase SQL editor.
+- RLS: every end-user table scoped via `user_preferences.team_id` matched
+  against `auth.jwt()->>'sub'`. `worker_state` has no RLS (service role only).
+- Don't add comments/docstrings/type annotations to code you didn't change.
+- Match the surrounding code's idiom, naming, and comment density.
 
-- Separate GitHub repo, Vercel project, Railway project.
-- Worker polls Twilio via GET only — reflect's webhook is unaffected, both systems observe the same message log independently.
-- Seed script hard-refuses paths containing `reflect/data/` and opens SQLite copies in read-only mode.
-- Zero writes to reflect's SQLite file ever.
+## Gotchas (learned the hard way)
 
-## Setup (summary — full runbook in README.md)
+- **NEXT_PUBLIC_* env vars must be scoped to all environments**, not
+  Production-only — Production-only breaks branch/Preview builds with
+  "supabaseUrl is required". (see auto-memory)
+- The worker is the only writer to `twilio_messages` / `weather_snapshots`;
+  the web app reads via Realtime. Don't write those tables from the web.
+- Twilio is **GET-only** from this worker — reflect's webhook is untouched;
+  both systems observe the same message log independently.
 
-1. Supabase project — apply three migration SQL files from `supabase/migrations/` in order.
-2. Clerk application — create JWT template named `supabase` signed with Supabase's JWT secret.
-3. Twilio credentials reused from the existing reflect account (read-only).
-4. `bun install` at repo root.
-5. Seed: `bun run scripts/seed.ts` then `bun run scripts/seed-locations.ts`.
-6. Run: `bun run dev:worker` (one terminal) + `bun run dev:web` (another).
-7. Deploy: Vercel for `apps/web`, Railway for `apps/worker`.
+## Safety toward reflect (non-negotiable)
 
-## Design doc
+- Separate GitHub repo / Vercel project / Railway project.
+- Seed scripts hard-refuse any path containing `reflect/data/` and open SQLite
+  copies read-only. **Zero writes to reflect's SQLite, ever.**
 
-`docs/superpowers/specs/2026-04-21-reflect-live-design.md`
+## How we work (workflow contract)
 
-## Implementation plan
-
-`docs/superpowers/plans/2026-04-21-reflect-live-implementation.md`
+- **Backlog** lives in `IDEAS.md`. Ryan owns the **Inbox** (raw thoughts).
+  Claude only reorganizes IDEAS.md when explicitly told ("fold the inbox" /
+  "update ideas") — never silently — and warns to save first, then makes
+  surgical edits so unsaved typing is never clobbered. Shipped work is appended
+  to `docs/shipped.md`, not IDEAS.md.
+- **Plan first for anything non-trivial.** Use plan mode (Shift+Tab) on
+  multi-file features; get the decomposition reviewed before writing code.
+  Cheap to be wrong in a plan, expensive to be wrong after 200k tokens.
+- **Delegate exploration to subagents** (research, multi-file search, log
+  trawls) to keep the main context clean — return only the findings.
+- **Parallel work uses git worktrees** (`claude --worktree <name>`), one branch
+  each, so sessions never step on each other. Mark in-flight items in IDEAS.md
+  `Now` with `[wt:<name>]`. Merge to main one at a time. 2–3 in flight max —
+  the bottleneck is review throughput, not Claude.
+- After code changes: commit (stage specific files, never `git add .`) and push
+  so Vercel auto-deploys. Don't wait to be asked.

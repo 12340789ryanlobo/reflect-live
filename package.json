@@ -3,10 +3,12 @@
   "private": true,
   "workspaces": ["apps/*", "packages/*", "scripts"],
   "scripts": {
-    "dev:web": "bun --cwd apps/web run dev",
-    "dev:worker": "bun --cwd apps/worker run dev",
-    "build:web": "bun --cwd apps/web run build",
-    "build:worker": "bun --cwd apps/worker run build",
+    "dev:web": "bun --cwd apps/web dev",
+    "dev:worker": "bun --cwd apps/worker dev",
+    "build:web": "bun --cwd apps/web build",
+    "build:worker": "bun --cwd apps/worker build",
+    "lint": "bun --cwd apps/web lint",
+    "typecheck": "bun --cwd apps/web typecheck",
     "test": "bun --cwd apps/worker test && bun --cwd scripts test",
     "seed": "bun run scripts/seed.ts"
   }

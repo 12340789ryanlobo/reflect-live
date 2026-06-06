@@ -38,7 +38,6 @@ export default async function OG() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
           {logoSrc && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={logoSrc} alt="" width={130} height={130} />
           )}
           <span style={{ fontSize: 110, fontWeight: 700, letterSpacing: '-0.02em', color: '#1F5FB0', lineHeight: 1 }}>
