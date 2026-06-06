@@ -366,38 +366,9 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     };
   }, [msgs, logs, lastInboundEver]);
 
-  if (!player) {
-    return (
-      <>
-        <PageHeader eyebrow="Athlete" title="Loading…" />
-        <main className="flex flex-1 p-6">
-          <p className="text-[13px] text-[color:var(--ink-mute)]">— loading athlete —</p>
-        </main>
-      </>
-    );
-  }
-
-  // Anyone (athlete, captain, or coach who's also on the roster) viewing
-  // their OWN player page gets the self affordances — Self-report / Log
-  // workout / Report injury — instead of the manage-someone-else set.
-  // Driven by the role you're currently viewing as (prefs.role) plus
-  // the impersonate target. A platform admin who role-switches to
-  // 'athlete' wants the athlete experience, including the
-  // 'Text a workout' button that goes to the team Twilio number — not
-  // the coach 'Text' button that opens a chat to this player's
-  // personal phone. The previous gate hid the self set behind
-  // !is_platform_admin so admins-in-athlete-view stayed in coach mode.
-  const viewerIsSelf =
-    prefs.impersonate_player_id === player.id &&
-    (prefs.role === 'athlete' || prefs.role === 'captain');
-  // Roster edits — coach on this team, or platform admin. Mirrors the
-  // server-side requireRosterManager check on PATCH /api/players/[id].
-  const viewerCanEdit =
-    prefs.is_platform_admin === true || prefs.role === 'coach' || prefs.role === 'admin';
-  // Phone is always visible: when viewer is the athlete it's their own
-  // number; when viewer is a coach/captain/admin they have legit access.
-  const showPhone = true;
-
+  // These callbacks must be declared before the early `if (!player)` return
+  // below. Defining them after the guard made React call a different number
+  // of hooks once player data loaded, which crashes every athlete page.
   const canDelete = useCallback(
     (_entry: TimelineEntry): boolean => {
       if (!player) return false;
@@ -446,6 +417,38 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     },
     [msgs, setLogs, setMsgs],
   );
+
+  if (!player) {
+    return (
+      <>
+        <PageHeader eyebrow="Athlete" title="Loading…" />
+        <main className="flex flex-1 p-6">
+          <p className="text-[13px] text-[color:var(--ink-mute)]">— loading athlete —</p>
+        </main>
+      </>
+    );
+  }
+
+  // Anyone (athlete, captain, or coach who's also on the roster) viewing
+  // their OWN player page gets the self affordances — Self-report / Log
+  // workout / Report injury — instead of the manage-someone-else set.
+  // Driven by the role you're currently viewing as (prefs.role) plus
+  // the impersonate target. A platform admin who role-switches to
+  // 'athlete' wants the athlete experience, including the
+  // 'Text a workout' button that goes to the team Twilio number — not
+  // the coach 'Text' button that opens a chat to this player's
+  // personal phone. The previous gate hid the self set behind
+  // !is_platform_admin so admins-in-athlete-view stayed in coach mode.
+  const viewerIsSelf =
+    prefs.impersonate_player_id === player.id &&
+    (prefs.role === 'athlete' || prefs.role === 'captain');
+  // Roster edits — coach on this team, or platform admin. Mirrors the
+  // server-side requireRosterManager check on PATCH /api/players/[id].
+  const viewerCanEdit =
+    prefs.is_platform_admin === true || prefs.role === 'coach' || prefs.role === 'admin';
+  // Phone is always visible: when viewer is the athlete it's their own
+  // number; when viewer is a coach/captain/admin they have legit access.
+  const showPhone = true;
 
   function onAction(verb: ActionVerb) {
     switch (verb) {
