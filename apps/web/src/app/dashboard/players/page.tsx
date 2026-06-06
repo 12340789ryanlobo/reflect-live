@@ -51,7 +51,7 @@ export default function PlayersPage() {
     const { data: players } = await sb.from('players').select('*').eq('team_id', prefs.team_id).order('name');
     const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
     const [{ data: msgs }, { data: mems }] = await Promise.all([
-      sb.from('twilio_messages').select('player_id,direction,category,date_sent').eq('team_id', prefs.team_id).gte('date_sent', since30),
+      sb.from('twilio_messages').select('player_id,direction,category,date_sent').eq('team_id', prefs.team_id).eq('hidden', false).gte('date_sent', since30),
       sb.from('team_memberships').select('player_id,role,status').eq('team_id', prefs.team_id).eq('status', 'active'),
     ]);
     const msgList = (msgs ?? []) as Array<{ player_id: number | null; direction: string; category: string; date_sent: string }>;

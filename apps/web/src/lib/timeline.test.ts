@@ -182,3 +182,27 @@ describe('buildTimeline', () => {
     expect(out.find((e) => e.id === 'log:2')?.body).toBe('knee mobility');
   });
 });
+
+describe('activityKind', () => {
+  it('carries the raw activity_logs.kind for log entries', () => {
+    const logs = [
+      { id: 1, player_id: 7, team_id: 1, kind: 'swim', description: 'Swim: 30 stations', logged_at: '2026-06-01T12:00:00Z', source_sid: null, media_sids: null },
+      { id: 2, player_id: 7, team_id: 1, kind: 'rehab', description: 'Rehab: foam roll', logged_at: '2026-06-01T13:00:00Z', source_sid: null, media_sids: null },
+    ] as unknown as Parameters<typeof buildTimeline>[0];
+    const entries = buildTimeline(logs, []);
+    const swim = entries.find((e) => e.meta.source === 'log' && e.meta.logId === 1)!;
+    const rehab = entries.find((e) => e.meta.source === 'log' && e.meta.logId === 2)!;
+    expect(swim.activityKind).toBe('swim');
+    expect(rehab.activityKind).toBe('rehab');
+    expect(swim.kind).toBe('workout');
+    expect(rehab.kind).toBe('rehab');
+  });
+
+  it('sets activityKind null for message entries', () => {
+    const msgs = [
+      { sid: 'SM1', direction: 'inbound', from_number: '+1', to_number: null, body: 'hi coach', status: 'received', category: 'chat', date_sent: '2026-06-01T12:00:00Z', player_id: 7, team_id: 1 },
+    ] as unknown as Parameters<typeof buildTimeline>[1];
+    const entries = buildTimeline([], msgs);
+    expect(entries[0].activityKind).toBeNull();
+  });
+});

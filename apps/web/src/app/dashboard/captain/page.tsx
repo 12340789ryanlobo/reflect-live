@@ -40,6 +40,7 @@ export default function CaptainHome() {
           .from('twilio_messages')
           .select('player_id,direction,category,body,date_sent')
           .eq('team_id', prefs.team_id)
+          .eq('hidden', false)
           .gte('date_sent', new Date(Date.now() - 7 * 86400000).toISOString()),
         sb.from('locations').select('*').eq('team_id', prefs.team_id),
       ]);

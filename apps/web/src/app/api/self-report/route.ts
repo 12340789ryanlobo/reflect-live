@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
     // Time-stagger 1s apart so the survey-trends in-order pairer
     // (question[i] ↔ reply[i]) gets stable, deterministic ordering
     // within the burst.
+    const sessionId = randomUUID();
     const baseMs = Date.now();
     const rows: Array<Record<string, unknown>> = [];
     pairs.forEach((p, i) => {
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
       const tsA = new Date(baseMs + i * 2000 + 500).toISOString();
       rows.push({
         sid: `web-self-q-${randomUUID()}`,
+        session_id: sessionId,
         direction: 'outbound-api',
         from_number: null,
         to_number: player.phone_e164 ?? null,
@@ -132,6 +134,7 @@ export async function POST(req: NextRequest) {
       });
       rows.push({
         sid: `web-self-a-${randomUUID()}`,
+        session_id: sessionId,
         direction: 'inbound',
         from_number: player.phone_e164 ?? null,
         to_number: null,
@@ -170,6 +173,7 @@ export async function POST(req: NextRequest) {
     .from('twilio_messages')
     .insert({
       sid,
+      session_id: sid,
       direction: 'inbound',
       from_number: player.phone_e164 ?? null,
       to_number: null,

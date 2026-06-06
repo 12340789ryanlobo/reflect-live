@@ -36,6 +36,7 @@ export default function FollowUpsPage() {
         .from('twilio_messages')
         .select('player_id,date_sent,direction')
         .eq('team_id', prefs.team_id)
+        .eq('hidden', false)
         .eq('direction', 'inbound')
         .order('date_sent', { ascending: false });
       const last = new Map<number, string>();

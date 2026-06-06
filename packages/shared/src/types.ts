@@ -86,6 +86,12 @@ export interface TwilioMessage {
   /** Twilio Media SIDs for any photos/videos attached to this message
    *  (migration 0023). Render via /api/twilio-media/<sid>/<mediaSid>. */
   media_sids: string[] | null;
+  /** Soft-delete flag — true when a coach or athlete has deleted this
+   *  row. Read queries filter on hidden=false; write paths set this. */
+  hidden?: boolean;
+  /** Groups all messages sent in one self-report delivery batch so they
+   *  can be deleted together. Matches self_report_sessions.id. */
+  session_id?: string | null;
 }
 
 export interface ActivityLog {

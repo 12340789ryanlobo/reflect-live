@@ -109,6 +109,7 @@ export async function POST(
     .from('twilio_messages')
     .select('direction, category, body, date_sent')
     .eq('player_id', playerId)
+    .eq('hidden', false)
     .order('date_sent', { ascending: false })
     .limit(200);
 

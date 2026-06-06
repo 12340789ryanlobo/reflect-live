@@ -1,5 +1,5 @@
 'use client';
-import { use, useEffect, useMemo, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Pencil } from 'lucide-react';
 import { PageHeader, useDashboard } from '@/components/dashboard-shell';
@@ -15,6 +15,8 @@ import { ManagePhonesDialog } from '@/components/v3/manage-phones-dialog';
 import { UpcomingMeets } from '@/components/v3/upcoming-meets';
 import { SurveyTrendsCard } from '@/components/v3/survey-trends-card';
 import { buildSurveyTrends } from '@/lib/survey-trends';
+import { canDeleteActivityRow } from '@/lib/delete-permissions';
+import type { TimelineEntry } from '@/lib/timeline';
 import { Button } from '@/components/ui/button';
 import { type Period, periodSinceIso } from '@/lib/period';
 import { parseAllRegions } from '@/lib/injury-aliases';
@@ -110,6 +112,8 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // the identity card so the coach knows alternates exist without
   // opening the dialog. Refetched whenever rosterTick bumps.
   const [alternatePhoneCount, setAlternatePhoneCount] = useState(0);
+  const [activeScoring, setActiveScoring] = useState<Record<string, number> | undefined>(undefined);
+  const [hasActiveComp, setHasActiveComp] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -124,6 +128,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         .from('twilio_messages')
         .select('*')
         .eq('player_id', playerId)
+        .eq('hidden', false)
         .order('date_sent', { ascending: false })
         .limit(1000);
       const logQ = sb
@@ -214,6 +219,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         .from('twilio_messages')
         .select('date_sent')
         .eq('player_id', playerId)
+        .eq('hidden', false)
         .eq('direction', 'inbound')
         .order('date_sent', { ascending: false })
         .limit(1)
@@ -275,6 +281,29 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     })();
     return () => { alive = false; };
   }, [sb, team.id, playerId, rosterTick]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/competitions?team_id=${team.id}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const { competitions = [] } = (await res.json()) as {
+          competitions: Array<{ scoring: Record<string, number> | null; starts_at: string; ends_at: string; archived_at: string | null }>;
+        };
+        const today = new Date().toISOString().slice(0, 10);
+        const active = competitions.filter(
+          (c) => !c.archived_at && c.starts_at <= today && today <= c.ends_at,
+        );
+        if (!alive) return;
+        setHasActiveComp(active.length > 0);
+        setActiveScoring(active[0]?.scoring ?? undefined);
+      } catch {
+        // Non-fatal — point labels just won't show; default tab falls back.
+      }
+    })();
+    return () => { alive = false; };
+  }, [team.id]);
 
   const injuryCounts = useMemo<Record<string, number>>(() => {
     const c: Record<string, number> = {};
@@ -368,6 +397,55 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // Phone is always visible: when viewer is the athlete it's their own
   // number; when viewer is a coach/captain/admin they have legit access.
   const showPhone = true;
+
+  const canDelete = useCallback(
+    (_entry: TimelineEntry): boolean => {
+      if (!player) return false;
+      return canDeleteActivityRow({
+        pref: {
+          role: prefs.role ?? null,
+          team_id: prefs.team_id ?? null,
+          impersonate_player_id: prefs.impersonate_player_id ?? null,
+          is_platform_admin: prefs.is_platform_admin ?? false,
+        },
+        rowPlayerId: player.id,
+        rowTeamId: player.team_id,
+      });
+    },
+    [player, prefs],
+  );
+
+  const onDelete = useCallback(
+    async (entry: TimelineEntry) => {
+      if (!confirm("Hide this entry from the leaderboard? You can't undo this from the UI.")) {
+        return;
+      }
+
+      if (entry.meta.source === 'log') {
+        const logId = entry.meta.logId;
+        setLogs((current) => current.filter((l) => l.id !== logId));
+        const res = await fetch(`/api/activity-logs/${logId}`, { method: 'DELETE' });
+        if (!res.ok) alert('Delete failed. Refresh to restore the row.');
+        return;
+      }
+
+      // entry.meta.source === 'msg' — find the message by sid to get its session_id.
+      const sid = entry.meta.sid;
+      const msg = msgs.find((m) => m.sid === sid);
+      const sessionId = msg?.session_id ?? null;
+      if (!sessionId) {
+        alert('This row has no session_id — cannot delete from UI. Fix via SQL.');
+        return;
+      }
+      // Optimistic removal: drop all rows in the same session.
+      setMsgs((current) => current.filter((m) => m.session_id !== sessionId));
+      const res = await fetch(`/api/self-report/${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) alert('Delete failed. Refresh to restore the row.');
+    },
+    [msgs, setLogs, setMsgs],
+  );
 
   function onAction(verb: ActionVerb) {
     switch (verb) {
@@ -530,6 +608,10 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           period={period}
           selectedRegions={selectedRegions}
           onClearRegionFilter={() => setSelectedRegions([])}
+          canDelete={canDelete}
+          onDelete={onDelete}
+          scoring={activeScoring}
+          hasActiveCompetition={hasActiveComp}
         />
       </main>
     </>

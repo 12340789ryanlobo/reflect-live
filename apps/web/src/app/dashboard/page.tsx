@@ -77,7 +77,8 @@ export default function Dashboard() {
         let q = sb
           .from('twilio_messages')
           .select('*')
-          .eq('team_id', prefs.team_id);
+          .eq('team_id', prefs.team_id)
+          .eq('hidden', false);
         if (since) q = q.gte('date_sent', since);
         const { data: page } = await q
           .order('date_sent', { ascending: false })

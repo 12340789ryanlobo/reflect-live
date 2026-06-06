@@ -1,14 +1,15 @@
 'use client';
 
-// Merged activity_logs + twilio_messages feed with a chip filter row.
-// Default chip is 'all' — interleaved by timestamp desc.
+// Merged activity_logs + twilio_messages feed with three fixed tabs:
+// Competition inputs / Surveys / Messages.
 
-import { useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trash2, X } from 'lucide-react';
 import { Pill } from '@/components/v3/pill';
 import { TwilioMediaStrip } from '@/components/v3/twilio-media-strip';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { type Period, periodLabel } from '@/lib/period';
+import { type Period } from '@/lib/period';
+import { pointLabel, defaultTab, type Tab } from '@/lib/timeline-tabs';
 import {
   buildTimeline,
   type TimelineEntry,
@@ -53,7 +54,6 @@ function scoreLabel(n: number): string {
   return `${n}/10`;
 }
 
-type Chip = 'important' | 'all' | 'activity' | 'messages' | 'survey';
 
 interface Props {
   logs: ActivityLog[];
@@ -67,14 +67,32 @@ interface Props {
   selectedRegions?: string[];
   /** Called when the user clears the region filter from the banner. */
   onClearRegionFilter?: () => void;
+  /**
+   * Per-entry delete handler. When provided AND canDelete returns true,
+   * a trash icon renders on the row and clicking it dispatches to the
+   * right backend (activity_logs vs self-report) via this callback.
+   * The parent owns optimistic UI removal.
+   */
+  onDelete?: (entry: TimelineEntry) => void;
+  /**
+   * Predicate the row renderer calls to decide whether to show the
+   * trash icon for a given entry. Centralizes the athlete-self /
+   * coach-any policy at the parent so this component doesn't need
+   * permission context.
+   */
+  canDelete?: (entry: TimelineEntry) => boolean;
+  /** kind→points map from the active competition, for the Competition
+   *  inputs tab's point labels. Omit if no active competition. */
+  scoring?: Record<string, number>;
+  /** True if the team has an active competition today — feeds the
+   *  dynamic default-tab choice. */
+  hasActiveCompetition?: boolean;
 }
 
-const CHIPS: Array<{ key: Chip; label: string }> = [
-  { key: 'important', label: 'Important' },
-  { key: 'all', label: 'All' },
-  { key: 'activity', label: 'Activity' },
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: 'competition', label: 'Competition inputs' },
+  { key: 'surveys', label: 'Surveys' },
   { key: 'messages', label: 'Messages' },
-  { key: 'survey', label: 'Survey' },
 ];
 
 // Body-content patterns that match worker-generated SMS scaffolding
@@ -152,13 +170,15 @@ const KIND_LABEL: Record<TimelineKind, string> = {
   outbound: 'outbound',
 };
 
-function entryMatchesChip(e: TimelineEntry, chip: Chip): boolean {
-  if (chip === 'important') return !isNoise(e);
-  if (chip === 'all') return true;
-  if (chip === 'activity') return e.kind === 'workout' || e.kind === 'rehab';
-  if (chip === 'messages') return e.kind === 'inbound' || e.kind === 'outbound';
-  if (chip === 'survey') return e.kind === 'survey';
-  return true;
+function entryMatchesTab(e: TimelineEntry, tab: Tab): boolean {
+  if (tab === 'competition') return e.kind === 'workout' || e.kind === 'rehab';
+  if (tab === 'surveys') return e.kind === 'survey';
+  if (tab === 'messages') {
+    // Messages = plain inbound/outbound chat, with the OTP/scaffolding
+    // noise hidden by default (same filter the old 'Important' view used).
+    return (e.kind === 'inbound' || e.kind === 'outbound') && !isNoise(e);
+  }
+  return false;
 }
 
 export function UnifiedTimeline({
@@ -167,14 +187,63 @@ export function UnifiedTimeline({
   period,
   selectedRegions,
   onClearRegionFilter,
+  onDelete,
+  canDelete,
+  scoring,
+  hasActiveCompetition,
 }: Props) {
-  const [chip, setChip] = useState<Chip>('important');
 
-  const all = useMemo(() => buildTimeline(logs, messages), [logs, messages]);
+  // Drop hidden messages defensively — DB query already filters, but
+  // Realtime UPDATE events for hidden=true should disappear without
+  // a refetch.
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !m.hidden),
+    [messages],
+  );
+
+  const all = useMemo(() => buildTimeline(logs, visibleMessages), [logs, visibleMessages]);
+
+  // Per-tab entry counts (after noise filtering for messages) drive the
+  // header badges and the dynamic default-tab choice.
+  const counts = useMemo(() => {
+    let competition = 0;
+    let surveys = 0;
+    let messages = 0;
+    for (const e of all) {
+      if (e.pairedWithReply) continue; // paired outbound questions render inline
+      if (entryMatchesTab(e, 'competition')) competition++;
+      else if (entryMatchesTab(e, 'surveys')) surveys++;
+      else if (entryMatchesTab(e, 'messages')) messages++;
+    }
+    return { competition, surveys, messages };
+  }, [all]);
+
+  // Default to the competition tab, then jump to the highest-signal tab
+  // ONCE the first time real data is present. logs/messages arrive async
+  // from the parent, so we can't compute the default at mount (counts
+  // are all zero then). A ref guard makes this fire exactly once and
+  // never override a user's manual tab switch afterward.
+  const [tab, setTab] = useState<Tab>('competition');
+  const defaultApplied = useRef(false);
+
+  useEffect(() => {
+    if (defaultApplied.current) return;
+    const total = counts.competition + counts.surveys + counts.messages;
+    if (total === 0) return; // wait for data
+    defaultApplied.current = true;
+    setTab(
+      defaultTab({
+        hasActiveCompetition: hasActiveCompetition ?? false,
+        competitionCount: counts.competition,
+        surveyCount: counts.surveys,
+        messageCount: counts.messages,
+      }),
+    );
+  }, [counts, hasActiveCompetition]);
 
   // Region filter: when the user has clicked a muscle on the body
   // heatmap, narrow to entries whose parsed regions overlap. Composes
-  // with the chip filter — both must pass.
+  // with the tab filter — both must pass.
   const regionSet = useMemo(
     () => (selectedRegions && selectedRegions.length > 0 ? new Set(selectedRegions) : null),
     [selectedRegions],
@@ -188,7 +257,7 @@ export function UnifiedTimeline({
         // outbounds (no reply yet) still surface — coaches want to
         // see pending questions.
         if (e.pairedWithReply) return false;
-        if (!entryMatchesChip(e, chip)) return false;
+        if (!entryMatchesTab(e, tab)) return false;
         if (regionSet) {
           // Empty regions or no overlap → exclude.
           if (e.regions.length === 0) return false;
@@ -196,7 +265,7 @@ export function UnifiedTimeline({
         }
         return true;
       }),
-    [all, chip, regionSet],
+    [all, tab, regionSet],
   );
 
   return (
@@ -208,34 +277,33 @@ export function UnifiedTimeline({
         className="flex items-center justify-between gap-3 px-6 py-4 border-b flex-wrap"
         style={{ borderColor: 'var(--border)' }}
       >
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-base font-bold text-[color:var(--ink)]">Activity &amp; messages</h2>
-          <span className="text-[12px] text-[color:var(--ink-mute)]">
-            {filtered.length} {periodLabel(period).toLowerCase()}
-          </span>
-        </div>
+        <h2 className="text-base font-bold text-[color:var(--ink)]">Activity</h2>
         <div
           className="inline-flex rounded-md border overflow-hidden"
           style={{ borderColor: 'var(--border)' }}
           role="radiogroup"
-          aria-label="Filter timeline"
+          aria-label="Timeline section"
         >
-          {CHIPS.map((c) => {
-            const active = chip === c.key;
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            const count =
+              t.key === 'competition' ? counts.competition
+              : t.key === 'surveys' ? counts.surveys
+              : counts.messages;
             return (
               <button
-                key={c.key}
+                key={t.key}
                 type="button"
                 role="radio"
                 aria-checked={active}
-                onClick={() => setChip(c.key)}
-                className={`px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition ${
+                onClick={() => setTab(t.key)}
+                className={`px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition ${
                   active
                     ? 'bg-[color:var(--ink)] text-[color:var(--paper)]'
                     : 'text-[color:var(--ink-mute)] hover:text-[color:var(--ink)]'
                 }`}
               >
-                {c.label}
+                {t.label} · {count}
               </button>
             );
           })}
@@ -268,7 +336,11 @@ export function UnifiedTimeline({
       {filtered.length === 0 ? (
         <div className="px-6 py-10 text-center">
           <p className="text-[13px] text-[color:var(--ink-mute)]">
-            {regionSet ? '— no entries match this region in the current view —' : '— no entries in this view —'}
+            {regionSet
+              ? '— no entries match this region in the current view —'
+              : tab === 'competition' ? '— no competition inputs yet —'
+              : tab === 'surveys' ? '— no surveys yet —'
+              : '— no messages yet —'}
           </p>
         </div>
       ) : (
@@ -286,7 +358,7 @@ export function UnifiedTimeline({
               return (
                 <li
                   key={e.id}
-                  className="border-b px-5 py-3 last:border-0 relative"
+                  className="group border-b px-5 py-3 last:border-0 relative"
                   style={{
                     borderColor: 'var(--border)',
                     background: flagScore != null
@@ -313,7 +385,16 @@ export function UnifiedTimeline({
                     <div className="shrink-0 w-px self-stretch bg-[color:var(--border)]" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Pill tone={KIND_TONE[e.kind]}>{KIND_LABEL[e.kind]}</Pill>
+                        {tab === 'competition' && e.activityKind ? (
+                          <Pill tone={KIND_TONE[e.kind]}>
+                            {e.activityKind}
+                            {pointLabel(e.activityKind, scoring) && (
+                              <span className="opacity-70"> · {pointLabel(e.activityKind, scoring)}</span>
+                            )}
+                          </Pill>
+                        ) : (
+                          <Pill tone={KIND_TONE[e.kind]}>{KIND_LABEL[e.kind]}</Pill>
+                        )}
                         {score != null && (
                           <Pill tone={scoreTone(score)}>{scoreLabel(score)}</Pill>
                         )}
@@ -341,6 +422,20 @@ export function UnifiedTimeline({
                         </div>
                       )}
                     </div>
+                    {onDelete && canDelete?.(e) && tab !== 'messages' && (
+                      <button
+                        type="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          onDelete(e);
+                        }}
+                        className="text-[color:var(--ink-mute)] hover:text-[color:var(--red)] transition opacity-0 group-hover:opacity-100 shrink-0"
+                        aria-label="Hide this entry"
+                        title="Hide this entry"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
                   </div>
                 </li>
               );
