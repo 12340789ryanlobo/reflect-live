@@ -13,6 +13,13 @@ HOW THIS FILE WORKS (read once, then forget):
 -->
 
 ## 🧠 Inbox — dump raw thoughts here
+- team activity page, competition list could have an additional view of seeing lines of athletes and how their scores have changed over time
+- need to work on coach heatmap view
+- schedule + templates continue finishing
+- ability to delete player's own workout (from their own page)
+- text a workout button isn't mapping correctly to text salus whatsapp number ()
+- captain gets notified (whatsapp text) when someone requests
+- way to track PRs and progression, volume, weight, etc.
 -
 
 ## 🔨 Now — actively building (keep to ≤3)
