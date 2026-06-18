@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import type { Competition } from '@reflect-live/shared';
 import { Archive, ChevronLeft, Pencil } from 'lucide-react';
+import { CompetitionTrendsCard } from '@/components/v3/competition-trends-card';
 
 // Top-3 medal glyphs. We use real emoji rather than icon components
 // because they read as 'competition' across every render context
@@ -322,6 +323,8 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ id
             </table>
           )}
         </section>
+
+        <CompetitionTrendsCard competition={comp} />
       </main>
     </>
   );
