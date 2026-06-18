@@ -84,8 +84,9 @@ to "today" for an in-progress competition (so we never draw empty future
 buckets).
 
 - Window ≤ 35 days → **daily** buckets.
-- Window > 35 days → **weekly** buckets (Mon-anchored, consistent with
-  `weekStartCT`).
+- Window > 35 days → **weekly** buckets, anchored to the competition's start day
+  (bucket *k* = days `[start + 7k, start + 7k + 6]`). Start-anchoring keeps
+  buckets gap-free and avoids a ragged partial first week.
 
 This keeps heatmap cells ≥ ~4px wide and sparklines from getting noisy on long
 competitions.
