@@ -468,6 +468,66 @@ export function aggregateCompetitionSeries(
 }
 
 /**
+ * Fetch + aggregate a competition's per-bucket score series. Pulls the same
+ * windowed activity_logs rows as `computeCompetitionLeaderboard`, clamps the
+ * right edge to today for in-progress competitions, and buckets daily/weekly
+ * by window length.
+ */
+export async function computeCompetitionSeries(
+  sb: SupabaseClient,
+  competition: Competition,
+): Promise<{ rows: CompetitionSeriesRow[]; bucketAxis: string[]; granularity: 'day' | 'week' }> {
+  const { data: playersData } = await sb
+    .from('players')
+    .select('id,name,group')
+    .eq('team_id', competition.team_id)
+    .eq('active', true);
+  const players = (playersData ?? []) as LeaderboardInputPlayer[];
+
+  // Clamp the right edge to today so in-progress competitions don't draw empty
+  // future buckets. Never let the end fall before the start.
+  const today = new Date().toISOString().slice(0, 10);
+  const clamped = competition.ends_at < today ? competition.ends_at : today;
+  const effectiveEnd = clamped < competition.starts_at ? competition.starts_at : clamped;
+
+  const axis = buildBucketAxis(competition.starts_at, effectiveEnd);
+
+  const lowerISO = competition.starts_at;
+  const upperISO = effectiveEnd + 'T23:59:59';
+
+  const entries: CompetitionInputEntry[] = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await sb
+      .from('activity_logs')
+      .select('player_id, kind, logged_at')
+      .eq('team_id', competition.team_id)
+      .eq('hidden', false)
+      .not('player_id', 'is', null)
+      .gte('logged_at', lowerISO)
+      .lte('logged_at', upperISO)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    for (const r of data as Array<{ player_id: number; kind: string; logged_at: string }>) {
+      entries.push({ player_id: r.player_id, kind: r.kind, day: r.logged_at.slice(0, 10) });
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  const rows = aggregateCompetitionSeries(
+    players,
+    entries,
+    competition.scoring,
+    competition.bonus_rules,
+    axis,
+  );
+  return { rows, bucketAxis: axis.buckets, granularity: axis.granularity };
+}
+
+/**
  * The instant of the most recent Monday 00:00 in America/Chicago, expressed
  * as a UTC `Date`. Used as the lower bound for the weekly leaderboard.
  */
