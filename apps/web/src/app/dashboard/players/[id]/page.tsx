@@ -207,7 +207,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       setSeasonRankTotal(rows.length || null);
     })();
     return () => { alive = false; };
-  }, [sb, team.id, team.scoring_json, team.competition_start_date, playerId]);
+  }, [sb, team.id, team.scoring_json, team.competition_start_date, playerId, dataTick]);
 
   // Independent of `period` — fetches the player's most recent inbound
   // message ever. Drives "Last on wire" + the status pill so neither
@@ -228,7 +228,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       setLastInboundEver(data?.date_sent ?? null);
     })();
     return () => { alive = false; };
-  }, [sb, playerId]);
+  }, [sb, playerId, dataTick]);
 
   // Roster-edit support: pull the team's existing groups for the
   // dropdown, the player's linked membership for the captain toggle,
@@ -584,7 +584,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           }
           alternatePhoneCount={alternatePhoneCount}
         />
-        <CompetitionStandingCard teamId={team.id} playerId={player.id} />
+        <CompetitionStandingCard teamId={team.id} playerId={player.id} refreshKey={dataTick} />
         <HeatmapTabs
           injuryCounts={injuryCounts}
           activityCounts={activityCounts}

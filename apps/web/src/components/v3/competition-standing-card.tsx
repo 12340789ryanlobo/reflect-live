@@ -23,6 +23,7 @@ const MEDALS = ['🥇', '🥈', '🥉'] as const;
 interface Props {
   teamId: number;
   playerId: number;
+  refreshKey?: number;
 }
 
 interface Standing {
@@ -34,7 +35,7 @@ interface Standing {
   bonus_total: number;
 }
 
-export function CompetitionStandingCard({ teamId, playerId }: Props) {
+export function CompetitionStandingCard({ teamId, playerId, refreshKey }: Props) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -87,7 +88,7 @@ export function CompetitionStandingCard({ teamId, playerId }: Props) {
       }
     })();
     return () => { alive = false; };
-  }, [teamId, playerId]);
+  }, [teamId, playerId, refreshKey]);
 
   if (!loaded || standings.length === 0) return null;
 
