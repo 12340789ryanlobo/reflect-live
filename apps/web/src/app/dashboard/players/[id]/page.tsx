@@ -26,6 +26,7 @@ import { chatHrefForPerson, chatHrefForTeamNumber } from '@/lib/chat-link';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog } from '@reflect-live/shared';
 import { toast } from 'sonner';
+import { RecentlyDeletedCard } from '@/components/v3/recently-deleted-card';
 
 // Joints with no body-map shape (currently elbow + wrist) should not
 // appear in activity / rehab counts. They're still valid for injury
@@ -370,21 +371,23 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // These callbacks must be declared before the early `if (!player)` return
   // below. Defining them after the guard made React call a different number
   // of hooks once player data loaded, which crashes every athlete page.
+  const canManageEntries = useMemo((): boolean => {
+    if (!player) return false;
+    return canDeleteActivityRow({
+      pref: {
+        role: prefs.role ?? null,
+        team_id: prefs.team_id ?? null,
+        impersonate_player_id: prefs.impersonate_player_id ?? null,
+        is_platform_admin: prefs.is_platform_admin ?? false,
+      },
+      rowPlayerId: player.id,
+      rowTeamId: player.team_id,
+    });
+  }, [player, prefs]);
+
   const canDelete = useCallback(
-    (_entry: TimelineEntry): boolean => {
-      if (!player) return false;
-      return canDeleteActivityRow({
-        pref: {
-          role: prefs.role ?? null,
-          team_id: prefs.team_id ?? null,
-          impersonate_player_id: prefs.impersonate_player_id ?? null,
-          is_platform_admin: prefs.is_platform_admin ?? false,
-        },
-        rowPlayerId: player.id,
-        rowTeamId: player.team_id,
-      });
-    },
-    [player, prefs],
+    (_entry: TimelineEntry): boolean => canManageEntries,
+    [canManageEntries],
   );
 
   const onDelete = useCallback(
@@ -650,6 +653,13 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           scoring={activeScoring}
           hasActiveCompetition={hasActiveComp}
         />
+        {canManageEntries && (
+          <RecentlyDeletedCard
+            playerId={player.id}
+            refreshKey={dataTick}
+            onRestored={() => setDataTick((n) => n + 1)}
+          />
+        )}
       </main>
     </>
   );
