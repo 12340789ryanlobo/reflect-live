@@ -17,6 +17,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Competition, CompetitionBonusRule } from '@reflect-live/shared';
+import type { Period } from './period';
 
 export interface TeamScoring {
   workout_score: number;
@@ -375,6 +376,30 @@ export function buildBucketAxis(startISO: string, endISO: string): SeriesAxis {
   return { buckets, granularity: 'week' };
 }
 
+/**
+ * Resolve the [startISO, endISO] window to display for a competition + period.
+ * `end` is today for an ongoing competition, else `ends_at` (so finished
+ * competitions show their final N days, not an empty future window); if the
+ * competition hasn't started, `end` clamps up to `starts_at`. For a numeric
+ * period, `start` = end − (N−1) days, clamped to never precede `starts_at`
+ * (a window longer than the competition → the whole competition). `'all'`
+ * returns the full competition window.
+ */
+export function competitionWindow(
+  competition: Pick<Competition, 'starts_at' | 'ends_at'>,
+  period: Period,
+  todayISO: string,
+): { startISO: string; endISO: string } {
+  const rawEnd = competition.ends_at < todayISO ? competition.ends_at : todayISO;
+  const endISO = rawEnd < competition.starts_at ? competition.starts_at : rawEnd;
+  if (period === 'all') {
+    return { startISO: competition.starts_at, endISO };
+  }
+  const candidateStart = addDaysISO(endISO, -(period - 1));
+  const startISO = candidateStart < competition.starts_at ? competition.starts_at : candidateStart;
+  return { startISO, endISO };
+}
+
 function bucketIndexFor(dayISO: string, startISO: string, granularity: 'day' | 'week'): number {
   const d = dayDiffISO(startISO, dayISO);
   if (d < 0) return -1;
@@ -476,6 +501,7 @@ export function aggregateCompetitionSeries(
 export async function computeCompetitionSeries(
   sb: SupabaseClient,
   competition: Competition,
+  period: Period = 'all',
 ): Promise<{ rows: CompetitionSeriesRow[]; bucketAxis: string[]; granularity: 'day' | 'week' }> {
   const { data: playersData } = await sb
     .from('players')
@@ -484,16 +510,17 @@ export async function computeCompetitionSeries(
     .eq('active', true);
   const players = (playersData ?? []) as LeaderboardInputPlayer[];
 
-  // Clamp the right edge to today so in-progress competitions don't draw empty
-  // future buckets. Never let the end fall before the start.
+  // Resolve the display window for the selected period. A narrow window also
+  // makes buildBucketAxis switch to daily buckets, and aggregating only
+  // in-window entries makes each athlete's total (and the ranking) reflect
+  // just that window.
   const today = new Date().toISOString().slice(0, 10);
-  const clamped = competition.ends_at < today ? competition.ends_at : today;
-  const effectiveEnd = clamped < competition.starts_at ? competition.starts_at : clamped;
+  const { startISO, endISO } = competitionWindow(competition, period, today);
 
-  const axis = buildBucketAxis(competition.starts_at, effectiveEnd);
+  const axis = buildBucketAxis(startISO, endISO);
 
-  const lowerISO = competition.starts_at;
-  const upperISO = effectiveEnd + 'T23:59:59';
+  const lowerISO = startISO;
+  const upperISO = endISO + 'T23:59:59';
 
   const entries: CompetitionInputEntry[] = [];
   let from = 0;

@@ -13,6 +13,7 @@ import {
   aggregateCompetition,
   aggregateCompetitionSeries,
   buildBucketAxis,
+  competitionWindow,
   type CompetitionInputEntry,
   type LeaderboardInputPlayer,
 } from './scoring';
@@ -333,5 +334,52 @@ describe('buildBucketAxis', () => {
     const axis = buildBucketAxis('2026-04-01', '2026-04-01');
     expect(axis.granularity).toBe('day');
     expect(axis.buckets).toEqual(['2026-04-01']);
+  });
+});
+
+describe('competitionWindow', () => {
+  const comp = { starts_at: '2026-04-01', ends_at: '2026-05-31' };
+
+  test("'all' on an ongoing competition → start through today", () => {
+    expect(competitionWindow(comp, 'all', '2026-04-20')).toEqual({
+      startISO: '2026-04-01',
+      endISO: '2026-04-20',
+    });
+  });
+
+  test("'all' on a finished competition → start through ends_at", () => {
+    expect(competitionWindow(comp, 'all', '2026-06-15')).toEqual({
+      startISO: '2026-04-01',
+      endISO: '2026-05-31',
+    });
+  });
+
+  test('7d on an ongoing competition → last 7 days ending today', () => {
+    expect(competitionWindow(comp, 7, '2026-04-20')).toEqual({
+      startISO: '2026-04-14',
+      endISO: '2026-04-20',
+    });
+  });
+
+  test('7d on a finished competition → last 7 days ending at ends_at', () => {
+    expect(competitionWindow(comp, 7, '2026-06-15')).toEqual({
+      startISO: '2026-05-25',
+      endISO: '2026-05-31',
+    });
+  });
+
+  test('window longer than the competition clamps to the start', () => {
+    const short = { starts_at: '2026-04-01', ends_at: '2026-04-04' };
+    expect(competitionWindow(short, 30, '2026-04-10')).toEqual({
+      startISO: '2026-04-01',
+      endISO: '2026-04-04',
+    });
+  });
+
+  test('not-yet-started competition clamps the end up to the start', () => {
+    expect(competitionWindow(comp, 7, '2026-03-01')).toEqual({
+      startISO: '2026-04-01',
+      endISO: '2026-04-01',
+    });
   });
 });
