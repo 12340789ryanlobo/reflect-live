@@ -166,3 +166,22 @@ history is the authoritative record — this is just a readable summary.
   midline at 5, last-score callout, avg label). Reminder-nudge SMS now
   noise-filtered + excluded from question detection so a 'Reply to continue'
   nudge doesn't pair as a Q with a later answer.
+
+## Recoverable entry delete (2026-06-18)
+- Deleting a timeline entry on the athlete page now propagates everywhere
+  without a refresh. `onDelete` bumps `dataTick`, and the Competitions
+  standing card, season-rank, and last-inbound effects (which previously
+  fetched once and never re-ran) now react to it. Fixes deleted entries
+  lingering in competition standings until a hard reload.
+- **Undo:** the blocking `confirm()` ('you can't undo this') is replaced by
+  an optimistic delete + 8s 'Entry deleted · Undo' toast (`sonner`). Undo
+  flips the row back via new restore endpoints. Failed deletes revert the
+  optimistic removal and surface `toast.error`.
+- **Trash:** a collapsed 'Recently deleted (n)' card below the timeline
+  lists soft-deleted activity logs + self-report sessions (per-athlete) with
+  a Restore button. New endpoints: `GET /api/{activity-logs,self-report}/trash`
+  and `POST .../{id|sessionId}/restore` — restore mirrors the delete cascade
+  exactly (self-report un-hides the whole session + any mirrored activity_logs
+  via `source_sid`), with auth at parity with the delete handlers.
+- No migration — reuses the existing `hidden` columns (0010, 0034). The
+  separate `sessions.deleted_at`/`deliveries` deletion path was left untouched.
