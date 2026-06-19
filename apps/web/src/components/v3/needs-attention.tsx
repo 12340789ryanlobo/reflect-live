@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { Player } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
+import { useEngagement } from '@/lib/use-engagement';
 import { Pill } from './pill';
 import { relativeTime } from '@/lib/format';
 
@@ -11,90 +11,83 @@ function initials(name: string): string {
   return name.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 }
 
-interface FlaggedAthlete {
-  player: Player;
+type Reason = 'low' | 'quiet';
+
+interface Flagged {
+  player_id: number;
+  name: string;
+  group: string | null;
+  reason: Reason;
   readiness: number | null;
-  lastInbound: string | null;
-  reason: 'low' | 'quiet';
+  lastActive: string | null;
   severity: number;
 }
 
-export function NeedsAttention({ teamId }: { teamId: number }) {
+export function NeedsAttention({
+  teamId,
+  windowDays = 7,
+  groupFilter = null,
+}: {
+  teamId: number;
+  windowDays?: number | null;
+  groupFilter?: string | null;
+}) {
   const sb = useSupabase();
-  const [flagged, setFlagged] = useState<FlaggedAthlete[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows, loading: engLoading } = useEngagement(teamId, windowDays, groupFilter);
+  const [readiness, setReadiness] = useState<Map<number, number>>(new Map());
+  const [readyLoading, setReadyLoading] = useState(true);
 
+  // Latest survey readiness per player (last 7d) — a separate, acute signal.
   useEffect(() => {
+    let alive = true;
     (async () => {
-      setLoading(true);
+      setReadyLoading(true);
       const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-      const [{ data: ps }, { data: msgs }] = await Promise.all([
-        sb.from('players').select('*').eq('team_id', teamId).eq('active', true),
-        sb
-          .from('twilio_messages')
-          .select('player_id,direction,category,body,date_sent')
-          .eq('team_id', teamId)
-          .eq('hidden', false)
-          .gte('date_sent', since)
-          .order('date_sent', { ascending: false }),
-      ]);
-      const players = (ps ?? []) as Player[];
-      const messages = (msgs ?? []) as Array<{
-        player_id: number | null;
-        direction: string;
-        category: string;
-        body: string | null;
-        date_sent: string;
-      }>;
-
-      const latestInbound = new Map<number, string>();
-      const latestReadiness = new Map<number, number>();
-      for (const m of messages) {
-        if (m.player_id == null) continue;
-        if (m.direction === 'inbound' && !latestInbound.has(m.player_id)) {
-          latestInbound.set(m.player_id, m.date_sent);
-        }
-        if (m.category === 'survey' && m.body && !latestReadiness.has(m.player_id)) {
-          const match = /^(\d{1,2})/.exec(m.body.trim());
-          if (match) {
-            const n = Number(match[1]);
-            if (n >= 1 && n <= 10) latestReadiness.set(m.player_id, n);
-          }
+      const { data: msgs } = await sb
+        .from('twilio_messages')
+        .select('player_id,category,body,date_sent')
+        .eq('team_id', teamId)
+        .eq('hidden', false)
+        .eq('category', 'survey')
+        .gte('date_sent', since)
+        .order('date_sent', { ascending: false });
+      if (!alive) return;
+      const latest = new Map<number, number>();
+      for (const m of (msgs ?? []) as Array<{ player_id: number | null; body: string | null }>) {
+        if (m.player_id == null || latest.has(m.player_id) || !m.body) continue;
+        const match = /^(\d{1,2})/.exec(m.body.trim());
+        if (match) {
+          const n = Number(match[1]);
+          if (n >= 1 && n <= 10) latest.set(m.player_id, n);
         }
       }
-
-      const dayAgo = Date.now() - 24 * 3600 * 1000;
-      const list: FlaggedAthlete[] = [];
-      for (const p of players) {
-        const readiness = latestReadiness.get(p.id) ?? null;
-        const lastInbound = latestInbound.get(p.id) ?? null;
-        const lowReadiness = readiness != null && readiness <= 4;
-        const quiet = !lastInbound || new Date(lastInbound).getTime() < dayAgo;
-        if (lowReadiness) {
-          list.push({
-            player: p,
-            readiness,
-            lastInbound,
-            reason: 'low',
-            severity: 100 - (readiness ?? 0) * 10,
-          });
-        } else if (quiet) {
-          list.push({
-            player: p,
-            readiness,
-            lastInbound,
-            reason: 'quiet',
-            severity: lastInbound
-              ? (Date.now() - new Date(lastInbound).getTime()) / 3600000
-              : 9999,
-          });
-        }
-      }
-      list.sort((a, b) => b.severity - a.severity);
-      setFlagged(list);
-      setLoading(false);
+      setReadiness(latest);
+      setReadyLoading(false);
     })();
+    return () => {
+      alive = false;
+    };
   }, [sb, teamId]);
+
+  const loading = engLoading || readyLoading;
+
+  // Build the act-now list: low readiness (highest priority) + quiet regulars.
+  const flagged: Flagged[] = [];
+  for (const r of rows) {
+    const read = readiness.get(r.player_id) ?? null;
+    if (read != null && read <= 4) {
+      flagged.push({
+        player_id: r.player_id, name: r.name, group: r.group, reason: 'low',
+        readiness: read, lastActive: r.lastActive, severity: 10_000 + (100 - read * 10),
+      });
+    } else if (r.bucket === 'quiet') {
+      flagged.push({
+        player_id: r.player_id, name: r.name, group: r.group, reason: 'quiet',
+        readiness: read, lastActive: r.lastActive, severity: r.severity,
+      });
+    }
+  }
+  flagged.sort((a, b) => b.severity - a.severity);
 
   return (
     <section className="rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
@@ -110,10 +103,10 @@ export function NeedsAttention({ teamId }: { teamId: number }) {
         </p>
       ) : (
         <ul>
-          {flagged.slice(0, 8).map(({ player, readiness, lastInbound, reason }) => (
-            <li key={player.id}>
+          {flagged.slice(0, 8).map((f) => (
+            <li key={f.player_id}>
               <Link
-                href={`/dashboard/players/${player.id}`}
+                href={`/dashboard/players/${f.player_id}`}
                 className="flex items-center gap-3 border-b px-6 py-3 transition hover:bg-[color:var(--card-hover)] last:border-b-0"
                 style={{ borderColor: 'var(--border)' }}
               >
@@ -121,19 +114,23 @@ export function NeedsAttention({ teamId }: { teamId: number }) {
                   className="grid size-8 place-items-center rounded-md border bg-[color:var(--paper)] text-[10.5px] font-bold text-[color:var(--ink-soft)]"
                   style={{ borderColor: 'var(--border)' }}
                 >
-                  {initials(player.name)}
+                  {initials(f.name)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-semibold text-[color:var(--ink)] truncate">
-                    {player.name}
-                  </div>
+                  <div className="text-[14px] font-semibold text-[color:var(--ink)] truncate">{f.name}</div>
                   <div className="text-[11.5px] text-[color:var(--ink-mute)] truncate">
-                    {player.group ?? 'No group'}
-                    {lastInbound ? ` · last reply ${relativeTime(lastInbound)}` : ' · no replies'}
+                    {f.group ?? 'No group'}
+                    {f.reason === 'quiet'
+                      ? f.lastActive
+                        ? ` · last logged ${relativeTime(f.lastActive)}`
+                        : ' · no logs'
+                      : f.lastActive
+                        ? ` · last logged ${relativeTime(f.lastActive)}`
+                        : ''}
                   </div>
                 </div>
-                {reason === 'low' && readiness != null ? (
-                  <Pill tone="red">readiness {readiness}</Pill>
+                {f.reason === 'low' && f.readiness != null ? (
+                  <Pill tone="red">readiness {f.readiness}</Pill>
                 ) : (
                   <Pill tone="amber">quiet</Pill>
                 )}
