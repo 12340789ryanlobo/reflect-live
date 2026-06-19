@@ -86,9 +86,14 @@ verified, not what you assume.
   Cheap to be wrong in a plan, expensive to be wrong after 200k tokens.
 - **Delegate exploration to subagents** (research, multi-file search, log
   trawls) to keep the main context clean — return only the findings.
-- **Parallel work uses git worktrees** (`claude --worktree <name>`), one branch
-  each, so sessions never step on each other. Mark in-flight items in IDEAS.md
-  `Now` with `[wt:<name>]`. Merge to main one at a time. 2–3 in flight max —
-  the bottleneck is review throughput, not Claude.
-- After code changes: commit (stage specific files, never `git add .`) and push
-  so Vercel auto-deploys. Don't wait to be asked.
+- **Default: work directly on `main`, push every time.** Commit straight to
+  `main` and push after every change — no feature branch or PR required.
+  **Always `git pull --ff-only` (or `--rebase`) immediately before pushing** so
+  local `main` is up to date first (another session may have pushed). Stage
+  specific files, never `git add .`. Run the Definition of done (typecheck +
+  lint + build:web) before pushing. Vercel auto-deploys `main` to production —
+  don't wait to be asked.
+- **Worktrees only for genuinely parallel multi-session work** (two+ agents
+  running at once): `claude --worktree <name>`, one branch each, mark in-flight
+  items in IDEAS.md `Now` with `[wt:<name>]`, merge to main one at a time. For
+  normal single-session work, skip branches and push to `main` directly.
