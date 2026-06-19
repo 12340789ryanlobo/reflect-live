@@ -4,18 +4,15 @@
 // volume (the old /dashboard/fitness "Activity" tab was merged in here).
 //
 // Layout:
-//   1. Volume strip — workouts / rehabs / active loggers / avg (last 30d).
-//      Doesn't need a competition; always useful.
-//   2. Active now — for each live competition, a compact top-3 preview
+//   1. Active now — for each live competition, a compact top-3 preview
 //      with a link to the full leaderboard.
-//   3. All competitions — the full active/archived list (drill-in).
-//   4. Coach: "+ New competition" (full-bleed CTA when none exist).
+//   2. All competitions — the full active/archived list (drill-in).
+//   3. Coach: "+ New competition" (full-bleed CTA when none exist).
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
-import { StatCell } from '@/components/v3/stat-cell';
 import { prettyCalendarDate } from '@/lib/format';
 import type { Competition } from '@reflect-live/shared';
 import { Plus, Trophy } from 'lucide-react';
@@ -43,34 +40,17 @@ export default function CompetitionsPage() {
   const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [previews, setPreviews] = useState<Record<number, LeaderRow[]>>({});
 
-  // Volume strip — counts over the last 30 days. Cheap browser-client
-  // reads (RLS-scoped to this team), same numbers the old Activity tab
-  // showed up top.
-  const [volume, setVolume] = useState({ workouts: 0, rehabs: 0, activeLoggers: 0, players: 0 });
-
   useEffect(() => {
     if (!team?.id) return;
     let alive = true;
     (async () => {
-      const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-      const [compRes, logsRes, playersRes] = await Promise.all([
-        fetch(`/api/competitions?team_id=${team.id}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : { competitions: [] })),
-        sb.from('activity_logs').select('player_id, kind').eq('team_id', prefs.team_id).in('kind', ['workout', 'rehab']).eq('hidden', false).gte('logged_at', since),
-        sb.from('players').select('id', { count: 'exact', head: true }).eq('team_id', prefs.team_id),
-      ]);
+      const compRes = await fetch(`/api/competitions?team_id=${team.id}`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : { competitions: [] }));
       if (!alive) return;
 
       const comps: Competition[] = compRes.competitions ?? [];
       setItems(comps);
       setLoaded(true);
-
-      const logs = (logsRes.data ?? []) as Array<{ player_id: number; kind: string }>;
-      setVolume({
-        workouts: logs.filter((l) => l.kind === 'workout').length,
-        rehabs: logs.filter((l) => l.kind === 'rehab').length,
-        activeLoggers: new Set(logs.map((l) => l.player_id)).size,
-        players: playersRes.count ?? 0,
-      });
 
       // Fetch leaderboard previews for the active competitions only.
       const active = comps.filter((c) => isActive(c, today));
@@ -91,22 +71,18 @@ export default function CompetitionsPage() {
   const activeComps = useMemo(() => items.filter((c) => isActive(c, today)), [items, today]);
   const listForTab = items.filter((c) => (tab === 'active' ? !c.archived_at : c.archived_at));
 
-  const avgPerPlayer = volume.players ? Math.round(((volume.workouts + volume.rehabs) / volume.players) * 10) / 10 : 0;
-
   return (
     <>
       <PageHeader eyebrow="Team" title="Competitions" subtitle={`${team?.name ?? ''} · standings & activity`} />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
-        {/* Volume strip */}
-        <section className="reveal reveal-1 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
-          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x" style={{ borderColor: 'var(--border)' }}>
-            <div className="p-6"><StatCell label="Workouts" value={volume.workouts} sub="last 30d" tone="green" /></div>
-            <div className="p-6"><StatCell label="Rehabs" value={volume.rehabs} sub="last 30d" tone="amber" /></div>
-            <div className="p-6"><StatCell label="Active loggers" value={volume.activeLoggers} sub={`of ${volume.players} athletes`} tone="blue" /></div>
-            <div className="p-6"><StatCell label="Avg per athlete" value={avgPerPlayer} sub="last 30d" /></div>
-          </div>
-        </section>
+        {/* Activity volume now lives on the Dashboard pulse (Needs attention +
+            Movers), not here — this page is standings only. */}
+        <div className="reveal reveal-1">
+          <Link href="/dashboard" className="text-[12.5px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition">
+            Team pulse →
+          </Link>
+        </div>
 
         {/* New button */}
         {canCreate && (
