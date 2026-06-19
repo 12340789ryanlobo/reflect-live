@@ -10,6 +10,7 @@ import type { Competition } from '@reflect-live/shared';
 import { useSupabase } from '@/lib/supabase-browser';
 import { Sparkline } from '@/components/sparkline';
 import { computeCompetitionSeries, type CompetitionSeriesRow } from '@/lib/scoring';
+import { periodLabel, periodShortLabel, type Period } from '@/lib/period';
 
 type View = 'trajectory' | 'cadence';
 
@@ -36,6 +37,7 @@ function cadenceTone(v: number, max: number): string {
 export function CompetitionTrendsCard({ competition }: { competition: Competition }) {
   const sb = useSupabase();
   const [view, setView] = useState<View>('trajectory');
+  const [period, setPeriod] = useState<Period>('all');
   const [rows, setRows] = useState<CompetitionSeriesRow[]>([]);
   const [axis, setAxis] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +46,7 @@ export function CompetitionTrendsCard({ competition }: { competition: Competitio
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { rows: nextRows, bucketAxis } = await computeCompetitionSeries(sb, competition);
+      const { rows: nextRows, bucketAxis } = await computeCompetitionSeries(sb, competition, period);
       if (cancelled) return;
       setRows(nextRows);
       setAxis(bucketAxis);
@@ -53,7 +55,7 @@ export function CompetitionTrendsCard({ competition }: { competition: Competitio
     return () => {
       cancelled = true;
     };
-  }, [sb, competition]);
+  }, [sb, competition, period]);
 
   const cadenceMax = useMemo(
     () => rows.reduce((m, r) => Math.max(m, ...r.perBucket), 0),
@@ -66,29 +68,58 @@ export function CompetitionTrendsCard({ competition }: { competition: Competitio
       style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
     >
       <header
-        className="flex items-center justify-between gap-3 px-6 py-4 border-b"
+        className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b"
         style={{ borderColor: 'var(--border)' }}
       >
-        <h2 className="text-base font-bold text-[color:var(--ink)]">Trends</h2>
-        <div
-          className="inline-flex rounded-lg border p-0.5 text-[12px] font-semibold"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          {(['trajectory', 'cadence'] as View[]).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setView(v)}
-              className="rounded-md px-3 py-1 capitalize transition"
-              style={
-                view === v
-                  ? { background: 'var(--blue)', color: 'white' }
-                  : { color: 'var(--ink-mute)' }
-              }
-            >
-              {v}
-            </button>
-          ))}
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-base font-bold text-[color:var(--ink)]">Trends</h2>
+          {period !== 'all' && (
+            <span className="text-[11.5px] text-[color:var(--ink-mute)]">
+              ranked by {periodLabel(period).toLowerCase()}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="inline-flex rounded-lg border p-0.5 text-[12px] font-semibold"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            {([7, 30, 'all'] as Period[]).map((p) => (
+              <button
+                key={String(p)}
+                type="button"
+                onClick={() => setPeriod(p)}
+                className="rounded-md px-3 py-1 transition"
+                style={
+                  period === p
+                    ? { background: 'var(--ink)', color: 'var(--card)' }
+                    : { color: 'var(--ink-mute)' }
+                }
+              >
+                {p === 'all' ? 'Full' : periodShortLabel(p)}
+              </button>
+            ))}
+          </div>
+          <div
+            className="inline-flex rounded-lg border p-0.5 text-[12px] font-semibold"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            {(['trajectory', 'cadence'] as View[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className="rounded-md px-3 py-1 capitalize transition"
+                style={
+                  view === v
+                    ? { background: 'var(--blue)', color: 'white' }
+                    : { color: 'var(--ink-mute)' }
+                }
+              >
+                {v}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -96,7 +127,9 @@ export function CompetitionTrendsCard({ competition }: { competition: Competitio
         <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">— loading —</p>
       ) : rows.length === 0 ? (
         <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">
-          — no scored activity in this competition yet —
+          {period === 'all'
+            ? '— no scored activity in this competition yet —'
+            : `— no scored activity in the ${periodLabel(period).toLowerCase()} —`}
         </p>
       ) : (
         <div className="px-2 md:px-4 py-3">
