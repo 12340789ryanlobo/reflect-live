@@ -25,6 +25,7 @@ import { computeLeaderboard } from '@/lib/scoring';
 import { chatHrefForPerson, chatHrefForTeamNumber } from '@/lib/chat-link';
 import { useSupabase } from '@/lib/supabase-browser';
 import type { Player, TwilioMessage, ActivityLog } from '@reflect-live/shared';
+import { toast } from 'sonner';
 
 // Joints with no body-map shape (currently elbow + wrist) should not
 // appear in activity / rehab counts. They're still valid for injury
@@ -388,15 +389,28 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
 
   const onDelete = useCallback(
     async (entry: TimelineEntry) => {
-      if (!confirm("Hide this entry from the leaderboard? You can't undo this from the UI.")) {
-        return;
-      }
-
       if (entry.meta.source === 'log') {
         const logId = entry.meta.logId;
+        const snapshot = logs;
         setLogs((current) => current.filter((l) => l.id !== logId));
         const res = await fetch(`/api/activity-logs/${logId}`, { method: 'DELETE' });
-        if (!res.ok) alert('Delete failed. Refresh to restore the row.');
+        if (!res.ok) {
+          setLogs(snapshot);
+          toast.error('Delete failed — nothing was removed.');
+          return;
+        }
+        setDataTick((n) => n + 1);
+        toast('Entry deleted', {
+          duration: 8000,
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              const r = await fetch(`/api/activity-logs/${logId}/restore`, { method: 'POST' });
+              if (!r.ok) { toast.error('Restore failed.'); return; }
+              setDataTick((n) => n + 1);
+            },
+          },
+        });
         return;
       }
 
@@ -405,17 +419,37 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       const msg = msgs.find((m) => m.sid === sid);
       const sessionId = msg?.session_id ?? null;
       if (!sessionId) {
-        alert('This row has no session_id — cannot delete from UI. Fix via SQL.');
+        toast.error('This row has no session_id — cannot delete from UI.');
         return;
       }
+      const snapshot = msgs;
       // Optimistic removal: drop all rows in the same session.
       setMsgs((current) => current.filter((m) => m.session_id !== sessionId));
       const res = await fetch(`/api/self-report/${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
       });
-      if (!res.ok) alert('Delete failed. Refresh to restore the row.');
+      if (!res.ok) {
+        setMsgs(snapshot);
+        toast.error('Delete failed — nothing was removed.');
+        return;
+      }
+      setDataTick((n) => n + 1);
+      toast('Entry deleted', {
+        duration: 8000,
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            const r = await fetch(
+              `/api/self-report/${encodeURIComponent(sessionId)}/restore`,
+              { method: 'POST' },
+            );
+            if (!r.ok) { toast.error('Restore failed.'); return; }
+            setDataTick((n) => n + 1);
+          },
+        },
+      });
     },
-    [msgs, setLogs, setMsgs],
+    [logs, msgs, setLogs, setMsgs],
   );
 
   if (!player) {
