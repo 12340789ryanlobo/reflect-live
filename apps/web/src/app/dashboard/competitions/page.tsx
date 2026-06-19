@@ -76,14 +76,6 @@ export default function CompetitionsPage() {
       <PageHeader eyebrow="Team" title="Competitions" subtitle={`${team?.name ?? ''} · standings & activity`} />
 
       <main className="flex flex-1 flex-col gap-6 px-4 md:px-8 py-8">
-        {/* Activity volume now lives on the Dashboard pulse (Needs attention +
-            Movers), not here — this page is standings only. */}
-        <div className="reveal reveal-1">
-          <Link href="/dashboard" className="text-[12.5px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition">
-            Team pulse →
-          </Link>
-        </div>
-
         {/* New button */}
         {canCreate && (
           <div className="reveal reveal-2 flex justify-end">
