@@ -339,6 +339,194 @@ export async function computeCompetitionLeaderboard(
   return aggregateCompetition(players, entries, competition.scoring, competition.bonus_rules);
 }
 
+const SERIES_DAY_MS = 86_400_000;
+
+function dayDiffISO(aISO: string, bISO: string): number {
+  const a = Date.parse(aISO + 'T00:00:00Z');
+  const b = Date.parse(bISO + 'T00:00:00Z');
+  return Math.round((b - a) / SERIES_DAY_MS);
+}
+
+function addDaysISO(iso: string, n: number): string {
+  return new Date(Date.parse(iso + 'T00:00:00Z') + n * SERIES_DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+}
+
+export interface SeriesAxis {
+  /** Bucket start day per bucket, ISO YYYY-MM-DD, ascending. */
+  buckets: string[];
+  granularity: 'day' | 'week';
+}
+
+/**
+ * Build the bucket axis for a competition window [startISO, endISO] (inclusive).
+ * ≤ 35 days → one bucket per day. > 35 days → weekly buckets anchored to the
+ * start day (bucket k covers [start + 7k, start + 7k + 6]).
+ */
+export function buildBucketAxis(startISO: string, endISO: string): SeriesAxis {
+  const span = dayDiffISO(startISO, endISO) + 1; // inclusive day count
+  if (span <= 35) {
+    const buckets = Array.from({ length: Math.max(1, span) }, (_, i) => addDaysISO(startISO, i));
+    return { buckets, granularity: 'day' };
+  }
+  const weeks = Math.ceil(span / 7);
+  const buckets = Array.from({ length: weeks }, (_, i) => addDaysISO(startISO, i * 7));
+  return { buckets, granularity: 'week' };
+}
+
+function bucketIndexFor(dayISO: string, startISO: string, granularity: 'day' | 'week'): number {
+  const d = dayDiffISO(startISO, dayISO);
+  if (d < 0) return -1;
+  return granularity === 'day' ? d : Math.floor(d / 7);
+}
+
+/** One athlete's score over the bucket axis. */
+export interface CompetitionSeriesRow {
+  player_id: number;
+  name: string;
+  group: string | null;
+  /** Points earned per bucket, index-aligned with the axis. */
+  perBucket: number[];
+  /** Running sum of perBucket (rounded). */
+  cumulative: number[];
+  /** Final cumulative value; equals the player's leaderboard points. */
+  total: number;
+}
+
+/**
+ * Pure time-series aggregator. Reuses the per-(player, day) base+bonus logic
+ * from `aggregateCompetition`: bonuses fire per day before days are rolled into
+ * their bucket, so `total` matches the leaderboard exactly. Players with no
+ * counted entries are excluded; rows sort by total DESC → name ASC.
+ */
+export function aggregateCompetitionSeries(
+  players: LeaderboardInputPlayer[],
+  entries: CompetitionInputEntry[],
+  scoring: Record<string, number>,
+  bonusRules: CompetitionBonusRule[],
+  axis: SeriesAxis,
+): CompetitionSeriesRow[] {
+  const start = axis.buckets[0];
+  // player_id → day → kind → count
+  const byPlayerDay = new Map<number, Map<string, Map<string, number>>>();
+  for (const e of entries) {
+    if (!(e.kind in scoring)) continue;
+    let days = byPlayerDay.get(e.player_id);
+    if (!days) { days = new Map(); byPlayerDay.set(e.player_id, days); }
+    let kinds = days.get(e.day);
+    if (!kinds) { kinds = new Map(); days.set(e.day, kinds); }
+    kinds.set(e.kind, (kinds.get(e.kind) ?? 0) + 1);
+  }
+
+  const playerById = new Map(players.map((p) => [p.id, p]));
+  const rows: CompetitionSeriesRow[] = [];
+
+  for (const [player_id, days] of byPlayerDay) {
+    const player = playerById.get(player_id);
+    if (!player) continue;
+
+    const perBucket = new Array(axis.buckets.length).fill(0);
+    let basePoints = 0;
+    let bonusTotal = 0;
+
+    for (const [day, kindMap] of days) {
+      const idx = bucketIndexFor(day, start, axis.granularity);
+      if (idx < 0 || idx >= perBucket.length) continue;
+      let dayPoints = 0;
+      for (const [kind, count] of kindMap) {
+        const base = count * (scoring[kind] ?? 0);
+        basePoints += base;
+        dayPoints += base;
+      }
+      for (const rule of bonusRules) {
+        const dayCount = kindMap.get(rule.kind) ?? 0;
+        if (dayCount >= rule.min_per_day) {
+          bonusTotal += rule.bonus_points;
+          dayPoints += rule.bonus_points;
+        }
+      }
+      perBucket[idx] += dayPoints;
+    }
+
+    const cumulative: number[] = [];
+    let run = 0;
+    for (const v of perBucket) { run += v; cumulative.push(roundPoints(run)); }
+
+    rows.push({
+      player_id,
+      name: player.name,
+      group: player.group,
+      perBucket: perBucket.map(roundPoints),
+      cumulative,
+      total: roundPoints(roundPoints(basePoints) + roundPoints(bonusTotal)),
+    });
+  }
+
+  rows.sort((a, b) => (b.total !== a.total ? b.total - a.total : a.name.localeCompare(b.name)));
+  return rows;
+}
+
+/**
+ * Fetch + aggregate a competition's per-bucket score series. Pulls the same
+ * windowed activity_logs rows as `computeCompetitionLeaderboard`, clamps the
+ * right edge to today for in-progress competitions, and buckets daily/weekly
+ * by window length.
+ */
+export async function computeCompetitionSeries(
+  sb: SupabaseClient,
+  competition: Competition,
+): Promise<{ rows: CompetitionSeriesRow[]; bucketAxis: string[]; granularity: 'day' | 'week' }> {
+  const { data: playersData } = await sb
+    .from('players')
+    .select('id,name,group')
+    .eq('team_id', competition.team_id)
+    .eq('active', true);
+  const players = (playersData ?? []) as LeaderboardInputPlayer[];
+
+  // Clamp the right edge to today so in-progress competitions don't draw empty
+  // future buckets. Never let the end fall before the start.
+  const today = new Date().toISOString().slice(0, 10);
+  const clamped = competition.ends_at < today ? competition.ends_at : today;
+  const effectiveEnd = clamped < competition.starts_at ? competition.starts_at : clamped;
+
+  const axis = buildBucketAxis(competition.starts_at, effectiveEnd);
+
+  const lowerISO = competition.starts_at;
+  const upperISO = effectiveEnd + 'T23:59:59';
+
+  const entries: CompetitionInputEntry[] = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await sb
+      .from('activity_logs')
+      .select('player_id, kind, logged_at')
+      .eq('team_id', competition.team_id)
+      .eq('hidden', false)
+      .not('player_id', 'is', null)
+      .gte('logged_at', lowerISO)
+      .lte('logged_at', upperISO)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    for (const r of data as Array<{ player_id: number; kind: string; logged_at: string }>) {
+      entries.push({ player_id: r.player_id, kind: r.kind, day: r.logged_at.slice(0, 10) });
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  const rows = aggregateCompetitionSeries(
+    players,
+    entries,
+    competition.scoring,
+    competition.bonus_rules,
+    axis,
+  );
+  return { rows, bucketAxis: axis.buckets, granularity: axis.granularity };
+}
+
 /**
  * The instant of the most recent Monday 00:00 in America/Chicago, expressed
  * as a UTC `Date`. Used as the lower bound for the weekly leaderboard.

@@ -9,7 +9,13 @@
 // All tests target the pure function directly; no Supabase needed.
 
 import { describe, expect, test } from 'vitest';
-import { aggregateCompetition, type CompetitionInputEntry, type LeaderboardInputPlayer } from './scoring';
+import {
+  aggregateCompetition,
+  aggregateCompetitionSeries,
+  buildBucketAxis,
+  type CompetitionInputEntry,
+  type LeaderboardInputPlayer,
+} from './scoring';
 import type { CompetitionBonusRule } from '@reflect-live/shared';
 
 const PLAYERS: LeaderboardInputPlayer[] = [
@@ -228,5 +234,104 @@ describe('aggregateCompetition — edge cases', () => {
     // Rule kind isn't in scoring so the entries weren't grouped under it;
     // the rule never sees a count >= min_per_day. Net: rule no-ops.
     expect(rows[0].bonus_total).toBe(0);
+  });
+});
+
+const SERIES_PLAYERS: LeaderboardInputPlayer[] = [
+  { id: 1, name: 'Alex', group: 'A' },
+  { id: 2, name: 'Sam', group: 'B' },
+];
+
+describe('aggregateCompetitionSeries — daily', () => {
+  const axis = buildBucketAxis('2026-04-01', '2026-04-03'); // 3 daily buckets
+
+  test('buckets points by day and accumulates', () => {
+    const entries: CompetitionInputEntry[] = [
+      { player_id: 1, kind: 'swim', day: '2026-04-01' },
+      { player_id: 1, kind: 'swim', day: '2026-04-03' },
+    ];
+    const rows = aggregateCompetitionSeries(SERIES_PLAYERS, entries, { swim: 2 }, [], axis);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].player_id).toBe(1);
+    expect(rows[0].perBucket).toEqual([2, 0, 2]);
+    expect(rows[0].cumulative).toEqual([2, 2, 4]);
+    expect(rows[0].total).toBe(4);
+  });
+
+  test('per-day bonus fires before roll-up (2 swims same day = one bonus)', () => {
+    const entries: CompetitionInputEntry[] = [
+      { player_id: 1, kind: 'swim', day: '2026-04-01' },
+      { player_id: 1, kind: 'swim', day: '2026-04-01' },
+    ];
+    const rules = [{ kind: 'swim', min_per_day: 2, bonus_points: 1 }];
+    const rows = aggregateCompetitionSeries(SERIES_PLAYERS, entries, { swim: 2 }, rules, axis);
+    // 2 swims * 2 + one bonus = 5, all in bucket 0
+    expect(rows[0].perBucket).toEqual([5, 0, 0]);
+    expect(rows[0].total).toBe(5);
+  });
+
+  test('same two swims split across days do NOT trigger the bonus', () => {
+    const entries: CompetitionInputEntry[] = [
+      { player_id: 1, kind: 'swim', day: '2026-04-01' },
+      { player_id: 1, kind: 'swim', day: '2026-04-02' },
+    ];
+    const rules = [{ kind: 'swim', min_per_day: 2, bonus_points: 1 }];
+    const rows = aggregateCompetitionSeries(SERIES_PLAYERS, entries, { swim: 2 }, rules, axis);
+    expect(rows[0].perBucket).toEqual([2, 2, 0]);
+    expect(rows[0].total).toBe(4);
+  });
+
+  test('total equals aggregateCompetition total for the same inputs', () => {
+    const entries: CompetitionInputEntry[] = [
+      { player_id: 1, kind: 'swim', day: '2026-04-01' },
+      { player_id: 1, kind: 'lift', day: '2026-04-02' },
+      { player_id: 2, kind: 'swim', day: '2026-04-02' },
+    ];
+    const scoring = { swim: 2, lift: 0.5 };
+    const rules = [{ kind: 'swim', min_per_day: 1, bonus_points: 0.25 }];
+    const series = aggregateCompetitionSeries(SERIES_PLAYERS, entries, scoring, rules, axis);
+    const board = aggregateCompetition(SERIES_PLAYERS, entries, scoring, rules);
+    for (const row of series) {
+      const match = board.find((b) => b.player_id === row.player_id)!;
+      expect(row.total).toBe(match.points);
+    }
+  });
+
+  test('excludes players with no counted entries; sorts by total desc', () => {
+    const entries: CompetitionInputEntry[] = [
+      { player_id: 2, kind: 'swim', day: '2026-04-01' },
+      { player_id: 1, kind: 'swim', day: '2026-04-01' },
+      { player_id: 1, kind: 'swim', day: '2026-04-02' },
+    ];
+    const rows = aggregateCompetitionSeries(SERIES_PLAYERS, entries, { swim: 2 }, [], axis);
+    expect(rows.map((r) => r.player_id)).toEqual([1, 2]); // Alex (4) before Sam (2)
+  });
+
+  test('empty entries → empty rows', () => {
+    expect(aggregateCompetitionSeries(SERIES_PLAYERS, [], { swim: 2 }, [], axis)).toEqual([]);
+  });
+});
+
+describe('buildBucketAxis', () => {
+  test('≤35-day window → daily buckets, one per inclusive day', () => {
+    const axis = buildBucketAxis('2026-04-01', '2026-04-10');
+    expect(axis.granularity).toBe('day');
+    expect(axis.buckets).toHaveLength(10);
+    expect(axis.buckets[0]).toBe('2026-04-01');
+    expect(axis.buckets[9]).toBe('2026-04-10');
+  });
+
+  test('36-day window → weekly buckets anchored to start', () => {
+    const axis = buildBucketAxis('2026-04-01', '2026-05-06'); // 36 inclusive days
+    expect(axis.granularity).toBe('week');
+    expect(axis.buckets).toHaveLength(6); // ceil(36/7)
+    expect(axis.buckets[0]).toBe('2026-04-01');
+    expect(axis.buckets[1]).toBe('2026-04-08');
+  });
+
+  test('single-day window → one daily bucket', () => {
+    const axis = buildBucketAxis('2026-04-01', '2026-04-01');
+    expect(axis.granularity).toBe('day');
+    expect(axis.buckets).toEqual(['2026-04-01']);
   });
 });
