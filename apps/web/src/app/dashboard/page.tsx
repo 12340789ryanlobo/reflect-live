@@ -7,15 +7,14 @@ import { ReadinessBar } from '@/components/v3/readiness-bar';
 import { SurveyTrendsCard } from '@/components/v3/survey-trends-card';
 import { buildSurveyTrends, type QuestionTrend } from '@/lib/survey-trends';
 import { NeedsAttention } from '@/components/v3/needs-attention';
-import { Pill } from '@/components/v3/pill';
+import { MoversCard } from '@/components/v3/movers-card';
 import { PeriodToggle } from '@/components/v3/period-toggle';
 import { type Period, periodLabel, periodSinceIso } from '@/lib/period';
-import { stripProtocolPrefix } from '@/lib/timeline';
 import { useSupabase } from '@/lib/supabase-browser';
 import type {
-  Location, ActivityLog, TwilioMessage,
+  Location, TwilioMessage,
 } from '@reflect-live/shared';
-import { prettyCalendarDate, daysUntilCalendarDate, humanizeDaysUntil, relativeTime } from '@/lib/format';
+import { prettyCalendarDate, daysUntilCalendarDate, humanizeDaysUntil } from '@/lib/format';
 import { Star } from 'lucide-react';
 
 const PERIOD_OPTIONS: readonly Period[] = [1, 7, 14, 30, 'all'] as const;
@@ -28,10 +27,6 @@ interface Counts {
   avgReadiness: number | null;
   flags: number;
   surveyCount: number;
-}
-
-interface ActivityWithPlayer extends ActivityLog {
-  player: { name: string; group: string | null } | null;
 }
 
 export default function Dashboard() {
@@ -49,7 +44,6 @@ export default function Dashboard() {
   // Upcoming events, pinned-first then soonest. Drives the single
   // "Upcoming" box (replaces the separate next-meet widget + key strip).
   const [upcoming, setUpcoming] = useState<Array<Location & { daysUntil: number }>>([]);
-  const [recentActivity, setRecentActivity] = useState<ActivityWithPlayer[]>([]);
 
   // Stats + trend
   useEffect(() => {
@@ -194,19 +188,8 @@ export default function Dashboard() {
     })();
   }, [sb, prefs.team_id]);
 
-  // Recent activity teaser
-  useEffect(() => {
-    (async () => {
-      const { data } = await sb
-        .from('activity_logs')
-        .select('*, player:players(name, group)')
-        .eq('team_id', prefs.team_id)
-        .eq('hidden', false)
-        .order('logged_at', { ascending: false })
-        .limit(4);
-      setRecentActivity((data ?? []) as ActivityWithPlayer[]);
-    })();
-  }, [sb, prefs.team_id]);
+  // PeriodToggle drives the engagement window; 'all' → null (no baseline).
+  const windowDays = typeof days === 'number' ? days : null;
 
   const periodSubtitle = periodLabel(days).toLowerCase();
 
@@ -322,54 +305,13 @@ export default function Dashboard() {
         {/* Needs attention — full width now that upcoming events live
             in their own box at the top. */}
         <section className="reveal reveal-3">
-          <NeedsAttention teamId={prefs.team_id} />
+          <NeedsAttention teamId={prefs.team_id} windowDays={windowDays} groupFilter={prefs.group_filter} />
         </section>
 
-        {/* Recent activity teaser */}
-        <section className="reveal reveal-4 rounded-2xl bg-[color:var(--card)] border" style={{ borderColor: 'var(--border)' }}>
-          <header className="flex items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold text-[color:var(--ink)]">Recent activity</h2>
-            <Link href="/dashboard/competitions" className="text-[12px] font-semibold text-[color:var(--blue)] hover:text-[color:var(--ink)] transition">
-              View all →
-            </Link>
-          </header>
-          {recentActivity.length === 0 ? (
-            <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">— no recent activity —</p>
-          ) : (
-            <ul>
-              {recentActivity.map((l) => {
-                const tone = l.kind === 'workout' ? 'green' : 'amber';
-                const inner = (
-                  <>
-                    <div className="text-[12px] font-semibold text-[color:var(--ink-mute)] tabular min-w-[60px] pt-0.5">
-                      {relativeTime(l.logged_at)}
-                    </div>
-                    <div className="pt-0.5"><Pill tone={tone}>{l.kind}</Pill></div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[14px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--blue)] transition">
-                        {l.player?.name ?? 'Unknown'}
-                      </div>
-                      <div className="text-[13px] text-[color:var(--ink-soft)] leading-relaxed line-clamp-2">{stripProtocolPrefix(l.description)}</div>
-                    </div>
-                  </>
-                );
-                return (
-                  <li key={l.id} className="border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
-                    {l.player_id ? (
-                      <Link
-                        href={`/dashboard/players/${l.player_id}`}
-                        className="group flex items-start gap-4 px-6 py-3 hover:bg-[color:var(--paper-2)] transition"
-                      >
-                        {inner}
-                      </Link>
-                    ) : (
-                      <div className="flex items-start gap-4 px-6 py-3">{inner}</div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+        {/* Movers — who's doing more or less over the selected window. Replaces
+            the old recent-activity teaser; same engine as Needs attention. */}
+        <section className="reveal reveal-4">
+          <MoversCard teamId={prefs.team_id} windowDays={windowDays} groupFilter={prefs.group_filter} />
         </section>
       </main>
     </>
