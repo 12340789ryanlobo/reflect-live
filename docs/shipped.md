@@ -185,3 +185,11 @@ history is the authoritative record — this is just a readable summary.
   via `source_sid`), with auth at parity with the delete handlers.
 - No migration — reuses the existing `hidden` columns (0010, 0034). The
   separate `sessions.deleted_at`/`deliveries` deletion path was left untouched.
+- **Follow-up (2026-06-19): real SMS rows are now deletable.** Survey
+  answers, chat, and outbound rows have no `session_id`, so the first cut
+  bailed with 'cannot delete from UI'. New `DELETE /api/twilio-messages/[sid]`
+  hides the row(s) and stamps a synthetic `adhoc-<sid>` session so Undo + the
+  trash card restore through the existing self-report path unchanged.
+  Deleting an inbound answer also hides its inline question (timeline
+  `pairedQuestionSid`) so it doesn't resurface. Durable across polls — the
+  worker upsert omits `hidden`/`session_id`, so `ON CONFLICT` preserves both.
