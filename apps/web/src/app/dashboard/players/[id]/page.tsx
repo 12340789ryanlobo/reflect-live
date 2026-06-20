@@ -422,7 +422,42 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       const msg = msgs.find((m) => m.sid === sid);
       const sessionId = msg?.session_id ?? null;
       if (!sessionId) {
-        toast.error('This row has no session_id — cannot delete from UI.');
+        // Real SMS / chat / survey-answer row — no session_id. Hide it by
+        // sid (the worker preserves hidden on re-poll). If it's an inbound
+        // answer with a question rendered inline, hide that outbound
+        // question too so it doesn't resurface unpaired. The endpoint
+        // stamps a synthetic `adhoc-<sid>` session so Undo + the trash
+        // card restore through the self-report path unchanged.
+        const pairedSid = entry.meta.pairedQuestionSid;
+        const snapshot = msgs;
+        setMsgs((current) =>
+          current.filter((m) => m.sid !== sid && (!pairedSid || m.sid !== pairedSid)),
+        );
+        const url = `/api/twilio-messages/${encodeURIComponent(sid)}${
+          pairedSid ? `?paired_sid=${encodeURIComponent(pairedSid)}` : ''
+        }`;
+        const res = await fetch(url, { method: 'DELETE' });
+        if (!res.ok) {
+          setMsgs(snapshot);
+          toast.error('Delete failed — nothing was removed.');
+          return;
+        }
+        const { session_id: adhocSession } = (await res.json()) as { session_id: string };
+        setDataTick((n) => n + 1);
+        toast('Entry deleted', {
+          duration: 8000,
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              const r = await fetch(
+                `/api/self-report/${encodeURIComponent(adhocSession)}/restore`,
+                { method: 'POST' },
+              );
+              if (!r.ok) { toast.error('Restore failed.'); return; }
+              setDataTick((n) => n + 1);
+            },
+          },
+        });
         return;
       }
       const snapshot = msgs;

@@ -54,7 +54,7 @@ export interface TimelineEntry {
   /** Per-source extras for the row renderer. */
   meta:
     | { source: 'log'; logId: number }
-    | { source: 'msg'; sid: string; direction: string };
+    | { source: 'msg'; sid: string; direction: string; pairedQuestionSid: string | null };
 }
 
 // Strip the SMS protocol prefix ("Workout: " / "Rehab: " / "Recovery: ")
@@ -119,7 +119,7 @@ function msgToEntry(m: TwilioMessage): TimelineEntry {
     mediaSids: m.media_sids ?? null,
     pairedQuestion: null,
     pairedWithReply: false,
-    meta: { source: 'msg', sid: m.sid, direction: m.direction },
+    meta: { source: 'msg', sid: m.sid, direction: m.direction, pairedQuestionSid: null },
   };
 }
 
@@ -197,6 +197,9 @@ function attachQuestionPairings(
       if (cTs >= replyTs) continue;
       if (replyTs - cTs > PAIR_WINDOW_MS) break;
       e.pairedQuestion = c.body!.trim();
+      // e.meta is the 'msg' variant here (guarded inbound above) — record
+      // the question's sid so a delete can hide it alongside the answer.
+      e.meta.pairedQuestionSid = c.sid;
       pairedOutboundSids.add(c.sid);
       break;
     }
