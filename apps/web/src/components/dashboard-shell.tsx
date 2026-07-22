@@ -16,6 +16,7 @@ import { AppSidebar } from './app-sidebar';
 import { CommandPalette } from './command-palette';
 import { useSupabase } from '@/lib/supabase-browser';
 import { resolveMembershipState } from '@/lib/membership-state';
+import { TEAM_SELECT } from '@/lib/team-select';
 import { PendingBanner } from './v3/pending-banner';
 import type { UserPreferences, Team, UserRole, TeamMembership } from '@reflect-live/shared';
 
@@ -144,7 +145,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     // yet) — and then to the membership row's team as a last resort.
     let teamData: Team | null = teamFromApi;
     if (!teamData || teamData.id !== defaultTeamId) {
-      const { data: t } = await sb.from('teams').select('*').eq('id', defaultTeamId).maybeSingle();
+      const { data: t } = await sb.from('teams').select(TEAM_SELECT).eq('id', defaultTeamId).maybeSingle();
       teamData = (t as Team | null) ?? teamFromApi;
     }
     setTeam(teamData);

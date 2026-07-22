@@ -6,6 +6,7 @@ import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { Pill } from '@/components/v3/pill';
 import { DangerZone } from '@/components/dashboard/danger-zone';
 import { useSupabase } from '@/lib/supabase-browser';
+import { TEAM_SELECT } from '@/lib/team-select';
 import type { Team, UserPreferences, WorkerState, Player, UserRole } from '@reflect-live/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,7 +102,7 @@ export default function SettingsPage() {
       { count: aCount },
       { data: ps },
     ] = await Promise.all([
-      sb.from('teams').select('*').eq('id', p.team_id).single(),
+      sb.from('teams').select(TEAM_SELECT).eq('id', p.team_id).single(),
       sb.from('worker_state').select('*').eq('id', 1).maybeSingle(),
       sb.from('players').select('id', { count: 'exact', head: true }).eq('team_id', p.team_id),
       sb.from('twilio_messages').select('sid', { count: 'exact', head: true }).eq('team_id', p.team_id),

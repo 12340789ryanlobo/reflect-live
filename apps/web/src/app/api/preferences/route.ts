@@ -1,6 +1,7 @@
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { TEAM_SELECT } from '@/lib/team-select';
 
 // Force dynamic execution — the GET path is read after a fresh POST
 // that just upserted a different row, and we need that read to skip
@@ -40,7 +41,9 @@ async function computeInitialRole(
     .eq('status', 'active')
     .maybeSingle<{ role: 'athlete' | 'captain' | 'coach' }>();
   if (mem?.role) return mem.role;
-  return 'coach';
+  // Least privilege: a user with a membership on this team but no *active*
+  // role yet (e.g. still pending approval) defaults to athlete, never coach.
+  return 'athlete';
 }
 
 export async function GET() {
@@ -75,7 +78,7 @@ export async function GET() {
   // happening intermittently for fresh users).
   let team: Record<string, unknown> | null = null;
   if (data?.team_id) {
-    const { data: t } = await sb.from('teams').select('*').eq('id', data.team_id).maybeSingle();
+    const { data: t } = await sb.from('teams').select(TEAM_SELECT).eq('id', data.team_id).maybeSingle();
     team = t ?? null;
   }
 
@@ -116,6 +119,25 @@ export async function POST(req: Request) {
     .eq('clerk_user_id', userId)
     .maybeSingle();
   const isStablePlatformAdmin = existingFull?.is_platform_admin === true;
+
+  // Guard against cross-team privilege escalation: a user may only point their
+  // preferences at a team they actually belong to. Without this, anyone could
+  // POST an arbitrary team_id and — via computeInitialRole plus the routes
+  // that authorize off user_preferences(team_id, role) — gain access on a team
+  // they were never a member of. Platform admins are exempt (they legitimately
+  // view/impersonate any team); so is the bootstrap admin. Count-based check
+  // (not .maybeSingle) because a user can hold more than one membership row
+  // per team historically.
+  if (!isStablePlatformAdmin && !isBootstrapAdmin) {
+    const { count: memCount } = await sb
+      .from('team_memberships')
+      .select('clerk_user_id', { count: 'exact', head: true })
+      .eq('clerk_user_id', userId)
+      .eq('team_id', team_id);
+    if (!memCount) {
+      return NextResponse.json({ error: 'not_a_member' }, { status: 403 });
+    }
+  }
 
   let effectiveRole: string | null = role;
   const canChangeRole = !existing || isStablePlatformAdmin;
@@ -187,7 +209,7 @@ export async function POST(req: Request) {
   // browser-client RLS and 406s for some fresh users).
   let team: Record<string, unknown> | null = null;
   if (upserted?.team_id) {
-    const { data: t } = await sb.from('teams').select('*').eq('id', upserted.team_id).maybeSingle();
+    const { data: t } = await sb.from('teams').select(TEAM_SELECT).eq('id', upserted.team_id).maybeSingle();
     team = t ?? null;
   }
 

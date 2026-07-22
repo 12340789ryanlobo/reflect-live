@@ -14,9 +14,9 @@
  *
  * Usage:
  *   REFLECT_URL=https://reflectsalus.app \
- *   REFLECT_KEY_TENNIS=UChicagoMT \
- *   REFLECT_KEY_DIVE=UChicagoDive \
- *   REFLECT_KEY_TRACK=primordialsoup \
+ *   REFLECT_KEY_TENNIS=<reflect-admin-key> \
+ *   REFLECT_KEY_DIVE=<reflect-admin-key> \
+ *   REFLECT_KEY_TRACK=<reflect-admin-key> \
  *   bun run scripts/import-legacy-teams.ts
  *
  * Pulls Supabase creds from apps/web/.env.local so you don't have to
