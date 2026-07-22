@@ -10,6 +10,9 @@
 // inline photo thumbnails via TwilioMediaStrip. RLS on activity_logs and
 // the twilio-media proxy are already team-scoped, so athletes can read
 // teammates' rows + images — only this UI surface was missing.
+//
+// Presented as a fixed-height, internally scrolling card so the feed stays
+// a contained, digestible box on the page rather than stretching it.
 
 import { useEffect, useState } from 'react';
 import { useSupabase } from '@/lib/supabase-browser';
@@ -21,7 +24,6 @@ import type { ActivityLog } from '@reflect-live/shared';
 import { Users } from 'lucide-react';
 
 const DAYS = 30;
-const PAGE_SIZE = 25;
 
 interface ActivityWithPlayer extends ActivityLog {
   player: { name: string; group: string | null } | null;
@@ -38,7 +40,6 @@ export function TeamActivityFeed({ teamId }: { teamId: number }) {
   const [logs, setLogs] = useState<ActivityWithPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [kindFilter, setKindFilter] = useState<'all' | 'workout' | 'rehab'>('all');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     if (!teamId) return;
@@ -62,19 +63,32 @@ export function TeamActivityFeed({ teamId }: { teamId: number }) {
     return () => { alive = false; };
   }, [sb, teamId]);
 
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [kindFilter]);
-
   const filtered = kindFilter === 'all' ? logs : logs.filter((l) => l.kind === kindFilter);
-  const visible = filtered.slice(0, visibleCount);
-  const hiddenCount = Math.max(0, filtered.length - visibleCount);
+  const athletes = new Set(filtered.map((l) => l.player_id)).size;
+  // Rough "does it overflow the scroll box" heuristic — drives the bottom
+  // fade cue. A text-only row is ~64px, so ~6 rows fill the 520px box.
+  const overflowing = filtered.length > 6;
 
   return (
-    <section className="reveal reveal-4 rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+    <section
+      className="reveal reveal-4 rounded-2xl border overflow-hidden"
+      style={{ borderColor: 'var(--border)', background: 'var(--card)' }}
+    >
       <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-2">
-          <Users className="size-4" style={{ color: 'var(--blue)' }} />
-          <h2 className="text-base font-bold text-[color:var(--ink)]">Team activity</h2>
-          <span className="text-[11.5px] text-[color:var(--ink-mute)]">last {DAYS} days</span>
+        <div className="flex items-center gap-2.5">
+          <span className="grid size-8 place-items-center rounded-lg" style={{ background: 'var(--blue-soft, var(--paper-2))' }}>
+            <Users className="size-4" style={{ color: 'var(--blue)' }} />
+          </span>
+          <div>
+            <h2 className="text-base font-bold leading-tight text-[color:var(--ink)]">Team activity</h2>
+            <p className="text-[11.5px] leading-tight text-[color:var(--ink-mute)]">
+              {loading
+                ? 'loading…'
+                : filtered.length === 0
+                  ? `last ${DAYS} days`
+                  : `${filtered.length} ${filtered.length === 1 ? 'entry' : 'entries'} · ${athletes} ${athletes === 1 ? 'athlete' : 'athletes'} · last ${DAYS} days`}
+            </p>
+          </div>
         </div>
         <nav
           className="inline-flex items-center gap-1 rounded-full border p-1"
@@ -104,64 +118,66 @@ export function TeamActivityFeed({ teamId }: { teamId: number }) {
       </header>
 
       {loading ? (
-        <div className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">loading…</div>
+        <div className="px-6 py-12 text-center text-[13px] text-[color:var(--ink-mute)]">loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="px-6 py-12 text-center text-[13px] text-[color:var(--ink-mute)]">
-          No team activity in the last {DAYS} days yet.
+        <div className="px-6 py-14 text-center text-[13px] text-[color:var(--ink-mute)]">
+          No team activity in the last {DAYS} days yet. Logged workouts and rehabs show up here.
         </div>
       ) : (
-        <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-          {visible.map((l) => {
-            const name = l.player?.name ?? 'Unknown';
-            return (
-              <li key={l.id} className="flex items-start gap-3 px-6 py-3.5">
-                <span
-                  className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border bg-[color:var(--paper)] text-[10px] font-bold"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  {l.player ? initials(name) : '?'}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13.5px] font-semibold text-[color:var(--ink)] truncate">{name}</span>
-                    {l.player?.group && (
-                      <span className="text-[10.5px] uppercase tracking-wide text-[color:var(--ink-dim)] truncate">{l.player.group}</span>
+        <div className="relative">
+          <ul className="max-h-[520px] overflow-y-auto overscroll-contain divide-y" style={{ borderColor: 'var(--border)' }}>
+            {filtered.map((l) => {
+              const name = l.player?.name ?? 'Unknown';
+              const hasMedia = !!(l.source_sid && l.media_sids && l.media_sids.length > 0);
+              return (
+                <li key={l.id} className="flex items-start gap-3 px-6 py-3.5 transition hover:bg-[color:var(--card-hover)]">
+                  <span
+                    className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full border text-[11px] font-bold text-[color:var(--ink-soft)]"
+                    style={{ borderColor: 'var(--border)', background: 'var(--paper)' }}
+                  >
+                    {l.player ? initials(name) : '?'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13.5px] font-semibold text-[color:var(--ink)] truncate">{name}</span>
+                      {l.player?.group && (
+                        <span className="hidden sm:inline text-[10.5px] uppercase tracking-wide text-[color:var(--ink-dim)] truncate">
+                          {l.player.group}
+                        </span>
+                      )}
+                      <Pill tone={l.kind === 'workout' ? 'green' : 'amber'}>{prettyCategory(l.kind)}</Pill>
+                      <span
+                        className="ml-auto shrink-0 mono text-[11.5px] text-[color:var(--ink-mute)] tabular"
+                        title={prettyDate(l.logged_at)}
+                      >
+                        {relativeTime(l.logged_at)}
+                      </span>
+                    </div>
+                    {stripProtocolPrefix(l.description) && (
+                      <p className="mt-1 text-[13.5px] leading-snug text-[color:var(--ink-soft)] whitespace-pre-wrap break-words">
+                        {stripProtocolPrefix(l.description)}
+                      </p>
                     )}
-                    <Pill tone={l.kind === 'workout' ? 'green' : 'amber'}>{prettyCategory(l.kind)}</Pill>
-                    <span
-                      className="ml-auto mono text-[11.5px] text-[color:var(--ink-mute)] tabular"
-                      title={prettyDate(l.logged_at)}
-                    >
-                      {relativeTime(l.logged_at)}
-                    </span>
+                    {hasMedia && (
+                      <TwilioMediaStrip
+                        messageSid={l.source_sid}
+                        mediaSids={l.media_sids}
+                        maxInline={4}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
-                  <div className="mt-1 flex items-start gap-3">
-                    <span className="flex-1 min-w-0 text-[13.5px] leading-snug text-[color:var(--ink-soft)]">
-                      {stripProtocolPrefix(l.description)}
-                    </span>
-                    <TwilioMediaStrip messageSid={l.source_sid} mediaSids={l.media_sids} />
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {!loading && hiddenCount > 0 && (
-        <div
-          className="flex items-center justify-between gap-3 px-6 py-3 border-t text-[12px]"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <span className="text-[color:var(--ink-mute)] tabular">Showing {visible.length} of {filtered.length}</span>
-          <button
-            type="button"
-            onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-            className="rounded-md border px-3 py-1.5 text-[12px] font-semibold text-[color:var(--ink-soft)] hover:text-[color:var(--ink)] hover:border-[color:var(--blue)] transition"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            Show {Math.min(PAGE_SIZE, hiddenCount)} more
-          </button>
+                </li>
+              );
+            })}
+          </ul>
+          {/* Fade cue that there's more to scroll. */}
+          {overflowing && (
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-10"
+              style={{ background: 'linear-gradient(to top, var(--card), transparent)' }}
+            />
+          )}
         </div>
       )}
     </section>
