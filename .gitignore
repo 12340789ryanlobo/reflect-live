@@ -23,3 +23,7 @@ data/*.csv
 
 # Brainstorming visual companion mockups (auto-generated)
 .superpowers/
+
+# Xcode user state (native app)
+xcuserdata/
+*.xcuserstate
