@@ -90,9 +90,9 @@ final class DashboardModel {
                 InsertAction.self,
                 schema: "public",
                 table: "twilio_messages",
-                filter: "team_id=eq.\(teamId)"
+                filter: .eq("team_id", value: teamId)
             )
-            await channel.subscribe()
+            try? await channel.subscribeWithError()
             for await action in insertions {
                 guard let self else { break }
                 guard let message: TwilioMessage = try? action.decodeRecord(
