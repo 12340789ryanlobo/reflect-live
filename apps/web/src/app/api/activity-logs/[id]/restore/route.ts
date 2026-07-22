@@ -33,9 +33,9 @@ export async function POST(
 
   const { data: row } = await sb
     .from('activity_logs')
-    .select('player_id, team_id')
+    .select('player_id, team_id, source_sid')
     .eq('id', id)
-    .maybeSingle<{ player_id: number; team_id: number }>();
+    .maybeSingle<{ player_id: number; team_id: number; source_sid: string | null }>();
   if (!row) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const { data: pref } = await sb
@@ -63,6 +63,12 @@ export async function POST(
 
   if (error) {
     return NextResponse.json({ error: 'update_failed', detail: error.message }, { status: 500 });
+  }
+
+  // Symmetric with DELETE: un-hide the paired source message so it returns to
+  // being deduped behind the now-visible log rather than staying hidden.
+  if (row.source_sid) {
+    await sb.from('twilio_messages').update({ hidden: false }).eq('sid', row.source_sid);
   }
 
   return NextResponse.json({ ok: true });

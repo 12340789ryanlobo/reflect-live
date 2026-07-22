@@ -35,9 +35,9 @@ export async function DELETE(
   // Fetch the row so we can authorize against its player_id + team_id.
   const { data: row } = await sb
     .from('activity_logs')
-    .select('player_id, team_id')
+    .select('player_id, team_id, source_sid')
     .eq('id', id)
-    .maybeSingle<{ player_id: number; team_id: number }>();
+    .maybeSingle<{ player_id: number; team_id: number; source_sid: string | null }>();
   if (!row) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const { data: pref } = await sb
@@ -65,6 +65,15 @@ export async function DELETE(
 
   if (error) {
     return NextResponse.json({ error: 'update_failed', detail: error.message }, { status: 500 });
+  }
+
+  // The worker dual-writes an SMS-sourced log alongside its twilio_messages
+  // row, and the timeline dedups the message behind the visible log. Hiding
+  // only the log would let that source message resurface as a raw workout/rehab
+  // entry, so hide it too (restore un-hides it). The worker's re-poll upsert
+  // omits `hidden`, so this survives.
+  if (row.source_sid) {
+    await sb.from('twilio_messages').update({ hidden: true }).eq('sid', row.source_sid);
   }
 
   return NextResponse.json({ ok: true });
