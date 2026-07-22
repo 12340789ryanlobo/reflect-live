@@ -7,11 +7,19 @@ import { pollNewsOnce } from './poll-news';
 import { updateWorkerState } from './state';
 import { pollScheduledSends, pollReminders } from './survey-scheduler';
 
-const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 15000);
-const WEATHER_INTERVAL_MS = Number(process.env.WEATHER_INTERVAL_MS ?? 600000);
-const NEWS_INTERVAL_MS = Number(process.env.NEWS_INTERVAL_MS ?? 1800000); // 30 min
-const SURVEY_INTERVAL_MS = Number(process.env.SURVEY_INTERVAL_MS ?? 60000); // 1 min
-const BACKFILL_DAYS = Number(process.env.BACKFILL_DAYS ?? 90);
+// Parse a positive-integer env var, falling back on missing/malformed values.
+// Bare Number('15s') is NaN, and setTimeout(NaN) fires immediately — a tight
+// loop hammering Twilio/Supabase every tick — so guard against it.
+function envInt(name: string, fallback: number): number {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const POLL_INTERVAL_MS = envInt('POLL_INTERVAL_MS', 15000);
+const WEATHER_INTERVAL_MS = envInt('WEATHER_INTERVAL_MS', 600000);
+const NEWS_INTERVAL_MS = envInt('NEWS_INTERVAL_MS', 1800000); // 30 min
+const SURVEY_INTERVAL_MS = envInt('SURVEY_INTERVAL_MS', 60000); // 1 min
+const BACKFILL_DAYS = envInt('BACKFILL_DAYS', 90);
 const DEFAULT_TEAM_ID = 1;
 
 let running = true;
@@ -49,7 +57,10 @@ async function loadPhones(sb: ReturnType<typeof createServiceClient>) {
 
 function backoff(base: number, errors: number): number {
   if (errors < 1) return base;
-  return Math.min(base * 2 ** Math.min(errors, 5), 5 * 60 * 1000);
+  // Never back off to *less* than the base interval: for the weather (10m) and
+  // news (30m) loops a bare 5-minute cap sat below base, so errors sped them up
+  // — hammering a failing upstream. Grow from base, cap at max(base, 5m).
+  return Math.max(base, Math.min(base * 2 ** Math.min(errors, 5), 5 * 60 * 1000));
 }
 
 async function twilioLoop(sb: ReturnType<typeof createServiceClient>, tw: ReturnType<typeof twilio>, cache: PhoneCache) {

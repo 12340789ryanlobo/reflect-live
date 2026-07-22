@@ -31,6 +31,7 @@ describe('toRow', () => {
       date_sent: '2026-04-21T12:00:00.000Z',
       player_id: 7,
       team_id: 1,
+      media_sids: null,
     });
   });
 

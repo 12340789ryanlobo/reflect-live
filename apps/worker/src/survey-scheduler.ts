@@ -36,6 +36,14 @@ interface PlayerRow {
 
 const REMINDER_AGE_MS = Number(process.env.SURVEY_REMINDER_AGE_MS ?? 4 * 60 * 60 * 1000);
 const OUTBOUND_ENABLED = process.env.TWILIO_OUTBOUND_ENABLED === 'true';
+// A claimed row (processing_at set, still pending) whose worker crashed before
+// finishing is reclaimed after this window instead of being stranded forever.
+const STALE_CLAIM_MS = 10 * 60 * 1000;
+
+// Thrown for transient DB read failures during send processing so the catch can
+// release the claim and retry next cycle, rather than marking a valid send
+// terminally cancelled/failed.
+class RetrySend extends Error {}
 
 /**
  * Resolve the audience for a scheduled send. Order of precedence:
@@ -49,11 +57,12 @@ async function resolveAudience(
   teamId: number,
 ): Promise<PlayerRow[]> {
   if (Array.isArray(send.player_ids_json) && send.player_ids_json.length > 0) {
-    const { data } = await sb
+    const { data, error } = await sb
       .from('players')
       .select('id, team_id, phone_e164, group, active')
       .in('id', send.player_ids_json)
       .eq('active', true);
+    if (error) throw new RetrySend(error.message);
     return (data ?? []) as PlayerRow[];
   }
 
@@ -65,7 +74,8 @@ async function resolveAudience(
     // array. We match either so coaches don't have to migrate.
     q = q.or(`group.eq.${send.group_filter},group_tags.cs.{${send.group_filter}}`);
   }
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error) throw new RetrySend(error.message);
   return (data ?? []) as PlayerRow[];
 }
 
@@ -157,13 +167,16 @@ export async function pollScheduledSends(
   tw: ReturnType<typeof twilio>,
 ): Promise<{ processed: number; dispatched: number; errors: number }> {
   const now = new Date().toISOString();
-  const { data: dueRaw } = await sb
+  const staleCutoff = new Date(Date.now() - STALE_CLAIM_MS).toISOString();
+  const { data: dueRaw, error: dueErr } = await sb
     .from('scheduled_sends')
     .select('id, session_id, scheduled_at, group_filter, player_ids_json, channel')
     .eq('status', 'pending')
     .lte('scheduled_at', now)
-    .is('processing_at', null)
+    // Unclaimed, OR claimed-but-stale (worker crashed mid-send — WRK-2).
+    .or(`processing_at.is.null,processing_at.lt.${staleCutoff}`)
     .limit(50);
+  if (dueErr) throw dueErr; // let surveyLoop count the error + back off (WRK-1)
   const due = (dueRaw ?? []) as ScheduledSendRow[];
   if (due.length === 0) return { processed: 0, dispatched: 0, errors: 0 };
 
@@ -179,17 +192,18 @@ export async function pollScheduledSends(
       .update({ processing_at: new Date().toISOString() })
       .eq('id', send.id)
       .eq('status', 'pending')
-      .is('processing_at', null)
+      .or(`processing_at.is.null,processing_at.lt.${staleCutoff}`)
       .select('id')
       .maybeSingle();
     if (!claimed) continue;
 
     try {
-      const { data: session } = await sb
+      const { data: session, error: sErr } = await sb
         .from('sessions')
         .select('team_id, deleted_at')
         .eq('id', send.session_id)
         .maybeSingle();
+      if (sErr) throw new RetrySend(sErr.message); // don't cancel a valid send on a transient read (WRK-1)
       if (!session || session.deleted_at) {
         await sb.from('scheduled_sends')
           .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancel_reason: 'session_missing_or_deleted' })
@@ -231,9 +245,16 @@ export async function pollScheduledSends(
     } catch (e) {
       errors += 1;
       const msg = e instanceof Error ? e.message : String(e);
-      await sb.from('scheduled_sends')
-        .update({ status: 'failed', error_message: msg.slice(0, 500), sent_at: new Date().toISOString() })
-        .eq('id', send.id);
+      if (e instanceof RetrySend) {
+        // Transient DB read failure — release the claim so a valid send retries
+        // next cycle instead of being marked terminally failed (WRK-1).
+        await sb.from('scheduled_sends').update({ processing_at: null }).eq('id', send.id);
+        console.error('[scheduler] send %d released for retry: %s', send.id, msg);
+      } else {
+        await sb.from('scheduled_sends')
+          .update({ status: 'failed', error_message: msg.slice(0, 500), sent_at: new Date().toISOString() })
+          .eq('id', send.id);
+      }
     }
   }
 
