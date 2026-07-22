@@ -193,3 +193,17 @@ history is the authoritative record — this is just a readable summary.
   Deleting an inbound answer also hides its inline question (timeline
   `pairedQuestionSid`) so it doesn't resurface. Durable across polls — the
   worker upsert omits `hidden`/`session_id`, so `ON CONFLICT` preserves both.
+
+## Team activity feed restored (2026-06-19)
+- The Activity→Competitions merge (`7d97e86`, May 26) kept the leaderboard
+  but dropped the peer-visible feed of teammates' workouts/rehab + uploaded
+  photos — athletes could no longer see each other's activity. Restored as a
+  `TeamActivityFeed` section on the Competitions landing
+  (`dashboard/competitions/page.tsx`): team-scoped `activity_logs` read
+  (workout/rehab, last 30d, newest first), inline `TwilioMediaStrip` photo
+  thumbnails w/ lightbox, All/Workout/Rehab filter + Show-more pagination.
+- Data was never blocked — RLS on `activity_logs`/`twilio_messages` and the
+  `twilio-media` proxy are team-scoped, so athletes could already read
+  teammates' rows + images; only the UI surface was missing. (A near-exact
+  copy of the old `/dashboard/fitness` page still sits untracked in the tree,
+  unreachable behind a `next.config.ts` redirect + the athlete access-gate.)
