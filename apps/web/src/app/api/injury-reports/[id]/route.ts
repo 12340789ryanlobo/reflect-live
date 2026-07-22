@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { resolveTeamRole } from '@/lib/team-guard';
 
 function serviceClient() {
   return createClient(
@@ -19,11 +20,11 @@ async function authorize(userId: string | null) {
   const sb = serviceClient();
   const { data: pref } = await sb
     .from('user_preferences')
-    .select('team_id, role')
+    .select('team_id')
     .eq('clerk_user_id', userId)
     .maybeSingle();
-  if (!pref) return { error: NextResponse.json({ error: 'no_team' }, { status: 403 }) };
-  return { sb, pref };
+  if (!pref?.team_id) return { error: NextResponse.json({ error: 'no_team' }, { status: 403 }) };
+  return { sb, pref, userId };
 }
 
 export async function PATCH(
@@ -36,6 +37,21 @@ export async function PATCH(
   const { id: idStr } = await params;
   const id = Number(idStr);
   if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'bad_id' }, { status: 400 });
+
+  // Coaches/admins can resolve any report; a non-privileged user may only
+  // resolve a report they filed themselves (reported_by === their userId).
+  const role = await resolveTeamRole(ctx.sb, ctx.userId, ctx.pref.team_id as number);
+  if (role !== 'coach' && role !== 'admin') {
+    const { data: rep } = await ctx.sb
+      .from('injury_reports')
+      .select('reported_by')
+      .eq('id', id)
+      .eq('team_id', ctx.pref.team_id)
+      .maybeSingle<{ reported_by: string | null }>();
+    if (!rep || rep.reported_by !== ctx.userId) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+  }
 
   let body: { resolved?: boolean };
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
@@ -57,7 +73,7 @@ export async function DELETE(
   const { userId } = await auth();
   const ctx = await authorize(userId);
   if ('error' in ctx) return ctx.error;
-  const role = (ctx.pref.role ?? 'coach') as string;
+  const role = await resolveTeamRole(ctx.sb, ctx.userId, ctx.pref.team_id as number);
   if (role !== 'coach' && role !== 'admin') {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }

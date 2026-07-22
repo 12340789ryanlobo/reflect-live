@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { resolveTeamRole } from '@/lib/team-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,13 @@ export async function GET(req: Request) {
   // Caller may pass an explicit team_id (admin viewing as athlete on
   // a specific team); otherwise pull from prefs.
   let teamId = Number(url.searchParams.get('team_id')) || 0;
+  if (teamId) {
+    // An explicit team_id is only honored for members of that team (or
+    // platform admins). Otherwise fall through to the caller's own team so a
+    // signed-in user can't read another team's survey questions by id.
+    const role = await resolveTeamRole(sb, userId, teamId);
+    if (!role) teamId = 0;
+  }
   if (!teamId) {
     const { data: prefs } = await sb
       .from('user_preferences')

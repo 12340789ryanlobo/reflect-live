@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireFeature } from '@/lib/feature-gate';
+import { resolveTeamRole } from '@/lib/team-guard';
 
 const SESSION_TYPES = ['practice', 'match', 'lifting'] as const;
 type SessionType = (typeof SESSION_TYPES)[number];
@@ -82,8 +83,8 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   if (!pref) return NextResponse.json({ error: 'no_team' }, { status: 403 });
 
-  const role = (pref.role ?? 'coach') as string;
-  if (!['coach', 'captain', 'admin'].includes(role)) {
+  const role = await resolveTeamRole(sb, userId, pref.team_id as number);
+  if (!role || !['coach', 'captain', 'admin'].includes(role)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 

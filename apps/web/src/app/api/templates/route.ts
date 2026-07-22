@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import type { SurveyQuestion } from '@reflect-live/shared';
+import { resolveTeamRole } from '@/lib/team-guard';
 
 const SESSION_TYPES = ['practice', 'match', 'lifting'] as const;
 type SessionType = (typeof SESSION_TYPES)[number];
@@ -68,12 +69,12 @@ async function authorize(userId: string) {
   const sb = serviceClient();
   const { data: pref } = await sb
     .from('user_preferences')
-    .select('team_id, role')
+    .select('team_id')
     .eq('clerk_user_id', userId)
     .maybeSingle();
-  if (!pref) return { error: 'no_team' as const };
-  const role = (pref.role ?? 'coach') as string;
-  if (!['coach', 'captain', 'admin'].includes(role)) return { error: 'forbidden' as const };
+  if (!pref?.team_id) return { error: 'no_team' as const };
+  const role = await resolveTeamRole(sb, userId, pref.team_id as number);
+  if (!role || !['coach', 'captain', 'admin'].includes(role)) return { error: 'forbidden' as const };
   return { sb, teamId: pref.team_id as number, role };
 }
 

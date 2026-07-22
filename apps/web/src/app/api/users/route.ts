@@ -14,8 +14,10 @@ async function requireAdmin() {
   const { userId } = await auth();
   if (!userId) return { error: NextResponse.json({ error: 'unauthorized' }, { status: 401 }), userId: null, adminTeamId: null };
   const sb = serviceClient();
-  const { data } = await sb.from('user_preferences').select('role,team_id').eq('clerk_user_id', userId).maybeSingle();
-  if (data?.role !== 'admin') {
+  const { data } = await sb.from('user_preferences').select('is_platform_admin,role,team_id').eq('clerk_user_id', userId).maybeSingle();
+  // is_platform_admin is the stable admin marker; legacy role==='admin' kept
+  // for backward compat (matches lib/admin-guard.ts).
+  if (data?.is_platform_admin !== true && data?.role !== 'admin') {
     return { error: NextResponse.json({ error: 'forbidden' }, { status: 403 }), userId, adminTeamId: null };
   }
   return { error: null, userId, adminTeamId: data.team_id as number };

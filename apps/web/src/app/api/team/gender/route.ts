@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { resolveTeamRole } from '@/lib/team-guard';
 
 function serviceClient() {
   return createClient(
@@ -32,7 +33,7 @@ export async function PATCH(req: NextRequest) {
     .maybeSingle();
   if (!pref) return NextResponse.json({ error: 'no_team' }, { status: 403 });
 
-  const role = (pref.role ?? 'coach') as string;
+  const role = await resolveTeamRole(sb, userId, pref.team_id as number);
   if (role !== 'coach' && role !== 'admin') {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
