@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
 import { useSupabase } from '@/lib/supabase-browser';
 import { prettyCalendarDate } from '@/lib/format';
+import { TeamActivityFeed } from '@/components/v3/team-activity-feed';
 import type { Competition } from '@reflect-live/shared';
 import { Plus, Trophy } from 'lucide-react';
 
@@ -232,6 +233,11 @@ export default function CompetitionsPage() {
             </table>
           )}
         </section>
+
+        {/* Team activity — the peer-visible workouts + photos feed (restored
+            from the old /dashboard/fitness page, which the Activity→Competitions
+            merge dropped). Team-scoped read; athletes see teammates' entries. */}
+        {team?.id && <TeamActivityFeed teamId={team.id} />}
 
         {!canCreate && (
           <p className="reveal reveal-4 text-[11.5px] text-[color:var(--ink-mute)] leading-relaxed">
