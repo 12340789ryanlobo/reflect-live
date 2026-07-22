@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { ChevronDown, ChevronUp, Plus, Star, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Lock, Plus, Star, Trash2 } from 'lucide-react';
 import type { SessionType, SurveyQuestion } from '@reflect-live/shared';
 
 interface TemplateRow {
@@ -56,6 +56,21 @@ const MAX_QUESTIONS = 8;
 // Radix <SelectItem> rejects an empty-string value, so the "no flag" /
 // "always show" options use this sentinel and map back to undefined on change.
 const NONE_VALUE = '__none__';
+
+// The survey opener is pinned to the readiness question from
+// packages/shared/survey_v0.yaml (q1_readiness). reflect leads every check-in
+// with it, the worker sends question 1 as the opening SMS (never conditionally
+// skipped), and the readiness metric / survey-trends parser assume that first
+// reply is a 1-10. So it's locked in the editor: can't be edited, moved, or
+// removed. Keep this in sync with survey_v0.yaml if that ever changes.
+const READINESS_FIRST_QUESTION: SurveyQuestion = {
+  id: 'q1_readiness',
+  order: 1,
+  text: 'Overall body readiness right now? (1-10)',
+  type: 'scale_1_10',
+  validation: { required: true, min: 1, max: 10 },
+  flag_rule: { flag_type: 'low_readiness', condition: 'value <= 3', severity: 'medium' },
+};
 
 function blankQuestion(order: number): SurveyQuestion {
   return {
@@ -224,22 +239,26 @@ function TemplateEditor({
   const [name, setName] = useState(initial?.name ?? '');
   const [sessionType, setSessionType] = useState<SessionType>(initial?.session_type ?? 'practice');
   const [isDefault, setIsDefault] = useState(initial?.is_default ?? false);
-  const [questions, setQuestions] = useState<SurveyQuestion[]>(
-    initial?.questions_json && initial.questions_json.length > 0
-      ? initial.questions_json
-      : [blankQuestion(1)],
+  const [questions, setQuestions] = useState<SurveyQuestion[]>(() =>
+    // Slot 0 is always the fixed readiness opener; keep any follow-ups the
+    // template already had (slot 1+) and renumber.
+    [READINESS_FIRST_QUESTION, ...(initial?.questions_json ?? []).slice(1)].map(
+      (q, i) => ({ ...q, order: i + 1 }),
+    ),
   );
   const [saving, setSaving] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   function update(idx: number, patch: Partial<SurveyQuestion>) {
+    if (idx === 0) return; // readiness opener is fixed
     setQuestions((qs) => qs.map((q, i) => (i === idx ? { ...q, ...patch } : q)));
   }
   function move(idx: number, delta: -1 | 1) {
     setQuestions((qs) => {
-      const next = qs.slice();
       const j = idx + delta;
-      if (j < 0 || j >= next.length) return qs;
+      // The readiness opener is pinned to slot 0 — nothing moves into or out of it.
+      if (idx === 0 || j === 0 || j < 0 || j >= qs.length) return qs;
+      const next = qs.slice();
       [next[idx], next[j]] = [next[j], next[idx]];
       return next.map((q, i) => ({ ...q, order: i + 1 }));
     });
@@ -256,6 +275,7 @@ function TemplateEditor({
     });
   }
   function remove(idx: number) {
+    if (idx === 0) return; // the readiness opener is required
     setQuestions((qs) => qs.filter((_, i) => i !== idx).map((q, i) => ({ ...q, order: i + 1 })));
   }
 
@@ -356,18 +376,22 @@ function TemplateEditor({
 
         {/* Questions */}
         <div className="space-y-3">
-          {questions.map((q, idx) => (
-            <QuestionRow
-              key={`${q.id}-${idx}`}
-              q={q}
-              idx={idx}
-              total={questions.length}
-              earlierBinaries={earlierBinaries.filter((eb) => eb.idx < idx)}
-              onChange={(p) => update(idx, p)}
-              onMove={(d) => move(idx, d)}
-              onRemove={() => remove(idx)}
-            />
-          ))}
+          {questions.map((q, idx) =>
+            idx === 0 ? (
+              <ReadinessLockRow key="readiness-opener" q={q} />
+            ) : (
+              <QuestionRow
+                key={`${q.id}-${idx}`}
+                q={q}
+                idx={idx}
+                total={questions.length}
+                earlierBinaries={earlierBinaries.filter((eb) => eb.idx < idx)}
+                onChange={(p) => update(idx, p)}
+                onMove={(d) => move(idx, d)}
+                onRemove={() => remove(idx)}
+              />
+            ),
+          )}
           {questions.length < MAX_QUESTIONS && (
             <button
               type="button"
@@ -407,7 +431,7 @@ function QuestionRow({
           <button
             type="button"
             onClick={() => onMove(-1)}
-            disabled={idx === 0}
+            disabled={idx <= 1}
             aria-label="Move up"
             className="rounded p-0.5 text-[color:var(--ink-mute)] hover:bg-[color:var(--paper-2)] disabled:opacity-30"
           ><ChevronUp className="size-4" /></button>
@@ -492,6 +516,32 @@ function QuestionRow({
           aria-label="Remove question"
           className="rounded p-1 text-[color:var(--ink-mute)] hover:bg-[color:var(--paper-2)] hover:text-[color:var(--red)]"
         ><Trash2 className="size-4" /></button>
+      </div>
+    </div>
+  );
+}
+
+function ReadinessLockRow({ q }: { q: SurveyQuestion }) {
+  return (
+    <div className="rounded-xl border bg-[color:var(--paper-2)] p-4" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex items-start gap-3">
+        <div className="flex flex-col items-center gap-1 pt-1 text-[color:var(--ink-mute)]">
+          <Lock className="size-3.5" />
+          <span className="mono text-[10.5px] font-bold tabular">1</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-medium text-[color:var(--ink)]">{q.text}</p>
+          <p className="mt-1 text-[11.5px] text-[color:var(--ink-mute)]">
+            Every check-in opens with this readiness question — it&apos;s fixed so replies
+            parse into the readiness metric. Add your follow-ups below.
+          </p>
+        </div>
+        <span
+          className="shrink-0 rounded-full border bg-[color:var(--paper)] px-2 py-0.5 text-[10.5px] font-semibold text-[color:var(--ink-mute)]"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          1–10 scale
+        </span>
       </div>
     </div>
   );
