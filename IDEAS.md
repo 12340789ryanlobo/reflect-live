@@ -20,13 +20,19 @@ HOW THIS FILE WORKS (read once, then forget):
 - text a workout button isn't mapping correctly to text salus whatsapp number ()
 - captain gets notified (whatsapp text) when someone requests
 - way to track PRs and progression, volume, weight, etc.
--
+- ticketing process? (client wants to request something or something is wrong)
+- competitions: trends tab - "full" tab is showing past 7 days not the full competition (from start to current)
+- Athletes: instead of individual select, have a single page for looking at each athlete and then possibly a name dropdown to change who you are viewing
 
-## 🔨 Now — actively building (keep to ≤3)
-- **Phase 3g** — shadow-soak diff tooling (last Phase-3 leg; gates the live-send cutover)
-- **C2-D polish** — bring the rest of the app up to the athlete-page (C1) visual bar
 
-## 📋 Next — backlog
+
+
+
+
+
+## 📋 Backlog
+
+**Active now:** Phase 3g — shadow-soak diff tooling (last Phase-3 leg; gates the live-send cutover) · C2-D polish — bring the rest of the app up to the athlete-page (C1) visual bar
 
 ### Multi-org / scaling
 - Multi-organization support without data leakage (RLS-hardened)
@@ -84,7 +90,7 @@ HOW THIS FILE WORKS (read once, then forget):
 ### Smaller
 - Backdate option on Log workout / Report injury / Self-report (date-time picker defaulting to now)
 
-## 💭 Someday — speculative
+### Someday / speculative
 - Whoop integration (device readiness cross-checked vs self-report)
 - Geofenced Twilio prompt ("log your workout?" when an athlete lingers at a gym)
 - Decommission `reflect` (Phase 6) once shadow soak shows parity

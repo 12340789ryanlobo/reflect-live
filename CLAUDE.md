@@ -95,5 +95,6 @@ verified, not what you assume.
   don't wait to be asked.
 - **Worktrees only for genuinely parallel multi-session work** (two+ agents
   running at once): `claude --worktree <name>`, one branch each, mark in-flight
-  items in IDEAS.md `Now` with `[wt:<name>]`, merge to main one at a time. For
+  items on IDEAS.md's Backlog **Active now** line with `[wt:<name>]`, merge to
+  main one at a time. For
   normal single-session work, skip branches and push to `main` directly.
