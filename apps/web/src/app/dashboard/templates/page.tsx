@@ -53,6 +53,9 @@ const FLAG_OPTIONS = [
   { value: 'injury_concern:value == 1:high', label: 'Injury concern (yes)' },
 ];
 const MAX_QUESTIONS = 8;
+// Radix <SelectItem> rejects an empty-string value, so the "no flag" /
+// "always show" options use this sentinel and map back to undefined on change.
+const NONE_VALUE = '__none__';
 
 function blankQuestion(order: number): SurveyQuestion {
   return {
@@ -243,16 +246,27 @@ function TemplateEditor({
   }
   function add() {
     if (questions.length >= MAX_QUESTIONS) return;
-    setQuestions((qs) => [...qs, blankQuestion(qs.length + 1)]);
+    setQuestions((qs) => {
+      // Ids must stay unique: removing q2 from [q1,q2,q3] leaves ids [q1,q3]
+      // (length 2), so a naive `q${length+1}` would remint an existing id.
+      const used = new Set(qs.map((q) => q.id));
+      let n = qs.length + 1;
+      while (used.has(`q${n}`)) n++;
+      return [...qs, { ...blankQuestion(qs.length + 1), id: `q${n}` }];
+    });
   }
   function remove(idx: number) {
     setQuestions((qs) => qs.filter((_, i) => i !== idx).map((q, i) => ({ ...q, order: i + 1 })));
   }
 
   const earlierBinaries = useMemo(() => {
+    // idx is the binary's position in the FULL question list, so the parent's
+    // `eb.idx < idx` filter (idx = the dependent row's full-list position)
+    // correctly offers only genuinely-earlier binaries — and never itself.
     return questions
-      .filter((q) => q.type === 'binary' && q.text.trim())
-      .map((q, _, arr) => ({ id: q.id, label: q.text, order: q.order, idx: arr.findIndex((x) => x.id === q.id) }));
+      .map((q, i) => ({ q, i }))
+      .filter(({ q }) => q.type === 'binary' && q.text.trim())
+      .map(({ q, i }) => ({ id: q.id, label: q.text, order: q.order, idx: i }));
   }, [questions]);
 
   async function save() {
@@ -431,13 +445,13 @@ function QuestionRow({
 
             {showFlagControl && (
               <Select
-                value={flagSelectValue(q)}
-                onValueChange={(v) => onChange({ flag_rule: parseFlagSelect(v) })}
+                value={flagSelectValue(q) || NONE_VALUE}
+                onValueChange={(v) => onChange({ flag_rule: parseFlagSelect(v === NONE_VALUE ? '' : v) })}
               >
                 <SelectTrigger className="h-8 w-[200px] text-[12.5px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {FLAG_OPTIONS.map((o) => (
-                    <SelectItem key={o.value || 'none'} value={o.value}>{o.label}</SelectItem>
+                    <SelectItem key={o.value || 'none'} value={o.value || NONE_VALUE}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -455,14 +469,14 @@ function QuestionRow({
 
             {earlierBinaries.length > 0 && (
               <Select
-                value={conditional?.depends_on ?? ''}
-                onValueChange={(v) => onChange({ conditional: v ? { depends_on: v, show_if: conditional?.show_if ?? 'value == 1' } : undefined })}
+                value={conditional?.depends_on ?? NONE_VALUE}
+                onValueChange={(v) => onChange({ conditional: v && v !== NONE_VALUE ? { depends_on: v, show_if: conditional?.show_if ?? 'value == 1' } : undefined })}
               >
                 <SelectTrigger className="h-8 w-[200px] text-[12.5px]">
                   <SelectValue placeholder="Always show" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Always show</SelectItem>
+                  <SelectItem value={NONE_VALUE}>Always show</SelectItem>
                   {earlierBinaries.map((eb) => (
                     <SelectItem key={eb.id} value={eb.id}>Show if {eb.id} = yes</SelectItem>
                   ))}
