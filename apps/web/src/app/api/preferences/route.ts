@@ -52,24 +52,11 @@ export async function GET() {
   const sb = serviceClient();
   const { data } = await sb.from('user_preferences').select('*').eq('clerk_user_id', userId).maybeSingle();
 
-  const user = await currentUser();
-  const email = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
-  const adminEmails = (process.env.BOOTSTRAP_ADMIN_EMAIL ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  const isBootstrapAdmin = !!email && adminEmails.includes(email);
-  // Admin status is now driven solely by user_preferences.is_platform_admin,
-  // which is the only stable signal that survives a role-switcher click.
-  // Earlier fallbacks (role === 'admin', isBootstrapAdmin) caused real
-  // confusion: a user who'd been explicitly demoted (is_platform_admin
-  // false) still saw the role-switcher dropdown because their email
-  // was in BOOTSTRAP_ADMIN_EMAIL. Switching to "admin" wrote role='admin'
-  // but didn't actually grant admin permissions in dashboard-shell, so
-  // the user got bounced back to athlete view, looking like a bug.
-  // Drop those fallbacks — the BOOTSTRAP_ADMIN_EMAIL only seeds
-  // is_platform_admin=true on FIRST account creation (see POST below);
-  // existing rows must rely on the persisted flag.
+  // Admin status is driven solely by user_preferences.is_platform_admin —
+  // the only signal that survives a role-switcher click. (Earlier email/
+  // role fallbacks let an explicitly-demoted user still see the switcher,
+  // which read as a bug. BOOTSTRAP_ADMIN_EMAIL now only seeds the flag on
+  // first account creation — see POST below.)
   const canSwitchRole = data?.is_platform_admin === true;
 
   // Bundle the team in the same response so dashboard-shell doesn't have
