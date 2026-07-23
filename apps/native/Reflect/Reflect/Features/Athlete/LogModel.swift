@@ -54,11 +54,15 @@ final class LogModel {
         }
     }
 
-    func submit(kind: String, description: String, loggedAt: Date) async -> Bool {
-        guard let playerId = membership.playerId else {
-            errorMessage = "Your account isn't linked to a roster spot yet — ask your team manager."
-            return false
-        }
+    /// Shared insert path — the composer and Today's one-tap quick log both
+    /// come through here. Returns the created row (for rank recompute + undo).
+    nonisolated static func insertLog(
+        teamId: Int,
+        playerId: Int,
+        kind: String,
+        description: String?,
+        loggedAt: Date
+    ) async throws -> ActivityLog {
         struct NewLog: Encodable {
             let team_id: Int
             let player_id: Int
@@ -67,19 +71,45 @@ final class LogModel {
             let logged_at: String
             let hidden: Bool
         }
+        return try await SupabaseService.client
+            .from("activity_logs")
+            .insert(NewLog(
+                team_id: teamId,
+                player_id: playerId,
+                kind: kind,
+                description: description?.isEmpty == true ? nil : description,
+                logged_at: SupabaseService.timestamp(loggedAt),
+                hidden: false
+            ), returning: .representation)
+            .select("id, team_id, player_id, kind, description, logged_at, hidden")
+            .single()
+            .execute()
+            .value
+    }
+
+    /// Soft-delete: hidden=true is the only removal path RLS allows.
+    nonisolated static func hideLog(id: Int) async throws {
+        try await SupabaseService.client
+            .from("activity_logs")
+            .update(["hidden": true])
+            .eq("id", value: id)
+            .execute()
+    }
+
+    func submit(kind: String, description: String, loggedAt: Date) async -> Bool {
+        guard let playerId = membership.playerId else {
+            errorMessage = "Your account isn't linked to a roster spot yet — ask your team manager."
+            return false
+        }
         errorMessage = nil
         do {
-            try await SupabaseService.client
-                .from("activity_logs")
-                .insert(NewLog(
-                    team_id: membership.teamId,
-                    player_id: playerId,
-                    kind: kind,
-                    description: description.isEmpty ? nil : description,
-                    logged_at: SupabaseService.timestamp(loggedAt),
-                    hidden: false
-                ))
-                .execute()
+            _ = try await Self.insertLog(
+                teamId: membership.teamId,
+                playerId: playerId,
+                kind: kind,
+                description: description,
+                loggedAt: loggedAt
+            )
             await load()
             return true
         } catch {
@@ -88,15 +118,10 @@ final class LogModel {
         }
     }
 
-    /// Soft-delete: hidden=true is the only removal path RLS allows.
     func hide(_ log: ActivityLog) async {
         errorMessage = nil
         do {
-            try await SupabaseService.client
-                .from("activity_logs")
-                .update(["hidden": true])
-                .eq("id", value: log.id)
-                .execute()
+            try await Self.hideLog(id: log.id)
             if let current = timeline.value {
                 timeline = .loaded(current.filter { $0.id != log.id })
             }

@@ -5,13 +5,37 @@ import Supabase
 /// Loads roster + activity entries and runs the scoring port. Two boards:
 /// the rolling weekly board (legacy teams.scoring_json weights) and, when a
 /// competition is running, the competition board with bonus rules.
+///
+/// Content keeps the raw fetched entries so consumers (TodayModel, the Log
+/// Moment) can recompute boards locally — e.g. "as of end-of-yesterday" for
+/// movement arrows, or "with my new log appended" for the rank reveal —
+/// without extra network round-trips.
 @MainActor
 @Observable
 final class LeaderboardModel {
+    /// One activity entry inside the fetched window.
+    struct Entry: Decodable, Hashable {
+        let playerId: Int?
+        let kind: String
+        let loggedAt: Date
+
+        enum CodingKeys: String, CodingKey {
+            case kind
+            case playerId = "player_id"
+            case loggedAt = "logged_at"
+        }
+    }
+
     struct Content {
+        var players: [Player]
+        var scoring: TeamScoring
+        var weekEntries: [Entry]
         var weekRows: [LeaderboardRow]
+        var weekRowsYesterday: [LeaderboardRow]
         var activeCompetition: Competition?
+        var competitionEntries: [Entry]
         var competitionRows: [CompetitionLeaderboardRow]
+        var competitionRowsYesterday: [CompetitionLeaderboardRow]
     }
 
     let membership: ActiveMembership
@@ -24,6 +48,45 @@ final class LeaderboardModel {
     init(membership: ActiveMembership) {
         self.membership = membership
     }
+
+    // MARK: - Pure recomputes (shared with TodayModel / Log Moment)
+
+    static func weekBoard(
+        players: [Player],
+        entries: [Entry],
+        scoring: TeamScoring,
+        before cutoff: Date? = nil
+    ) -> [LeaderboardRow] {
+        let windowed = cutoff.map { cut in entries.filter { $0.loggedAt < cut } } ?? entries
+        return Leaderboard.aggregate(
+            players: players,
+            entries: windowed.compactMap { entry in
+                entry.playerId.map { LeaderboardEntry(playerId: $0, kind: entry.kind) }
+            },
+            scoring: scoring
+        )
+    }
+
+    static func competitionBoard(
+        players: [Player],
+        entries: [Entry],
+        competition: Competition,
+        before cutoff: Date? = nil
+    ) -> [CompetitionLeaderboardRow] {
+        let windowed = cutoff.map { cut in entries.filter { $0.loggedAt < cut } } ?? entries
+        return Leaderboard.aggregateCompetition(
+            players: players,
+            entries: windowed.compactMap { entry in
+                entry.playerId.map {
+                    CompetitionEntry(playerId: $0, kind: entry.kind, day: Leaderboard.utcDay(of: entry.loggedAt))
+                }
+            },
+            scoring: competition.scoring,
+            bonusRules: competition.bonusRules
+        )
+    }
+
+    // MARK: - Loading
 
     func load() async {
         if state.value == nil { state = .loading }
@@ -52,63 +115,53 @@ final class LeaderboardModel {
 
             let (teams, players, competitions) = try await (teamFetch, playersFetch, competitionsFetch)
             let scoring = teams.first?.scoring ?? .fallback
+            let startOfToday = RankMath.startOfToday(in: Self.weekTimeZone)
 
             let weekStart = Leaderboard.weekStart(in: Self.weekTimeZone)
             let weekEntries = try await fetchEntries(since: SupabaseService.timestamp(weekStart), until: nil)
-            let weekRows = Leaderboard.aggregate(
-                players: players,
-                entries: weekEntries.compactMap { entry in
-                    entry.playerId.map { LeaderboardEntry(playerId: $0, kind: entry.kind) }
-                },
-                scoring: scoring
+            let weekRows = Self.weekBoard(players: players, entries: weekEntries, scoring: scoring)
+            let weekRowsYesterday = Self.weekBoard(
+                players: players, entries: weekEntries, scoring: scoring, before: startOfToday
             )
 
             let today = LogModel.todayISO(timeZone: Self.weekTimeZone)
             var activeCompetition: Competition?
+            var competitionEntries: [Entry] = []
             var competitionRows: [CompetitionLeaderboardRow] = []
+            var competitionRowsYesterday: [CompetitionLeaderboardRow] = []
             if let competition = competitions.first(where: { $0.isActive(onDay: today) }) {
                 activeCompetition = competition
-                let entries = try await fetchEntries(
+                competitionEntries = try await fetchEntries(
                     since: competition.startsAt,
                     until: competition.endsAt + "T23:59:59"
                 )
-                competitionRows = Leaderboard.aggregateCompetition(
-                    players: players,
-                    entries: entries.compactMap { entry in
-                        entry.playerId.map {
-                            CompetitionEntry(playerId: $0, kind: entry.kind, day: Leaderboard.utcDay(of: entry.loggedAt))
-                        }
-                    },
-                    scoring: competition.scoring,
-                    bonusRules: competition.bonusRules
+                competitionRows = Self.competitionBoard(
+                    players: players, entries: competitionEntries, competition: competition
+                )
+                competitionRowsYesterday = Self.competitionBoard(
+                    players: players, entries: competitionEntries, competition: competition, before: startOfToday
                 )
             }
 
             state = .loaded(Content(
+                players: players,
+                scoring: scoring,
+                weekEntries: weekEntries,
                 weekRows: weekRows,
+                weekRowsYesterday: weekRowsYesterday,
                 activeCompetition: activeCompetition,
-                competitionRows: competitionRows
+                competitionEntries: competitionEntries,
+                competitionRows: competitionRows,
+                competitionRowsYesterday: competitionRowsYesterday
             ))
         } catch {
             if state.value == nil { state = .failed(error.localizedDescription) }
         }
     }
 
-    private struct EntryRow: Decodable {
-        let playerId: Int?
-        let kind: String
-        let loggedAt: Date
-
-        enum CodingKeys: String, CodingKey {
-            case kind
-            case playerId = "player_id"
-            case loggedAt = "logged_at"
-        }
-    }
-
     /// Pages through activity_logs (PostgREST caps responses at 1000 rows).
-    private func fetchEntries(since: String, until: String?) async throws -> [EntryRow] {
-        var entries: [EntryRow] = []
+    private func fetchEntries(since: String, until: String?) async throws -> [Entry] {
+        var entries: [Entry] = []
         var from = 0
         let page = 1000
         while true {
@@ -121,7 +174,7 @@ final class LeaderboardModel {
             if let until {
                 query = query.lte("logged_at", value: until)
             }
-            let batch: [EntryRow] = try await query
+            let batch: [Entry] = try await query
                 .range(from: from, to: from + page - 1)
                 .execute()
                 .value

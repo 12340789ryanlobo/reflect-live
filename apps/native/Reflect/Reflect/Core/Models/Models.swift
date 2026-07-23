@@ -43,7 +43,7 @@ struct Player: Codable, Identifiable, Hashable {
     }
 }
 
-struct ActivityLog: Codable, Identifiable, Hashable {
+nonisolated struct ActivityLog: Codable, Identifiable, Hashable {
     let id: Int
     let teamId: Int
     let playerId: Int?
