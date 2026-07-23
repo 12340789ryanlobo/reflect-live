@@ -52,8 +52,3 @@ export function parseBodyRegions(raw: string): [string, number][] {
   }
   return out;
 }
-
-export function truncateText(s: string, maxLen: number): string {
-  if (s.length <= maxLen) return s;
-  return s.slice(0, maxLen - 1).trimEnd() + '…';
-}

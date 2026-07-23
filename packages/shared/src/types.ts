@@ -1,5 +1,5 @@
 export type Category = 'workout' | 'rehab' | 'survey' | 'chat';
-export type ActivityKind = 'workout' | 'rehab';
+type ActivityKind = 'workout' | 'rehab';
 export type Gender = 'male' | 'female';
 
 export interface TeamScoring {
@@ -206,9 +206,4 @@ export interface TeamMembership {
   decided_at: string | null;
   decided_by: string | null;
   deny_reason: string | null;
-}
-
-export interface PlatformSettings {
-  id: 1;
-  require_team_approval: boolean;
 }

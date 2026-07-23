@@ -42,29 +42,6 @@ export function normalizeQuestions(qs: unknown): SurveyQuestion[] {
 }
 
 /**
- * Filter the YAML question pool to a session's effective list (by
- * session_type + team_code). Used when no template is set and no snapshot
- * has been frozen yet.
- */
-export function filterYamlQuestions(
-  pool: SurveyQuestion[],
-  sessionType: string,
-  teamCode: string | null,
-): SurveyQuestion[] {
-  const out: SurveyQuestion[] = [];
-  for (const q of pool) {
-    const types = q.session_types;
-    if (types && !(types as string[]).includes(sessionType)) continue;
-    if (teamCode !== null) {
-      const codes = q.team_codes;
-      if (codes && !codes.includes(teamCode)) continue;
-    }
-    out.push(q);
-  }
-  return normalizeQuestions(out);
-}
-
-/**
  * Locate the question at a given progress pointer. Order-first (matches
  * reflect's snapshot semantics), then array index as fallback.
  */

@@ -141,16 +141,3 @@ export function resolvePlan(raw: string | null | undefined): Plan {
   if (raw === 'program') return 'program';
   return 'free';
 }
-
-/** True when the feature is included in the team's plan. Right now no
- *  server route actually calls this; it's exported so we can flip a
- *  hard gate on once we have a paying customer. */
-export function hasFeature(plan: Plan, feature: keyof PlanFeatures): boolean {
-  return PLANS[plan].features[feature];
-}
-
-/** Display string: "$600 / season" or "Free". */
-export function formatPrice(plan: PlanDef): string {
-  if (plan.pricePerSeason === 0) return 'Free';
-  return `$${plan.pricePerSeason.toLocaleString()} / season`;
-}

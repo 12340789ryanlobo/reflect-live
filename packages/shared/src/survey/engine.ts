@@ -33,7 +33,7 @@ import {
   questionAtProgress,
 } from './flow';
 
-export interface ProcessResponseResult {
+interface ProcessResponseResult {
   ok: boolean;
   error: string | null;
   next: string | null; // next question text or completion message

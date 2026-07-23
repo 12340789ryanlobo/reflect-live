@@ -129,17 +129,3 @@ export function buildPhoneIndex(players: Player[]): Map<string, Player> {
   for (const p of players) m.set(p.phone_e164, p);
   return m;
 }
-
-/** Given a Player[], build an O(1) lookup by id. */
-export function buildPlayerIndex(players: Player[]): Map<number, Player> {
-  const m = new Map<number, Player>();
-  for (const p of players) m.set(p.id, p);
-  return m;
-}
-
-/** Short first-name + last-initial, e.g. "Alex S." */
-export function shortName(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0];
-  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
-}
