@@ -6,6 +6,7 @@ import SwiftUI
     var body: some Scene {
         WindowGroup {
             RootView()
+                .tint(Theme.accent)
                 .environment(session)
                 .task { await session.start() }
                 .onOpenURL { session.handleDeepLink($0) }
