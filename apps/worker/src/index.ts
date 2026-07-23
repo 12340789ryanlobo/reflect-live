@@ -1,6 +1,7 @@
 import twilio from 'twilio';
 import { createServiceClient } from './supabase';
-import { PhoneCache } from './phone-cache';
+import { PhoneCache, type PlayerRef } from './phone-cache';
+import { normalizePhone } from './twilio-row';
 import { pollOnce } from './poll';
 import { pollWeatherOnce } from './poll-weather';
 import { pollNewsOnce } from './poll-news';
@@ -20,7 +21,6 @@ const WEATHER_INTERVAL_MS = envInt('WEATHER_INTERVAL_MS', 600000);
 const NEWS_INTERVAL_MS = envInt('NEWS_INTERVAL_MS', 1800000); // 30 min
 const SURVEY_INTERVAL_MS = envInt('SURVEY_INTERVAL_MS', 60000); // 1 min
 const BACKFILL_DAYS = envInt('BACKFILL_DAYS', 90);
-const DEFAULT_TEAM_ID = 1;
 
 let running = true;
 let twilioErrors = 0;
@@ -35,24 +35,48 @@ async function loadPhones(sb: ReturnType<typeof createServiceClient>) {
     // surface team_id without a second query. Falls back to the legacy
     // players.phone_e164 column for any players who don't yet have a
     // player_phones row (defensive — the migration backfills these).
-    const map = new Map<string, { id: number; team_id: number }>();
+    //
+    // A phone maps to a *list* of refs: an athlete on more than one team
+    // (same number) contributes one ref per team, so a shared number no
+    // longer silently overwrites down to a single team.
+    const map = new Map<string, PlayerRef[]>();
+    const add = (e164: string, ref: PlayerRef) => {
+      const list = map.get(e164);
+      if (!list) map.set(e164, [ref]);
+      else if (!list.some((r) => r.id === ref.id)) list.push(ref);
+    };
     const { data: pp, error: ppErr } = await sb
       .from('player_phones')
       .select('e164, players!inner(id,team_id)');
     if (ppErr) throw ppErr;
     for (const row of (pp ?? []) as Array<{ e164: string; players: { id: number; team_id: number } }>) {
-      if (row.e164 && row.players) map.set(row.e164, { id: row.players.id, team_id: row.players.team_id });
+      if (row.e164 && row.players) add(row.e164, { id: row.players.id, team_id: row.players.team_id });
     }
-    // Defensive fallback for any players that somehow have a phone_e164
-    // but no player_phones row. Skips entries already in the map.
+    // Defensive fallback for any players that somehow have a phone_e164 but
+    // no player_phones row. Deduped by player id, so it's a no-op when the
+    // player already came through player_phones.
     const { data: legacy } = await sb.from('players').select('phone_e164,id,team_id');
     for (const row of (legacy ?? []) as Array<{ phone_e164: string | null; id: number; team_id: number }>) {
-      if (row.phone_e164 && !map.has(row.phone_e164)) {
-        map.set(row.phone_e164, { id: row.id, team_id: row.team_id });
-      }
+      if (row.phone_e164) add(row.phone_e164, { id: row.id, team_id: row.team_id });
     }
     return map;
   };
+}
+
+// team_id → that team's normalized Twilio number. Used to disambiguate a
+// message from a multi-team athlete: the message's team-side number tells
+// us which team it belongs to. Loaded once at startup — a team's Twilio
+// number is effectively static config, and single-team athletes (the
+// common case) don't need it at all.
+async function loadTeamNumbers(sb: ReturnType<typeof createServiceClient>): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  const { data, error } = await sb.from('teams').select('id, twilio_phone_number');
+  if (error) throw error;
+  for (const t of (data ?? []) as Array<{ id: number; twilio_phone_number: string | null }>) {
+    const n = normalizePhone(t.twilio_phone_number);
+    if (n) map.set(t.id, n);
+  }
+  return map;
 }
 
 function backoff(base: number, errors: number): number {
@@ -63,10 +87,15 @@ function backoff(base: number, errors: number): number {
   return Math.max(base, Math.min(base * 2 ** Math.min(errors, 5), 5 * 60 * 1000));
 }
 
-async function twilioLoop(sb: ReturnType<typeof createServiceClient>, tw: ReturnType<typeof twilio>, cache: PhoneCache) {
+async function twilioLoop(
+  sb: ReturnType<typeof createServiceClient>,
+  tw: ReturnType<typeof twilio>,
+  cache: PhoneCache,
+  teamNumbers: Map<number, string>,
+) {
   while (running) {
     try {
-      const n = await pollOnce({ sb, twilio: tw, cache, defaultTeamId: DEFAULT_TEAM_ID, backfillDays: BACKFILL_DAYS });
+      const n = await pollOnce({ sb, twilio: tw, cache, teamNumbers, backfillDays: BACKFILL_DAYS });
       console.log('[twilio] polled, %d messages', n);
       twilioErrors = 0;
     } catch (err) {
@@ -149,6 +178,7 @@ async function main() {
   const sb = createServiceClient();
   const tw = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
   const cache = new PhoneCache(await loadPhones(sb), 5 * 60 * 1000);
+  const teamNumbers = await loadTeamNumbers(sb);
 
   process.on('SIGTERM', () => { running = false; });
   process.on('SIGINT', () => { running = false; });
@@ -161,7 +191,7 @@ async function main() {
   );
 
   await Promise.all([
-    twilioLoop(sb, tw, cache),
+    twilioLoop(sb, tw, cache, teamNumbers),
     weatherLoop(sb),
     newsLoop(sb),
     surveyLoop(sb, tw),

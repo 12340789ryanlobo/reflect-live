@@ -14,20 +14,28 @@ export interface PollDeps {
   sb: SupabaseClient;
   twilio: Twilio;
   cache: PhoneCache;
-  defaultTeamId: number;
+  /** team_id → that team's normalized Twilio number, for disambiguating
+   *  messages from athletes who belong to more than one team. */
+  teamNumbers: Map<number, string>;
   backfillDays: number;
 }
 
 export async function pollOnce(deps: PollDeps): Promise<number> {
-  const { sb, twilio, cache, defaultTeamId, backfillDays } = deps;
+  const { sb, twilio, cache, teamNumbers, backfillDays } = deps;
   const state = await getWorkerState(sb);
 
   const cursor = state.last_date_sent
     ? new Date(state.last_date_sent)
     : new Date(Date.now() - backfillDays * 24 * 3600 * 1000);
 
+  // Twilio can make a message visible a beat after its dateSent, and
+  // dateSent is only second-precise, so a message landing on the cursor's
+  // exact second could be skipped forever once the cursor advanced past
+  // it. Re-scan a short overlap each poll — the sid upsert dedupes, so
+  // re-reading already-ingested rows is a no-op.
+  const CURSOR_OVERLAP_MS = 2 * 60 * 1000;
   const msgs = await twilio.messages.list({
-    dateSentAfter: cursor,
+    dateSentAfter: new Date(cursor.getTime() - CURSOR_OVERLAP_MS),
     pageSize: 1000,
   });
 
@@ -61,7 +69,7 @@ export async function pollOnce(deps: PollDeps): Promise<number> {
             mediaSids,
           } as TwilioMessageLike,
           cache,
-          defaultTeamId,
+          teamNumbers,
         );
       }),
     );

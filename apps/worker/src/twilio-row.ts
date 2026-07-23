@@ -1,5 +1,5 @@
 import { categorize } from './categorize';
-import type { PhoneCache } from './phone-cache';
+import type { PhoneCache, PlayerRef } from './phone-cache';
 
 export interface TwilioMessageLike {
   sid: string;
@@ -33,14 +33,37 @@ export function normalizePhone(s: string | null | undefined): string | null {
   return s.replace(/^(whatsapp|sms):/i, '');
 }
 
+// Choose which roster row a message belongs to when a phone maps to more
+// than one team (a multi-team athlete). Disambiguate by the team-side
+// Twilio number the message used; fall back to the lowest team_id so a
+// tie is at least stable across polls (never the non-deterministic
+// "whichever team loaded last" the map used to give). Unknown → null.
+export function pickTeam(
+  candidates: PlayerRef[],
+  teamSideNumber: string | null,
+  teamNumbers: Map<number, string>,
+): PlayerRef | null {
+  if (candidates.length <= 1) return candidates[0] ?? null;
+  if (teamSideNumber) {
+    const match = candidates.find((c) => teamNumbers.get(c.team_id) === teamSideNumber);
+    if (match) return match;
+  }
+  return [...candidates].sort((a, b) => a.team_id - b.team_id)[0];
+}
+
 export async function toRow(
   m: TwilioMessageLike,
   cache: PhoneCache,
-  defaultTeamId: number,
+  teamNumbers: Map<number, string>,
 ): Promise<MessageRow> {
   const rawPhone = m.direction === 'inbound' ? m.from : m.to;
   const playerPhone = normalizePhone(rawPhone);
-  const ref = playerPhone ? await cache.lookup(playerPhone) : null;
+  const candidates = playerPhone ? await cache.lookupAll(playerPhone) : [];
+  // The team-side number is the other end of the message: an inbound text
+  // arrives AT the team's Twilio number (m.to); an outbound is sent FROM
+  // it (m.from).
+  const teamSideNumber = normalizePhone(m.direction === 'inbound' ? m.to : m.from);
+  const ref = pickTeam(candidates, teamSideNumber, teamNumbers);
   return {
     sid: m.sid,
     direction: m.direction,
@@ -51,7 +74,10 @@ export async function toRow(
     category: categorize(m.body),
     date_sent: m.dateSent.toISOString(),
     player_id: ref?.id ?? null,
-    team_id: ref?.team_id ?? defaultTeamId,
+    // Unknown senders (on no roster) stay unassigned rather than defaulting
+    // onto team 1, which used to leak wrong-number/spam texts into team 1's
+    // dashboard.
+    team_id: ref?.team_id ?? null,
     media_sids: m.mediaSids && m.mediaSids.length > 0 ? m.mediaSids : null,
   };
 }
