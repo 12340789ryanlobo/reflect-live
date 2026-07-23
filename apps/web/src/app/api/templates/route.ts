@@ -62,6 +62,13 @@ function validateQuestions(raw: unknown): { ok: true; questions: SurveyQuestion[
       ack_on_yes: q.ack_on_yes,
     });
   }
+  if (out[0]?.id !== 'q1_readiness' || out[0]?.type !== 'scale_1_10') {
+    // The survey opener is pinned to the readiness question (matches the
+    // editor's READINESS_FIRST_QUESTION / survey_v0.yaml q1_readiness); enforce
+    // it here so a direct API call can't submit a template whose first reply
+    // won't parse into the readiness metric.
+    return { ok: false, error: 'first_question_must_be_readiness' };
+  }
   return { ok: true, questions: out };
 }
 
