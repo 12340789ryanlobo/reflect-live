@@ -19,6 +19,7 @@ export function Leaderboard({
   highlightPlayerId,
   emptyText = '— no points yet — text the team line to start logging.',
   className,
+  compact = false,
 }: {
   title: string;
   rows: LeaderboardRow[];
@@ -26,10 +27,14 @@ export function Leaderboard({
   highlightPlayerId?: number;
   emptyText?: string;
   className?: string;
+  /** Condensed variant: denser rows in a fixed-height scroll box so a
+   *  full-roster leaderboard stays compact on the page instead of running
+   *  the length of the roster. The list still scrolls to everyone. */
+  compact?: boolean;
 }) {
   return (
     <section
-      className={cn('rounded-2xl bg-[color:var(--card)] border', className)}
+      className={cn('rounded-2xl bg-[color:var(--card)] border', compact && 'relative overflow-hidden', className)}
       style={{ borderColor: 'var(--border)' }}
     >
       <header
@@ -49,7 +54,7 @@ export function Leaderboard({
       {rows.length === 0 ? (
         <p className="px-6 py-10 text-center text-[13px] text-[color:var(--ink-mute)]">{emptyText}</p>
       ) : (
-        <ol>
+        <ol className={compact ? 'max-h-[260px] overflow-y-auto overscroll-contain' : undefined}>
           {rows.map((row, i) => {
             const rank = i + 1;
             const isTop3 = rank <= 3;
@@ -59,7 +64,8 @@ export function Leaderboard({
                 <Link
                   href={`/dashboard/players/${row.player_id}`}
                   className={cn(
-                    'flex items-center gap-3 border-b px-6 py-3 transition hover:bg-[color:var(--card-hover)] last:border-b-0',
+                    'flex items-center gap-3 border-b transition hover:bg-[color:var(--card-hover)] last:border-b-0',
+                    compact ? 'px-6 py-2' : 'px-6 py-3',
                     isMe && 'bg-[color:var(--blue-soft)]/40',
                   )}
                   style={{ borderColor: 'var(--border)' }}
@@ -98,6 +104,12 @@ export function Leaderboard({
             );
           })}
         </ol>
+      )}
+      {compact && rows.length > 5 && (
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-8"
+          style={{ background: 'linear-gradient(to top, var(--card), transparent)' }}
+        />
       )}
     </section>
   );

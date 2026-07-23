@@ -45,8 +45,8 @@ export function TeamLeaderboards({
 
   return (
     <section className="reveal reveal-3 grid gap-6 md:grid-cols-2">
-      <Leaderboard title="This week" rows={weekRows} scoring={scoring} highlightPlayerId={highlightPlayerId} />
-      <Leaderboard title="All time" rows={allTimeRows} scoring={scoring} highlightPlayerId={highlightPlayerId} />
+      <Leaderboard title="This week" rows={weekRows} scoring={scoring} highlightPlayerId={highlightPlayerId} compact />
+      <Leaderboard title="All time" rows={allTimeRows} scoring={scoring} highlightPlayerId={highlightPlayerId} compact />
     </section>
   );
 }
