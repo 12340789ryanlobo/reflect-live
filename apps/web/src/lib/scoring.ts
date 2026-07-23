@@ -514,7 +514,7 @@ export async function computeCompetitionSeries(
   // makes buildBucketAxis switch to daily buckets, and aggregating only
   // in-window entries makes each athlete's total (and the ranking) reflect
   // just that window.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayCT();
   const { startISO, endISO } = competitionWindow(competition, period, today);
 
   const axis = buildBucketAxis(startISO, endISO);
@@ -552,6 +552,21 @@ export async function computeCompetitionSeries(
     axis,
   );
   return { rows, bucketAxis: axis.buckets, granularity: axis.granularity };
+}
+
+/**
+ * Today's calendar date (YYYY-MM-DD) in America/Chicago. Competition
+ * starts_at/ends_at are plain dates meant to run to Chicago midnight;
+ * comparing them against a UTC "today" flipped competitions (and the
+ * activity kinds they unlock) on/off ~6h early each evening.
+ */
+export function todayCT(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 /**

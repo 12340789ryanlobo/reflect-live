@@ -6,6 +6,7 @@
 // and the activity-logs POST validator so they never drift apart.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { todayCT } from './scoring';
 
 export const BASELINE_KINDS = ['workout', 'rehab'] as const;
 
@@ -16,7 +17,7 @@ export async function computeAllowedKinds(
   sb: SupabaseClient,
   teamId: number,
 ): Promise<string[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayCT();
   const { data, error } = await sb
     .from('competitions')
     .select('scoring')
