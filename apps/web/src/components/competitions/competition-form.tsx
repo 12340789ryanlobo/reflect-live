@@ -152,6 +152,10 @@ export function CompetitionForm({
         return;
       }
       router.push(successHref(res.competition.id));
+    } catch {
+      // A network drop or non-JSON 500 inside onSubmit would otherwise escape
+      // past the finally as an unhandled rejection with no error shown.
+      setErr('Something went wrong saving. Please try again.');
     } finally {
       setBusy(false);
     }

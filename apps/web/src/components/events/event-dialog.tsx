@@ -94,18 +94,24 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
       return;
     }
     setSearching(true);
+    const controller = new AbortController();
     debounceRef.current = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/geocode?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store' });
+        const r = await fetch(`/api/geocode?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store', signal: controller.signal });
         const j = (await r.json()) as { results?: GeoHit[] };
         setResults(j.results ?? []);
       } catch {
-        setResults([]);
+        // Aborted because a newer query superseded this one — don't clobber the
+        // newer results; only clear on a genuine error.
+        if (!controller.signal.aborted) setResults([]);
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
     }, 350);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      controller.abort();
+    };
   }, [query, picked]);
 
   function pick(h: GeoHit) {
@@ -185,10 +191,14 @@ export function EventDialog({ open, onOpenChange, teamId, existing, onSaved }: P
         : await fetch('/api/locations', {
             method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ team_id: teamId, ...payload }),
           });
-      const j = await res.json();
+      const j = await res.json().catch(() => ({} as { detail?: string; error?: string }));
       if (!res.ok) { setErr(j.detail ?? j.error ?? 'save_failed'); return; }
       onSaved();
       onOpenChange(false);
+    } catch {
+      // Network drop or a non-JSON 500 would otherwise escape the try (past the
+      // finally) as an unhandled rejection, leaving the dialog open with no error.
+      setErr('save_failed');
     } finally {
       setBusy(false);
     }

@@ -89,6 +89,8 @@ export function DangerZone({ activeTeamId, activeTeamName, canDeleteActiveTeam }
       // unambiguous.
       if (teamId === activeTeamId) window.location.assign('/dashboard');
       else setMems((prev) => prev.filter((m) => m.team_id !== teamId));
+    } catch {
+      setErr('leave_failed');
     } finally {
       setLeavingTeamId(null);
     }
