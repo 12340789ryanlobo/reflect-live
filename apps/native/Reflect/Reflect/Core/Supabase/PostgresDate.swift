@@ -1,39 +1,4 @@
 import Foundation
-import ClerkKit
-import Supabase
-
-/// Supabase client authorized by Clerk, mirroring apps/web/src/lib/supabase-browser.ts:
-/// every request carries a JWT minted from the Clerk "supabase" template, and
-/// Postgres RLS scopes rows to the user's team via user_preferences.
-enum SupabaseService {
-    static let client = SupabaseClient(
-        supabaseURL: AppConfig.supabaseURL,
-        supabaseKey: AppConfig.supabaseAnonKey,
-        options: SupabaseClientOptions(
-            db: .init(decoder: postgresDecoder),
-            auth: .init(accessToken: {
-                try await Clerk.shared.session?.getToken(.init(template: "supabase"))
-            })
-        )
-    )
-
-    /// Decodes Postgres timestamps (timestamptz with microseconds, with or without timezone).
-    static let postgresDecoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let raw = try container.decode(String.self)
-            guard let date = PostgresDate.parse(raw) else {
-                throw DecodingError.dataCorruptedError(
-                    in: container,
-                    debugDescription: "Unrecognized Postgres date: \(raw)"
-                )
-            }
-            return date
-        }
-        return decoder
-    }()
-}
 
 /// Parses Postgres timestamp strings, which vary in fractional-second precision
 /// (microseconds vs milliseconds) and may omit the timezone suffix.
