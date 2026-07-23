@@ -13,6 +13,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { toE164 } from '@/lib/phone';
 
 function serviceClient() {
   return createClient(
@@ -84,6 +85,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // Empty string from a form input should null the column rather than store ''.
   if ('group' in patch && (patch.group === '' || patch.group === undefined)) {
     patch.group = null;
+  }
+  // Normalize phone to E.164 (every other phone write does this). A raw
+  // "773-555-0100" would never match the worker's inbound matcher or the
+  // OTP/verify equality checks, silently breaking message→player linking.
+  if ('phone_e164' in patch) {
+    const normalized = toE164(String(patch.phone_e164 ?? ''));
+    if (!normalized) return NextResponse.json({ error: 'bad_phone' }, { status: 400 });
+    patch.phone_e164 = normalized;
   }
 
   const sb = serviceClient();

@@ -35,11 +35,19 @@ export async function requireFeature(
   feature: keyof PlanFeatures,
   sb: SupabaseClient,
 ): Promise<FeatureGateResult> {
-  const { data: team } = await sb
+  const { data: team, error } = await sb
     .from('teams')
     .select('plan')
     .eq('id', teamId)
     .maybeSingle<{ plan: string | null }>();
+  if (error) {
+    // Don't silently downgrade a paying team to 'free' (→ a wrong 402) on a
+    // transient read failure — surface a 500 so the client can retry.
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'plan_lookup_failed' }, { status: 500 }),
+    };
+  }
   const plan = resolvePlan(team?.plan);
   if (!PLANS[plan].features[feature]) {
     return {

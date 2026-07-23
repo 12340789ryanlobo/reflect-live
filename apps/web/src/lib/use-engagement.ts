@@ -39,21 +39,34 @@ export function useEngagement(
         .eq('active', true);
       if (groupFilter) pq.eq('group', groupFilter);
 
-      const [{ data: players }, { data: logs }] = await Promise.all([
-        pq,
-        sb
+      const { data: players } = await pq;
+
+      // Page through activity_logs — supabase caps a query at 1000 rows, and a
+      // team's baseline window (up to ~10 years) can exceed that; without this
+      // the older logs are silently dropped and every baseline is computed from
+      // truncated data (same reason scoring.ts paginates the identical query).
+      const logs: EngagementLog[] = [];
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await sb
           .from('activity_logs')
           .select('player_id,logged_at')
           .eq('team_id', teamId)
           .eq('hidden', false)
-          .gte('logged_at', since),
-      ]);
+          .gte('logged_at', since)
+          .range(from, from + PAGE - 1);
+        if (error || !data || data.length === 0) break;
+        logs.push(...(data as EngagementLog[]));
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
       if (!alive) return;
 
       setRows(
         computeEngagement({
           players: (players ?? []) as EngagementPlayer[],
-          logs: (logs ?? []) as EngagementLog[],
+          logs,
           windowDays,
           now,
         }),

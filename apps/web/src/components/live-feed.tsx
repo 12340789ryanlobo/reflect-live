@@ -62,7 +62,9 @@ export function LiveFeed({ teamId }: { teamId: number }) {
         { event: 'INSERT', schema: 'public', table: 'twilio_messages', filter: `team_id=eq.${teamId}` },
         (pl) => {
           const next = pl.new as TwilioMessage;
-          setMsgs((prev) => [next, ...prev].slice(0, 200));
+          // Dedupe by sid — a message can land in both the initial select
+          // snapshot and this INSERT event (React key collision + doubled row).
+          setMsgs((prev) => (prev.some((p) => p.sid === next.sid) ? prev : [next, ...prev].slice(0, 200)));
           setNewIds((prev) => new Set(prev).add(next.sid));
           setTimeout(() => {
             if (!mountedRef.current) return;

@@ -27,11 +27,16 @@ function channelOf(fromNumber: string): TwilioChannel {
 }
 
 export async function getTwilioConfigForTeam(sb: SupabaseClient, teamId: number): Promise<TwilioConfig> {
-  const { data: team } = await sb
+  const { data: team, error } = await sb
     .from('teams')
     .select('twilio_account_sid,twilio_auth_token,twilio_phone_number')
     .eq('id', teamId)
     .maybeSingle();
+  if (error) {
+    // Don't silently fall back to the global Twilio creds on a transient read
+    // failure — that could send from the wrong team's number. Fail instead.
+    throw new Error(`Twilio config lookup failed for team ${teamId}: ${error.message}`);
+  }
 
   const accountSid = team?.twilio_account_sid || process.env.TWILIO_ACCOUNT_SID;
   const authToken = team?.twilio_auth_token || process.env.TWILIO_AUTH_TOKEN;
