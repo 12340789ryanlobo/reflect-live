@@ -1,5 +1,5 @@
 import { auth, currentUser } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
+import { serviceClient } from '@/lib/supabase-server';
 import { NextResponse } from 'next/server';
 import { TEAM_SELECT } from '@/lib/team-select';
 
@@ -7,14 +7,6 @@ import { TEAM_SELECT } from '@/lib/team-select';
 // that just upserted a different row, and we need that read to skip
 // any Next.js / Vercel static-optimization caching layer.
 export const dynamic = 'force-dynamic';
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
 
 async function computeInitialRole(
   userId: string,

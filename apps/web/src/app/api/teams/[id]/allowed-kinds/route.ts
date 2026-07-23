@@ -12,17 +12,9 @@
 // Clerk session auth would be a poor fit. If we later need rate-limiting
 // or service-to-service auth, add a shared bearer here.
 
-import { createClient } from '@supabase/supabase-js';
+import { serviceClient } from '@/lib/supabase-server';
 import { NextResponse } from 'next/server';
 import { computeAllowedKinds } from '@/lib/allowed-kinds';
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
 
 export async function GET(
   _req: Request,

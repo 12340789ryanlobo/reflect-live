@@ -9,17 +9,9 @@
 // schema can evolve without API churn; we validate the shape inline.
 
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
+import { serviceClient } from '@/lib/supabase-server';
 import { NextResponse } from 'next/server';
 import { validateScoring, validateBonusRules, crossCheckBonusKinds } from '@/lib/competition-validate';
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
 
 async function requireTeamReader(teamId: number) {
   const { userId } = await auth();

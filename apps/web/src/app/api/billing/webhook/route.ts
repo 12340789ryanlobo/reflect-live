@@ -27,18 +27,11 @@
 //   - invoice.payment_succeeded      → ensure plan_status='active'
 
 import { NextResponse } from 'next/server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { serviceClient } from '@/lib/supabase-server';
 import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
 import { resolvePlan, type Plan } from '@/lib/billing-plans';
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
 
 export async function POST(req: Request) {
   const sig = req.headers.get('stripe-signature');

@@ -17,15 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
+import { serviceClient } from '@/lib/supabase-server';
 
 function looksLikeSid(s: string, prefix: string): boolean {
   // Twilio SIDs are 34 chars: 2-char prefix + 32 hex. Loose check —

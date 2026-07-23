@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
+import { serviceClient } from '@/lib/supabase-server';
 import type { SurveyQuestion } from '@reflect-live/shared';
 import { resolveTeamRole } from '@/lib/team-guard';
 
@@ -23,14 +23,6 @@ const QUESTION_TYPES = [
 ] as const;
 
 const MAX_QUESTIONS = 8;
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
 
 function validateQuestions(raw: unknown): { ok: true; questions: SurveyQuestion[] } | { ok: false; error: string } {
   if (!Array.isArray(raw)) return { ok: false, error: 'questions_must_be_array' };

@@ -7,7 +7,8 @@
 // can be members of paid teams but can't change the subscription.
 
 import { auth } from '@clerk/nextjs/server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { serviceClient } from '@/lib/supabase-server';
 import { NextResponse } from 'next/server';
 
 export type TeamBillingRow = {
@@ -22,14 +23,6 @@ export type TeamBillingRow = {
 export type BillingGuardResult =
   | { ok: true; userId: string; team: TeamBillingRow; sb: SupabaseClient }
   | { ok: false; response: NextResponse };
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
 
 export async function requireBillingActor(teamId: number): Promise<BillingGuardResult> {
   const { userId } = await auth();

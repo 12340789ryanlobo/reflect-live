@@ -10,15 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
+import { serviceClient } from '@/lib/supabase-server';
 
 export async function DELETE() {
   const { userId } = await auth();

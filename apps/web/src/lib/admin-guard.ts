@@ -7,7 +7,7 @@
 // don't need it before this check passes anyway.
 
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
+import { serviceClient } from '@/lib/supabase-server';
 import { NextResponse } from 'next/server';
 
 export type AdminGuardResult =
@@ -19,11 +19,7 @@ export async function requirePlatformAdmin(): Promise<AdminGuardResult> {
   if (!userId) {
     return { ok: false, response: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) };
   }
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
+  const sb = serviceClient();
   const { data } = await sb
     .from('user_preferences')
     .select('is_platform_admin, role')

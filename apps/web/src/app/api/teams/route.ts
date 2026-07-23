@@ -8,18 +8,10 @@
 //         credentials). Freeze/unfreeze and delete live on /api/teams/[id].
 
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
+import { serviceClient } from '@/lib/supabase-server';
 import { NextResponse } from 'next/server';
 import { generateTeamCode, isValidTeamCode } from '@reflect-live/shared';
 import { requirePlatformAdmin } from '@/lib/admin-guard';
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
 
 export async function GET() {
   const gate = await requirePlatformAdmin();
