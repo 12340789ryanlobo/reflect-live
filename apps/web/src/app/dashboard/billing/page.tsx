@@ -8,7 +8,7 @@
 // Falls back to 'free' if team.plan is undefined (migration not yet
 // applied), so this page works in both states.
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useDashboard, PageHeader } from '@/components/dashboard-shell';
@@ -41,6 +41,14 @@ const FEATURE_ROWS: FeatureRow[] = [
 ];
 
 export default function BillingPage() {
+  return (
+    <Suspense fallback={null}>
+      <Billing />
+    </Suspense>
+  );
+}
+
+function Billing() {
   const { team } = useDashboard();
   const sb = useSupabase();
   const params = useSearchParams();
