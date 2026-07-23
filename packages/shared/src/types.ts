@@ -165,17 +165,6 @@ export interface WeatherSnapshot {
   fetched_at: string;
 }
 
-export interface NewsItem {
-  id: number;
-  source: string;
-  title: string;
-  url: string;
-  summary: string | null;
-  image_url: string | null;
-  published_at: string | null;
-  ingested_at: string;
-}
-
 // ---- Membership foundation (sub-1, see 2026-04-29 spec) -------------------
 
 export type MembershipRole = 'athlete' | 'captain' | 'coach';

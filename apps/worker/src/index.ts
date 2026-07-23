@@ -4,7 +4,6 @@ import { PhoneCache, type PlayerRef } from './phone-cache';
 import { normalizePhone } from './twilio-row';
 import { pollOnce } from './poll';
 import { pollWeatherOnce } from './poll-weather';
-import { pollNewsOnce } from './poll-news';
 import { updateWorkerState } from './state';
 import { pollScheduledSends, pollReminders } from './survey-scheduler';
 
@@ -18,14 +17,12 @@ function envInt(name: string, fallback: number): number {
 
 const POLL_INTERVAL_MS = envInt('POLL_INTERVAL_MS', 15000);
 const WEATHER_INTERVAL_MS = envInt('WEATHER_INTERVAL_MS', 600000);
-const NEWS_INTERVAL_MS = envInt('NEWS_INTERVAL_MS', 1800000); // 30 min
 const SURVEY_INTERVAL_MS = envInt('SURVEY_INTERVAL_MS', 60000); // 1 min
 const BACKFILL_DAYS = envInt('BACKFILL_DAYS', 90);
 
 let running = true;
 let twilioErrors = 0;
 let weatherErrors = 0;
-let newsErrors = 0;
 let surveyErrors = 0;
 
 async function loadPhones(sb: ReturnType<typeof createServiceClient>) {
@@ -135,21 +132,6 @@ async function weatherLoop(sb: ReturnType<typeof createServiceClient>) {
   }
 }
 
-async function newsLoop(sb: ReturnType<typeof createServiceClient>) {
-  while (running) {
-    try {
-      const n = await pollNewsOnce(sb);
-      console.log('[news] polled, %d items', n);
-      newsErrors = 0;
-    } catch (err) {
-      newsErrors += 1;
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('[news] error (%d): %s', newsErrors, msg);
-    }
-    await new Promise((r) => setTimeout(r, backoff(NEWS_INTERVAL_MS, newsErrors)));
-  }
-}
-
 async function surveyLoop(
   sb: ReturnType<typeof createServiceClient>,
   tw: ReturnType<typeof twilio>,
@@ -185,15 +167,14 @@ async function main() {
 
   const outboundEnabled = process.env.TWILIO_OUTBOUND_ENABLED === 'true';
   console.log(
-    '[worker] starting. twilio=%dms weather=%dms news=%dms survey=%dms outbound=%s',
-    POLL_INTERVAL_MS, WEATHER_INTERVAL_MS, NEWS_INTERVAL_MS, SURVEY_INTERVAL_MS,
+    '[worker] starting. twilio=%dms weather=%dms survey=%dms outbound=%s',
+    POLL_INTERVAL_MS, WEATHER_INTERVAL_MS, SURVEY_INTERVAL_MS,
     outboundEnabled ? 'enabled' : 'shadow',
   );
 
   await Promise.all([
     twilioLoop(sb, tw, cache, teamNumbers),
     weatherLoop(sb),
-    newsLoop(sb),
     surveyLoop(sb, tw),
   ]);
 
