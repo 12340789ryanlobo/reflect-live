@@ -10,7 +10,6 @@ struct TodayView: View {
     @State private var composerModel: LogModel
     @State private var showComposer = false
     @State private var quickLogExpanded = false
-    @State private var logCount = 0
     @State private var shownPoints: Double = 0
 
     @Namespace private var glassNamespace
@@ -24,24 +23,51 @@ struct TodayView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                heroCard
-                if let errorMessage = model.errorMessage {
-                    ErrorBanner(message: errorMessage)
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    heroCard
+                    if let errorMessage = model.errorMessage {
+                        ErrorBanner(message: errorMessage)
+                    }
+                    pulseSection
                 }
-                pulseSection
+                .padding()
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity)
             }
-            .padding()
-            .frame(maxWidth: 560)
-            .frame(maxWidth: .infinity)
+            .safeAreaInset(edge: .bottom) { quickLogCluster }
+
+            if model.quietToast {
+                VStack {
+                    Spacer()
+                    Text(Copy.loggedQuiet)
+                        .font(.callout.weight(.medium))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(.bottom, 80)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            if let moment = model.logMoment {
+                LogMomentOverlay(
+                    data: moment,
+                    onUndo: { await model.undoLogMoment() },
+                    onDismiss: { model.dismissLogMoment() }
+                )
+                .zIndex(1)
+                .transition(.opacity)
+            }
         }
         .navigationTitle("Today")
-        .safeAreaInset(edge: .bottom) { quickLogCluster }
         .sheet(isPresented: $showComposer, onDismiss: {
             Task { await model.load() }
         }) {
-            LogComposerView(model: composerModel)
+            LogComposerView(model: composerModel) { kind, note, date in
+                await model.log(kind: kind, note: note, loggedAt: date)
+            }
         }
         .task { await model.load() }
         .task { await model.watchPulse() }
@@ -58,7 +84,6 @@ struct TodayView: View {
                 withAnimation(.easeOut(duration: 0.6)) { shownPoints = points }
             }
         }
-        .sensoryFeedback(.success, trigger: logCount)
 #if os(macOS)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -250,8 +275,6 @@ struct TodayView: View {
 
     private func quickLog(_ kind: String) async {
         withAnimation(.spring) { quickLogExpanded = false }
-        if await model.quickLog(kind: kind) != nil {
-            logCount += 1
-        }
+        await model.quickLog(kind: kind)
     }
 }

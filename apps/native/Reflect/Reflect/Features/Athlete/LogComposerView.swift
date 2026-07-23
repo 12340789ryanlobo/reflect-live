@@ -4,6 +4,10 @@ import SwiftUI
 /// scoring, not homework — minimum required input is two taps.
 struct LogComposerView: View {
     @Bindable var model: LogModel
+    /// When hosted by Today, submits route through TodayModel so current-day
+    /// logs get the Log Moment (backdates stay quiet). Nil = legacy path.
+    var onSubmit: ((String, String, Date) async -> Bool)? = nil
+
     @Environment(\.dismiss) private var dismiss
 
     @State private var kind = "workout"
@@ -32,9 +36,13 @@ struct LogComposerView: View {
                 }
                 Section {
                     AsyncButton("Log It", isWorking: $isWorking) {
-                        if await model.submit(kind: kind, description: note, loggedAt: loggedAt) {
-                            dismiss()
+                        let succeeded: Bool
+                        if let onSubmit {
+                            succeeded = await onSubmit(kind, note, loggedAt)
+                        } else {
+                            succeeded = await model.submit(kind: kind, description: note, loggedAt: loggedAt)
                         }
+                        if succeeded { dismiss() }
                     }
                 }
             }

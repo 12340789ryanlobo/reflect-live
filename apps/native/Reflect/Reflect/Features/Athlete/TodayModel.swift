@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import Supabase
+import SwiftUI
 
 /// The athlete's home screen state: composes the leaderboard (hero card),
 /// the team Pulse feed, my streak, and the one-tap quick-log kinds.
@@ -22,6 +23,9 @@ final class TodayModel {
     private(set) var streak = Streaks.Result(current: 0, longest: 0)
     private(set) var kinds: [String] = ["workout", "rehab"]
     private(set) var errorMessage: String?
+    private(set) var logMoment: LogMomentData?
+    private(set) var quietToast = false
+    private var myLogDates: [Date] = []
 
     init(membership: ActiveMembership) {
         self.membership = membership
@@ -139,20 +143,28 @@ final class TodayModel {
                 .gte("logged_at", value: SupabaseService.timestamp(since))
                 .execute()
                 .value
-            streak = Streaks.compute(logDates: rows.map(\.loggedAt))
+            myLogDates = rows.map(\.loggedAt)
+            streak = Streaks.compute(logDates: myLogDates)
         } catch {
             // Streak is decorative — keep the last value on transient errors.
         }
     }
 
-    // MARK: - Quick log
+    // MARK: - Logging (quick + composer)
 
-    /// One-tap log. Returns the created row, or nil on failure (error surfaced).
+    /// One-tap log: insert, then present the Log Moment computed locally from
+    /// the cached board — the celebration lands with the insert round-trip.
+    func quickLog(kind: String) async {
+        await log(kind: kind, note: nil, loggedAt: .now)
+    }
+
+    /// Composer path. Backdated logs get no rank theater — a quiet toast,
+    /// not a celebration of last Tuesday. Returns success.
     @discardableResult
-    func quickLog(kind: String) async -> ActivityLog? {
+    func log(kind: String, note: String?, loggedAt: Date) async -> Bool {
         guard let playerId = membership.playerId else {
             errorMessage = "Your account isn't linked to a roster spot yet — ask your team manager."
-            return nil
+            return false
         }
         errorMessage = nil
         do {
@@ -160,15 +172,52 @@ final class TodayModel {
                 teamId: membership.teamId,
                 playerId: playerId,
                 kind: kind,
-                description: nil,
-                loggedAt: .now
+                description: note,
+                loggedAt: loggedAt
             )
-            await load()
-            return log
+            let backdated = loggedAt < RankMath.startOfToday(in: LeaderboardModel.weekTimeZone)
+            if !backdated, let content = leaderboard.state.value {
+                let streakAfter = Streaks.compute(logDates: myLogDates + [log.loggedAt]).current
+                let moment = LogMomentData.make(
+                    kind: kind,
+                    logId: log.id,
+                    playerId: playerId,
+                    players: content.players,
+                    scoring: content.scoring,
+                    weekEntries: content.weekEntries,
+                    activeCompetition: content.activeCompetition,
+                    newEntry: LeaderboardModel.Entry(playerId: playerId, kind: kind, loggedAt: log.loggedAt),
+                    streakBefore: streak.current,
+                    streakAfter: streakAfter
+                )
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    logMoment = moment
+                }
+            } else {
+                quietToast = true
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    withAnimation { quietToast = false }
+                }
+            }
+            Task { await load() }
+            return true
         } catch {
             errorMessage = error.localizedDescription
-            return nil
+            return false
         }
+    }
+
+    func dismissLogMoment() {
+        withAnimation(.easeOut(duration: 0.2)) { logMoment = nil }
+    }
+
+    /// Undo from the Log Moment: soft-delete (hidden=true) and refresh.
+    func undoLogMoment() async {
+        guard let moment = logMoment else { return }
+        try? await LogModel.hideLog(id: moment.logId)
+        dismissLogMoment()
+        await load()
     }
 
     // MARK: - Realtime pulse

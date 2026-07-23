@@ -14,7 +14,7 @@ import Supabase
 @Observable
 final class LeaderboardModel {
     /// One activity entry inside the fetched window.
-    struct Entry: Decodable, Hashable {
+    nonisolated struct Entry: Decodable, Hashable {
         let playerId: Int?
         let kind: String
         let loggedAt: Date
@@ -51,7 +51,7 @@ final class LeaderboardModel {
 
     // MARK: - Pure recomputes (shared with TodayModel / Log Moment)
 
-    static func weekBoard(
+    nonisolated static func weekBoard(
         players: [Player],
         entries: [Entry],
         scoring: TeamScoring,
@@ -67,7 +67,7 @@ final class LeaderboardModel {
         )
     }
 
-    static func competitionBoard(
+    nonisolated static func competitionBoard(
         players: [Player],
         entries: [Entry],
         competition: Competition,
