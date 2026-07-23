@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { computeCompetitionLeaderboard } from '@/lib/scoring';
 import type { Competition } from '@reflect-live/shared';
+import { validateScoring, validateBonusRules, crossCheckBonusKinds } from '@/lib/competition-validate';
 
 function serviceClient() {
   return createClient(
@@ -92,7 +93,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const gate = await loadCompetitionAndGate(id, true);
   if ('error' in gate) return gate.error;
-  const { sb } = gate;
+  const { sb, comp } = gate;
 
   const patch: Record<string, unknown> = {};
 
@@ -110,17 +111,26 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       patch[field] = body[field];
     }
   }
+  // Deep-validate scoring/bonus_rules (matching POST), then cross-check bonus
+  // kinds against the *effective* post-patch values so an edit can't leave the
+  // competition inconsistent (a bonus rule pointing at an unscored kind).
+  let effectiveScoring = (comp.scoring ?? {}) as Record<string, number>;
+  let effectiveBonus = (comp.bonus_rules ?? []) as Array<{ kind: string }>;
   if ('scoring' in body) {
-    if (typeof body.scoring !== 'object' || body.scoring == null || Array.isArray(body.scoring)) {
-      return NextResponse.json({ error: 'scoring_invalid' }, { status: 400 });
-    }
-    patch.scoring = body.scoring;
+    const scoring = validateScoring(body.scoring);
+    if ('error' in scoring) return NextResponse.json({ error: 'scoring_invalid', detail: scoring.error }, { status: 400 });
+    patch.scoring = scoring;
+    effectiveScoring = scoring;
   }
   if ('bonus_rules' in body) {
-    if (!Array.isArray(body.bonus_rules)) {
-      return NextResponse.json({ error: 'bonus_rules_invalid' }, { status: 400 });
-    }
-    patch.bonus_rules = body.bonus_rules;
+    const bonusRules = validateBonusRules(body.bonus_rules);
+    if ('error' in bonusRules) return NextResponse.json({ error: 'bonus_rules_invalid', detail: bonusRules.error }, { status: 400 });
+    patch.bonus_rules = bonusRules;
+    effectiveBonus = bonusRules;
+  }
+  if ('scoring' in body || 'bonus_rules' in body) {
+    const crossErr = crossCheckBonusKinds(effectiveScoring, effectiveBonus);
+    if (crossErr) return NextResponse.json({ error: 'bonus_rule_kind_unscored', detail: crossErr }, { status: 400 });
   }
   if ('archived' in body) {
     patch.archived_at = body.archived ? new Date().toISOString() : null;

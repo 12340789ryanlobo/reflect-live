@@ -11,6 +11,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { validateScoring, validateBonusRules, crossCheckBonusKinds } from '@/lib/competition-validate';
 
 function serviceClient() {
   return createClient(
@@ -68,42 +69,6 @@ interface CreateBody {
   bonus_rules?: unknown;
 }
 
-function validateScoring(raw: unknown): Record<string, number> | { error: string } {
-  if (raw == null) return {};
-  if (typeof raw !== 'object' || Array.isArray(raw)) return { error: 'scoring must be an object' };
-  const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof v !== 'number' || !Number.isFinite(v)) return { error: `scoring.${k} must be a finite number` };
-    if (!/^[a-z][a-z0-9_]*$/.test(k)) return { error: `scoring key "${k}" must be lowercase alphanumeric` };
-    out[k] = v;
-  }
-  return out;
-}
-
-function validateBonusRules(raw: unknown): Array<{ kind: string; min_per_day: number; bonus_points: number }> | { error: string } {
-  if (raw == null) return [];
-  if (!Array.isArray(raw)) return { error: 'bonus_rules must be an array' };
-  const out: Array<{ kind: string; min_per_day: number; bonus_points: number }> = [];
-  for (let i = 0; i < raw.length; i++) {
-    const r = raw[i] as Record<string, unknown>;
-    if (!r || typeof r !== 'object') return { error: `bonus_rules[${i}] must be an object` };
-    const kind = r.kind;
-    const minPerDay = r.min_per_day;
-    const bonus = r.bonus_points;
-    if (typeof kind !== 'string' || !/^[a-z][a-z0-9_]*$/.test(kind)) {
-      return { error: `bonus_rules[${i}].kind invalid` };
-    }
-    if (!Number.isInteger(minPerDay) || (minPerDay as number) < 2) {
-      return { error: `bonus_rules[${i}].min_per_day must be an integer >= 2` };
-    }
-    if (typeof bonus !== 'number' || !Number.isFinite(bonus)) {
-      return { error: `bonus_rules[${i}].bonus_points must be a finite number` };
-    }
-    out.push({ kind, min_per_day: minPerDay as number, bonus_points: bonus });
-  }
-  return out;
-}
-
 export async function POST(req: Request) {
   let body: CreateBody;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'invalid_json' }, { status: 400 }); }
@@ -138,18 +103,10 @@ export async function POST(req: Request) {
   const bonusRules = validateBonusRules(body.bonus_rules);
   if ('error' in bonusRules) return NextResponse.json({ error: 'bonus_rules_invalid', detail: bonusRules.error }, { status: 400 });
 
-  // Cross-validate: every kind referenced in bonus_rules should also
-  // appear in scoring. Otherwise the rule silently no-ops (caught by
-  // the aggregator) but the coach probably made a typo. Block at API
-  // layer so the misconfig surfaces immediately on save.
-  for (const rule of bonusRules) {
-    if (!(rule.kind in scoring)) {
-      return NextResponse.json(
-        { error: 'bonus_rule_kind_unscored', detail: `bonus_rules references kind "${rule.kind}" but it has no points in scoring` },
-        { status: 400 },
-      );
-    }
-  }
+  // Cross-validate: every kind referenced in bonus_rules must carry points in
+  // scoring, else the rule silently no-ops — surface the likely typo on save.
+  const crossErr = crossCheckBonusKinds(scoring, bonusRules);
+  if (crossErr) return NextResponse.json({ error: 'bonus_rule_kind_unscored', detail: crossErr }, { status: 400 });
 
   const { data, error } = await sb
     .from('competitions')
