@@ -2,7 +2,7 @@ import Foundation
 
 /// The voice, in one place. Second person, terse, present tense.
 /// No exclamation marks, no emoji — the scoreboard doesn't cheer, it reports.
-enum Copy {
+nonisolated enum Copy {
     static let boardEmpty = "Board's empty. First log leads."
     static let pulseQuiet = "Quiet so far today."
     static let notOnBoard = "One log puts you on the board."

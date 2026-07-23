@@ -207,3 +207,24 @@ history is the authoritative record — this is just a readable summary.
   teammates' rows + images; only the UI surface was missing. (A near-exact
   copy of the old `/dashboard/fitness` page still sits untracked in the tree,
   unreachable behind a `next.config.ts` redirect + the athlete access-gate.)
+
+## 2026-07-23 — Reflect v2 Phase 1 + 1.5 (native app)
+
+- **Phase 1 walking skeleton on Supabase Auth** (`649c7af`): Clerk replaced by
+  Supabase Auth (Sign in with Apple + email OTP; SIWA awaits the paid dev
+  account), `clerk_user_id` → `user_id` (0036), client-write RLS model (0037:
+  athlete self-logs, coach roster/membership writes, `join_team_by_code` +
+  `create_team_with_manager` RPCs). Role-forked shell (athlete tabs / manager
+  console), onboarding fork (join by code / invite deep link / start a team),
+  manager request approval, `reflect://` invite links, "View as athlete"
+  preview for managers. Web is identity-frozen until Phase 6.
+- **Phase 1.5 "The Feel"** (`8cd4d22`…): locker-room scoreboard identity —
+  pool-cyan accent, rolled monospaced numerals, terse second-person copy.
+  Today rebuilt as the scoreboard (week points/rank/movement/streak hero,
+  live team Pulse via Realtime on activity_logs (0038), two-tap Liquid Glass
+  quick-log). The Log Moment: beat-choreographed celebration (points count
+  up → rank rolls with verdict + success haptic → streak tick), honest by
+  design (no theater for backdates/unscored/failures), 5s undo. Board
+  rebuilt: movement arrows vs yesterday, streak flames, me-row + gap chip,
+  broadcast top-3. Pure logic pinned by StreaksTests/LogMomentDataTests
+  (test target pending in Xcode).

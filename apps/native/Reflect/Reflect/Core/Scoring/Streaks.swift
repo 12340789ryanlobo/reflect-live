@@ -4,7 +4,7 @@ import Foundation
 // everything takes values in and returns values out so ReflectTests can
 // pin the behavior (especially the timezone day-bucketing).
 
-enum Streaks {
+nonisolated enum Streaks {
     /// Matches LeaderboardModel.weekTimeZone; teams.timezone isn't
     /// client-readable (0035 column grants).
     static let teamTimeZone = TimeZone(identifier: "America/Chicago") ?? .current
@@ -56,14 +56,14 @@ enum Streaks {
 }
 
 /// A player's rank change vs the board as of end-of-yesterday.
-enum Movement: Equatable {
+nonisolated enum Movement: Equatable {
     case up(Int)
     case down(Int)
     case same
     case entered // not on yesterday's board
 }
 
-enum RankMath {
+nonisolated enum RankMath {
     /// Board-shape-agnostic: ordered playerIds today vs at the cutoff.
     static func movement(current: [Int], previous: [Int]) -> [Int: Movement] {
         let previousIndex = Dictionary(uniqueKeysWithValues: previous.enumerated().map { ($1, $0) })

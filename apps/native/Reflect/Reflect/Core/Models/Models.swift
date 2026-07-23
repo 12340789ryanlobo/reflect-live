@@ -4,7 +4,7 @@ import Foundation
 // Column-level grants on `teams` (migration 0035) limit what the client may
 // select — stay within that list.
 
-struct Team: Codable, Identifiable, Hashable {
+nonisolated struct Team: Codable, Identifiable, Hashable {
     let id: Int
     let name: String
     let teamCode: String?
@@ -18,7 +18,7 @@ struct Team: Codable, Identifiable, Hashable {
 }
 
 /// Legacy weekly-leaderboard weights from teams.scoring_json.
-struct TeamScoring: Codable, Hashable {
+nonisolated struct TeamScoring: Codable, Hashable {
     let workoutScore: Double
     let rehabScore: Double
 
@@ -30,7 +30,7 @@ struct TeamScoring: Codable, Hashable {
     static let fallback = TeamScoring(workoutScore: 1, rehabScore: 1)
 }
 
-struct Player: Codable, Identifiable, Hashable {
+nonisolated struct Player: Codable, Identifiable, Hashable {
     let id: Int
     let teamId: Int
     let name: String
@@ -60,7 +60,7 @@ nonisolated struct ActivityLog: Codable, Identifiable, Hashable {
     }
 }
 
-struct Competition: Codable, Identifiable, Hashable {
+nonisolated struct Competition: Codable, Identifiable, Hashable {
     let id: Int
     let teamId: Int
     let name: String
@@ -84,7 +84,7 @@ struct Competition: Codable, Identifiable, Hashable {
     }
 }
 
-struct CompetitionBonusRule: Codable, Hashable {
+nonisolated struct CompetitionBonusRule: Codable, Hashable {
     let kind: String
     let minPerDay: Int
     let bonusPoints: Double
@@ -97,7 +97,7 @@ struct CompetitionBonusRule: Codable, Hashable {
 }
 
 /// A pending join request as seen by a team manager.
-struct JoinRequest: Codable, Identifiable, Hashable {
+nonisolated struct JoinRequest: Codable, Identifiable, Hashable {
     let userId: String
     let teamId: Int
     let requestedName: String?

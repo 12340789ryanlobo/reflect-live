@@ -4,7 +4,7 @@ import Foundation
 // aggregateCompetition). Pure functions — pinned by ReflectTests so the
 // port can't drift from the TS original silently.
 
-struct LeaderboardRow: Identifiable, Hashable {
+nonisolated struct LeaderboardRow: Identifiable, Hashable {
     let playerId: Int
     let name: String
     let group: String?
@@ -15,12 +15,12 @@ struct LeaderboardRow: Identifiable, Hashable {
     var id: Int { playerId }
 }
 
-struct LeaderboardEntry: Hashable {
+nonisolated struct LeaderboardEntry: Hashable {
     let playerId: Int
     let kind: String
 }
 
-struct CompetitionLeaderboardRow: Identifiable, Hashable {
+nonisolated struct CompetitionLeaderboardRow: Identifiable, Hashable {
     let playerId: Int
     let name: String
     let group: String?
@@ -35,13 +35,13 @@ struct CompetitionLeaderboardRow: Identifiable, Hashable {
 
 /// Same as LeaderboardEntry plus the day (ISO YYYY-MM-DD, UTC slice of
 /// logged_at) so stacking rules can group by (player, day).
-struct CompetitionEntry: Hashable {
+nonisolated struct CompetitionEntry: Hashable {
     let playerId: Int
     let kind: String
     let day: String
 }
 
-enum Leaderboard {
+nonisolated enum Leaderboard {
     /// Round to 4 decimals to suppress IEEE 754 accumulation artifacts from
     /// fractional weights, mirroring roundPoints in scoring.ts.
     static func roundPoints(_ n: Double) -> Double {
