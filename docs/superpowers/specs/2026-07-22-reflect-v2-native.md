@@ -177,3 +177,35 @@ The `scheduled_sends.channel` CHECK constraint is extended in migration 0038 to 
 4. **Coach approval is a two-write client sequence.** Approving a request requires updating the membership row and optionally creating/linking a `players` row — not atomic. A `approve_membership` security definer RPC is noted as a fallback if non-atomicity causes visible inconsistency in practice.
 
 5. **Column-level grants are role-wide.** `GRANT UPDATE (kind, description, …) ON activity_logs` applies to all `authenticated` users; the row policy provides the actual per-athlete/per-coach separation. Any migration that adds a column to `activity_logs` must evaluate whether the grant list needs updating.
+
+---
+
+## 11. Positioning addendum — one loop, two seasons (2026-07-23)
+
+The game (Scoreboard) and the coach-athlete connection (Pulse) are the same
+mechanism in different seasons, not two products: athletes put in a 30-second
+signal (a log, a check-in); the team gets a live picture back.
+
+- **Off-season → the Scoreboard.** The signal is workout logs; the picture is
+  the leaderboard. Accountability through the game. (Phase 1.5 "The Feel".)
+- **In-season → the Pulse.** The signal is the daily check-in; the picture is
+  the coach's **Morning Brief** — who's ready, who's fading, who's hurting,
+  three names and why, readable in sixty seconds. (Phase 2's coach surface is
+  designed as the Morning Brief, not a sessions dashboard.)
+
+**Stranger pitch:** "A college team runs on a group chat and a spreadsheet —
+this app replaces both. Off-season it turns training into a team competition
+so the work gets done; in-season it gives the coach a daily read on who's
+ready, fading, or hurting, without forms."
+
+**Connection design laws** (how coach↔athlete connection is done well where
+others fail):
+
+1. Signals ride existing habits — the check-in lives inside the app athletes
+   already open to log and check rank. Thirty seconds, hard ceiling.
+2. Reciprocity, not surveillance — every signal returns value to the athlete
+   (points, streaks, their own readiness trend). Athletes see their own
+   picture; they are not just feeding a coach dashboard.
+3. Coach output is action-sized — a morning brief, not analytics.
+4. The app points at the human conversation, it never replaces it — a flag
+   ends with "check in with Maya at practice", not an automated message.
