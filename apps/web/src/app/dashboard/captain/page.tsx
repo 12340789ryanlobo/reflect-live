@@ -34,26 +34,37 @@ export default function CaptainHome() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: ps }, { data: msgs }, { data: locs }] = await Promise.all([
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const [{ data: ps }, { data: locs }] = await Promise.all([
         sb.from('players').select('*').eq('team_id', prefs.team_id).eq('active', true),
-        sb
-          .from('twilio_messages')
-          .select('player_id,direction,category,body,date_sent')
-          .eq('team_id', prefs.team_id)
-          .eq('hidden', false)
-          .gte('date_sent', new Date(Date.now() - 7 * 86400000).toISOString()),
         sb.from('locations').select('*').eq('team_id', prefs.team_id),
       ]);
       const playerList = (ps ?? []) as Player[];
       setPlayers(playerList);
-      const m =
-        (msgs ?? []) as Array<{
-          player_id: number | null;
-          direction: string;
-          category: string;
-          body: string | null;
-          date_sent: string;
-        }>;
+      // Page through the 7-day window (Supabase caps each .select() at
+      // 1000) so a busy week doesn't silently drop check-ins.
+      type Msg = {
+        player_id: number | null;
+        direction: string;
+        category: string;
+        body: string | null;
+        date_sent: string;
+      };
+      const PAGE = 1000;
+      const m: Msg[] = [];
+      for (let off = 0; ; off += PAGE) {
+        const { data: page } = await sb
+          .from('twilio_messages')
+          .select('player_id,direction,category,body,date_sent')
+          .eq('team_id', prefs.team_id)
+          .eq('hidden', false)
+          .gte('date_sent', sevenDaysAgo)
+          .order('date_sent', { ascending: false })
+          .range(off, off + PAGE - 1);
+        if (!page || page.length === 0) break;
+        m.push(...(page as Msg[]));
+        if (page.length < PAGE) break;
+      }
 
       const last = new Map<number, string>();
       for (const row of m) {

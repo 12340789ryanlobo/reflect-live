@@ -133,40 +133,48 @@ export default function SettingsPage() {
     if (!prefs) return;
     setSaving(true);
     setStatus(null);
-    const res = await fetch('/api/preferences', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        team_id: prefs.team_id,
-        watchlist: prefs.watchlist,
-        group_filter: groupFilter || null,
-        role: canEditRole ? role : prefs.role ?? 'coach',
-        impersonate_player_id: role === 'athlete' ? prefs.impersonate_player_id : null,
-      }),
-    });
-    if (res.ok) setStatus('Saved.');
-    else setStatus('Error saving.');
-    setSaving(false);
-    await refresh();
+    try {
+      const res = await fetch('/api/preferences', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          team_id: prefs.team_id,
+          watchlist: prefs.watchlist,
+          group_filter: groupFilter || null,
+          role: canEditRole ? role : prefs.role ?? 'coach',
+          impersonate_player_id: role === 'athlete' ? prefs.impersonate_player_id : null,
+        }),
+      });
+      if (res.ok) setStatus('Saved.');
+      else setStatus('Error saving.');
+      await refresh();
+    } catch {
+      setStatus('Error saving.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function setAthlete(playerId: number | null) {
     if (!prefs) return;
     setSaving(true);
-    await fetch('/api/preferences', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        team_id: prefs.team_id,
-        watchlist: prefs.watchlist,
-        group_filter: prefs.group_filter,
-        role: playerId ? 'athlete' : role,
-        impersonate_player_id: playerId,
-      }),
-    });
-    setSaving(false);
-    await refresh();
-    setStatus(playerId ? 'Athlete selected.' : 'Athlete cleared.');
+    try {
+      await fetch('/api/preferences', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          team_id: prefs.team_id,
+          watchlist: prefs.watchlist,
+          group_filter: prefs.group_filter,
+          role: playerId ? 'athlete' : role,
+          impersonate_player_id: playerId,
+        }),
+      });
+      await refresh();
+      setStatus(playerId ? 'Athlete selected.' : 'Athlete cleared.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveScoring() {
@@ -179,100 +187,125 @@ export default function SettingsPage() {
       setScoringSaving(false);
       return;
     }
-    const res = await fetch('/api/team/scoring', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ workout_score: ws, rehab_score: rs }),
-    });
-    if (res.ok) {
-      setScoringStatus('Saved.');
-      await refresh();
-      await refreshShell();
-    } else {
-      const j = await res.json().catch(() => ({}));
-      setScoringStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    try {
+      const res = await fetch('/api/team/scoring', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workout_score: ws, rehab_score: rs }),
+      });
+      if (res.ok) {
+        setScoringStatus('Saved.');
+        await refresh();
+        await refreshShell();
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setScoringStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+      }
+    } catch {
+      setScoringStatus('Save failed.');
+    } finally {
+      setScoringSaving(false);
     }
-    setScoringSaving(false);
   }
 
   async function saveGender(next: 'male' | 'female') {
     setGenderSaving(true);
     setGenderStatus(null);
-    const res = await fetch('/api/team/gender', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ default_gender: next }),
-    });
-    if (res.ok) {
-      setGenderStatus('Saved.');
-      await refresh();
-      await refreshShell();
-      setTimeout(() => setGenderStatus(null), 2000);
-    } else {
-      const j = await res.json().catch(() => ({}));
-      setGenderStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    try {
+      const res = await fetch('/api/team/gender', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ default_gender: next }),
+      });
+      if (res.ok) {
+        setGenderStatus('Saved.');
+        await refresh();
+        await refreshShell();
+        setTimeout(() => setGenderStatus(null), 2000);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setGenderStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+      }
+    } catch {
+      setGenderStatus('Save failed.');
+    } finally {
+      setGenderSaving(false);
     }
-    setGenderSaving(false);
   }
 
   async function saveCaptainCanViewSessions(next: boolean) {
     if (!team) return;
     setCaptainPermsSaving(true);
     setCaptainPermsStatus(null);
-    const res = await fetch(`/api/teams/${team.id}/settings`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ captain_can_view_sessions: next }),
-    });
-    if (res.ok) {
-      setCaptainPermsStatus('Saved.');
-      await refresh();
-      await refreshShell();
-      setTimeout(() => setCaptainPermsStatus(null), 2000);
-    } else {
-      const j = await res.json().catch(() => ({}));
-      setCaptainPermsStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    try {
+      const res = await fetch(`/api/teams/${team.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ captain_can_view_sessions: next }),
+      });
+      if (res.ok) {
+        setCaptainPermsStatus('Saved.');
+        await refresh();
+        await refreshShell();
+        setTimeout(() => setCaptainPermsStatus(null), 2000);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setCaptainPermsStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+      }
+    } catch {
+      setCaptainPermsStatus('Save failed.');
+    } finally {
+      setCaptainPermsSaving(false);
     }
-    setCaptainPermsSaving(false);
   }
 
   async function saveSeasonStart(next: string | null) {
     if (!team) return;
     setSeasonSaving(true);
     setSeasonStatus(null);
-    const res = await fetch(`/api/teams/${team.id}/settings`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ competition_start_date: next }),
-    });
-    if (res.ok) {
-      setSeasonStatus('Saved.');
-      await refresh();
-      await refreshShell();
-      setTimeout(() => setSeasonStatus(null), 2000);
-    } else {
-      const j = await res.json().catch(() => ({}));
-      setSeasonStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    try {
+      const res = await fetch(`/api/teams/${team.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ competition_start_date: next }),
+      });
+      if (res.ok) {
+        setSeasonStatus('Saved.');
+        await refresh();
+        await refreshShell();
+        setTimeout(() => setSeasonStatus(null), 2000);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setSeasonStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+      }
+    } catch {
+      setSeasonStatus('Save failed.');
+    } finally {
+      setSeasonSaving(false);
     }
-    setSeasonSaving(false);
   }
 
   async function saveMyGender(next: 'male' | 'female' | null) {
     setMeGenderSaving(true);
     setMeGenderStatus(null);
-    const res = await fetch('/api/me/gender', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ gender: next }),
-    });
-    setMeGenderSaving(false);
-    if (res.ok) {
-      setMeGenderStatus('Saved.');
-      await refresh();
-      setTimeout(() => setMeGenderStatus(null), 2000);
-    } else {
-      const j = await res.json().catch(() => ({}));
-      setMeGenderStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+    try {
+      const res = await fetch('/api/me/gender', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ gender: next }),
+      });
+      if (res.ok) {
+        setMeGenderStatus('Saved.');
+        await refresh();
+        setTimeout(() => setMeGenderStatus(null), 2000);
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setMeGenderStatus(j.error ? `Error: ${j.error}` : 'Save failed.');
+      }
+    } catch {
+      setMeGenderStatus('Save failed.');
+    } finally {
+      setMeGenderSaving(false);
     }
   }
 
@@ -281,74 +314,88 @@ export default function SettingsPage() {
     if (newRole === role) return;
     setRole(newRole);
     setStatus(`Switching to ${newRole.charAt(0).toUpperCase() + newRole.slice(1)} view…`);
-    await fetch('/api/preferences', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        team_id: prefs.team_id,
-        watchlist: prefs.watchlist,
-        group_filter: prefs.group_filter,
-        role: newRole,
-        impersonate_player_id: newRole === 'athlete' ? prefs.impersonate_player_id : null,
-      }),
-    });
-    await refresh();
-    await refreshShell();
-    setStatus(`Switched to ${newRole.charAt(0).toUpperCase() + newRole.slice(1)} view.`);
-    setTimeout(() => setStatus(null), 2200);
+    try {
+      await fetch('/api/preferences', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          team_id: prefs.team_id,
+          watchlist: prefs.watchlist,
+          group_filter: prefs.group_filter,
+          role: newRole,
+          impersonate_player_id: newRole === 'athlete' ? prefs.impersonate_player_id : null,
+        }),
+      });
+      await refresh();
+      await refreshShell();
+      setStatus(`Switched to ${newRole.charAt(0).toUpperCase() + newRole.slice(1)} view.`);
+      setTimeout(() => setStatus(null), 2200);
+    } catch {
+      setStatus('Could not switch view.');
+    }
   }
 
   async function requestOtp() {
     setOtpSending(true);
     setOtpMessage(null);
-    const res = await fetch('/api/phone/request-otp', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ phone: phoneInput }),
-    });
-    const json = await res.json();
-    setOtpSending(false);
-    if (res.ok && json.ok) {
-      setOtpSentTo(json.phone);
-      setOtpStep('code');
-      const via = json.channel === 'whatsapp' ? 'WhatsApp' : 'SMS';
-      setOtpMessage({
-        tone: 'ok',
-        text: `Code sent via ${via} to ${prettyPhone(json.phone)}. It expires in 10 minutes.`,
+    try {
+      const res = await fetch('/api/phone/request-otp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone: phoneInput }),
       });
-    } else {
-      setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Could not send code.' });
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        setOtpSentTo(json.phone);
+        setOtpStep('code');
+        const via = json.channel === 'whatsapp' ? 'WhatsApp' : 'SMS';
+        setOtpMessage({
+          tone: 'ok',
+          text: `Code sent via ${via} to ${prettyPhone(json.phone)}. It expires in 10 minutes.`,
+        });
+      } else {
+        setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Could not send code.' });
+      }
+    } catch {
+      setOtpMessage({ tone: 'err', text: 'Could not send code.' });
+    } finally {
+      setOtpSending(false);
     }
   }
 
   async function verifyOtp() {
     setOtpVerifying(true);
     setOtpMessage(null);
-    const res = await fetch('/api/phone/verify-otp', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ phone: otpSentTo, code: codeInput }),
-    });
-    const json = await res.json();
-    setOtpVerifying(false);
-    if (res.ok && json.ok && json.linked) {
-      setOtpMessage({
-        tone: 'ok',
-        text: `Linked to ${json.player.name}. You now have an athlete view in the sidebar.`,
+    try {
+      const res = await fetch('/api/phone/verify-otp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone: otpSentTo, code: codeInput }),
       });
-      setOtpStep('phone');
-      setCodeInput('');
-      setPhoneInput('');
-      setOtpSentTo(null);
-      await refresh();
-      await refreshShell();
-    } else if (res.ok && json.verified && !json.linked) {
-      setOtpMessage({
-        tone: 'err',
-        text: json.message ?? 'Phone verified but not on the team roster. Ask the admin to add you.',
-      });
-    } else {
-      setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Verification failed.' });
+      const json = await res.json();
+      if (res.ok && json.ok && json.linked) {
+        setOtpMessage({
+          tone: 'ok',
+          text: `Linked to ${json.player.name}. You now have an athlete view in the sidebar.`,
+        });
+        setOtpStep('phone');
+        setCodeInput('');
+        setPhoneInput('');
+        setOtpSentTo(null);
+        await refresh();
+        await refreshShell();
+      } else if (res.ok && json.verified && !json.linked) {
+        setOtpMessage({
+          tone: 'err',
+          text: json.message ?? 'Phone verified but not on the team roster. Ask the admin to add you.',
+        });
+      } else {
+        setOtpMessage({ tone: 'err', text: json.message ?? json.error ?? 'Verification failed.' });
+      }
+    } catch {
+      setOtpMessage({ tone: 'err', text: 'Verification failed.' });
+    } finally {
+      setOtpVerifying(false);
     }
   }
 

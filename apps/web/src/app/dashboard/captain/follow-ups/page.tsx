@@ -32,17 +32,27 @@ export default function FollowUpsPage() {
         .eq('team_id', prefs.team_id)
         .eq('active', true);
       setPlayers((ps ?? []) as Player[]);
-      const { data: msgs } = await sb
-        .from('twilio_messages')
-        .select('player_id,date_sent,direction')
-        .eq('team_id', prefs.team_id)
-        .eq('hidden', false)
-        .eq('direction', 'inbound')
-        .order('date_sent', { ascending: false });
+      // Page through inbound messages (Supabase caps each .select() at
+      // 1000). Desc order means the first row we see per player is their
+      // latest reply; a truncated fetch would falsely mark older players
+      // "silent".
       const last = new Map<number, string>();
-      for (const row of (msgs ?? []) as Array<{ player_id: number | null; date_sent: string }>) {
-        if (row.player_id == null) continue;
-        if (!last.has(row.player_id)) last.set(row.player_id, row.date_sent);
+      const PAGE = 1000;
+      for (let off = 0; ; off += PAGE) {
+        const { data: page } = await sb
+          .from('twilio_messages')
+          .select('player_id,date_sent')
+          .eq('team_id', prefs.team_id)
+          .eq('hidden', false)
+          .eq('direction', 'inbound')
+          .order('date_sent', { ascending: false })
+          .range(off, off + PAGE - 1);
+        if (!page || page.length === 0) break;
+        for (const row of page as Array<{ player_id: number | null; date_sent: string }>) {
+          if (row.player_id == null) continue;
+          if (!last.has(row.player_id)) last.set(row.player_id, row.date_sent);
+        }
+        if (page.length < PAGE) break;
       }
       setLastByPlayer(last);
     })();

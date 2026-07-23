@@ -47,6 +47,7 @@ export default function Dashboard() {
 
   // Stats + trend
   useEffect(() => {
+    let alive = true;
     (async () => {
       const since = periodSinceIso(days);
       const groupFilter = prefs.group_filter;
@@ -130,6 +131,7 @@ export default function Dashboard() {
       // the readiness bucket only (not "every numeric reply"), so a
       // Tuesday/Thursday survey day with sleep/focus/RPE numbers
       // doesn't inflate or distort the readiness number.
+      if (!alive) return;
       setScopedMsgs(scoped);
       setCounts((prev) => ({
         ...prev,
@@ -141,6 +143,7 @@ export default function Dashboard() {
         // useMemo below from the trends, after pairing.
       }));
     })();
+    return () => { alive = false; };
   }, [sb, prefs.team_id, prefs.group_filter, days]);
 
   // Per-metric team trends — single source of truth for both the hero
@@ -173,6 +176,7 @@ export default function Dashboard() {
 
   // Next meet + weather
   useEffect(() => {
+    let alive = true;
     (async () => {
       const { data: locs } = await sb.from('locations').select('*').eq('team_id', prefs.team_id);
       const up = ((locs ?? []) as Location[])
@@ -184,8 +188,10 @@ export default function Dashboard() {
         .sort((a, b) =>
           a.is_pinned !== b.is_pinned ? (a.is_pinned ? -1 : 1) : a.daysUntil - b.daysUntil,
         );
+      if (!alive) return;
       setUpcoming(up);
     })();
+    return () => { alive = false; };
   }, [sb, prefs.team_id]);
 
   // PeriodToggle drives the engagement window; 'all' → null (no baseline).

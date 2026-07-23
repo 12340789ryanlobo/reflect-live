@@ -61,14 +61,17 @@ export default function AdminUsersPage() {
 
   async function load() {
     setLoading(true);
-    const [userRes, { data: playerData }] = await Promise.all([
-      fetch('/api/users'),
-      sb.from('players').select('*').order('name'),
-    ]);
-    const j = await userRes.json();
-    setRows(j.users ?? []);
-    setPlayers((playerData ?? []) as Player[]);
-    setLoading(false);
+    try {
+      const [userRes, { data: playerData }] = await Promise.all([
+        fetch('/api/users'),
+        sb.from('players').select('*').order('name'),
+      ]);
+      const j = await userRes.json();
+      setRows(j.users ?? []);
+      setPlayers((playerData ?? []) as Player[]);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => {
     load();
@@ -76,31 +79,38 @@ export default function AdminUsersPage() {
 
   async function setRole(id: string, role: string) {
     setBusyId(id);
-    await fetch('/api/users', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ clerk_user_id: id, role }),
-    });
-    await load();
-    setBusyId(null);
+    try {
+      await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ clerk_user_id: id, role }),
+      });
+      await load();
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
     setDeleteError(null);
-    const res = await fetch(`/api/users?clerk_user_id=${encodeURIComponent(deleteTarget.clerk_user_id)}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setDeleteError(j.error ?? `delete failed (${res.status})`);
+    try {
+      const res = await fetch(`/api/users?clerk_user_id=${encodeURIComponent(deleteTarget.clerk_user_id)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setDeleteError(j.error ?? `delete failed (${res.status})`);
+        return;
+      }
+      setDeleteTarget(null);
+      await load();
+    } catch (e) {
+      setDeleteError((e as Error).message);
+    } finally {
       setDeleting(false);
-      return;
     }
-    setDeleteTarget(null);
-    setDeleting(false);
-    await load();
   }
 
   // Link-athlete dropdown intentionally removed from this page — legacy

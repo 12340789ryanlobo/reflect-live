@@ -94,10 +94,13 @@ function Onboarding() {
   // Load browseable teams
   useEffect(() => {
     (async () => {
-      const r = await fetch('/api/teams/discover');
-      const j = await r.json();
-      setTeams(j.teams ?? []);
-      setLoading(false);
+      try {
+        const r = await fetch('/api/teams/discover');
+        const j = await r.json();
+        setTeams(j.teams ?? []);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -129,24 +132,29 @@ function Onboarding() {
       return;
     }
     setSubmitting(true); setSubmitErr(null);
-    const res = await fetch('/api/team-memberships', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        team_id: selectedTeam.id,
-        name: name.trim(),
-        // email is intentionally omitted — server pulls from Clerk.
-        // phone is already E.164 from react-phone-number-input.
-        phone,
-      }),
-    });
-    setSubmitting(false);
-    if (res.ok) {
-      router.push('/dashboard');
-      return;
+    try {
+      const res = await fetch('/api/team-memberships', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          team_id: selectedTeam.id,
+          name: name.trim(),
+          // email is intentionally omitted — server pulls from Clerk.
+          // phone is already E.164 from react-phone-number-input.
+          phone,
+        }),
+      });
+      if (res.ok) {
+        router.push('/dashboard');
+        return;
+      }
+      const j = await res.json().catch(() => ({}));
+      setSubmitErr(j.detail ?? j.error ?? 'Could not submit request');
+    } catch {
+      setSubmitErr('Could not submit request');
+    } finally {
+      setSubmitting(false);
     }
-    const j = await res.json().catch(() => ({}));
-    setSubmitErr(j.detail ?? j.error ?? 'Could not submit request');
   }
 
   // POST /api/teams — creates a brand-new team and makes the current
@@ -162,23 +170,28 @@ function Onboarding() {
     }
     setCreateSubmitting(true);
     setCreateErr(null);
-    const res = await fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        name: trimmed,
-        default_gender: createGender,
-        description: createDescription.trim() || null,
-      }),
-    });
-    setCreateSubmitting(false);
-    if (res.ok) {
-      router.push('/dashboard');
-      router.refresh();
-      return;
+    try {
+      const res = await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmed,
+          default_gender: createGender,
+          description: createDescription.trim() || null,
+        }),
+      });
+      if (res.ok) {
+        router.push('/dashboard');
+        router.refresh();
+        return;
+      }
+      const j = await res.json().catch(() => ({}));
+      setCreateErr(j.detail ?? j.error ?? 'Could not create team.');
+    } catch {
+      setCreateErr('Could not create team.');
+    } finally {
+      setCreateSubmitting(false);
     }
-    const j = await res.json().catch(() => ({}));
-    setCreateErr(j.detail ?? j.error ?? 'Could not create team.');
   }
 
   return (

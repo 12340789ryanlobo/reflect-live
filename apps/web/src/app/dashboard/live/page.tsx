@@ -31,28 +31,48 @@ export default function LivePage() {
   });
 
   useEffect(() => {
+    let alive = true;
     (async () => {
       const since = periodSinceIso(days);
       const groupFilter = prefs.group_filter;
-      const pq = sb.from('players').select('id,phone_e164').eq('team_id', prefs.team_id);
+      const pq = sb.from('players').select('id').eq('team_id', prefs.team_id);
       if (groupFilter) pq.eq('group', groupFilter);
       const { data: players } = await pq;
       const rosterSize = players?.length ?? 0;
-      const phoneSet = new Set((players ?? []).map((p: { phone_e164: string }) => p.phone_e164));
-      const msgQ = sb
-        .from('twilio_messages')
-        .select('from_number,direction,category,body,player_id,date_sent')
-        .eq('team_id', prefs.team_id)
-        .eq('hidden', false);
-      const { data: msgs } = await (since ? msgQ.gte('date_sent', since) : msgQ);
-      const allMsgs = (msgs ?? []) as Array<{
-        from_number: string | null; direction: string; category: string;
+      const groupPlayerIds = new Set((players ?? []).map((p: { id: number }) => p.id));
+      // Page through twilio_messages — Supabase caps each .select() at
+      // 1000 rows, so the 'all' period silently truncated the counts.
+      type Msg = {
+        direction: string; category: string;
         body: string | null; player_id: number | null; date_sent: string;
-      }>;
+      };
+      const PAGE = 1000;
+      const allMsgs: Msg[] = [];
+      for (let off = 0; ; off += PAGE) {
+        let q = sb
+          .from('twilio_messages')
+          .select('direction,category,body,player_id,date_sent')
+          .eq('team_id', prefs.team_id)
+          .eq('hidden', false);
+        if (since) q = q.gte('date_sent', since);
+        const { data: page } = await q
+          .order('date_sent', { ascending: false })
+          .range(off, off + PAGE - 1);
+        if (!page || page.length === 0) break;
+        allMsgs.push(...(page as Msg[]));
+        if (page.length < PAGE) break;
+      }
+      // Scope by player_id (covers inbound + outbound) so the response
+      // rate can't exceed 100% by counting whatsapp:/sms: copies of one
+      // handset separately — same fix the dashboard already carries.
       const scoped = groupFilter
-        ? allMsgs.filter((m) => m.from_number && phoneSet.has(m.from_number))
+        ? allMsgs.filter((m) => m.player_id != null && groupPlayerIds.has(m.player_id))
         : allMsgs;
-      const active = new Set(scoped.filter((m) => m.direction === 'inbound').map((m) => m.from_number)).size;
+      const activeIds = new Set<number>();
+      for (const m of scoped) {
+        if (m.direction === 'inbound' && m.player_id != null) activeIds.add(m.player_id);
+      }
+      const active = activeIds.size;
       const rr = rosterSize ? Math.round((active / rosterSize) * 100) : 0;
       const readings = scoped
         .filter((m) => m.category === 'survey' && m.body)
@@ -71,11 +91,13 @@ export default function LivePage() {
         })
         .filter((d): d is string => d !== null);
 
+      if (!alive) return;
       setCounts({
         messages: scoped.length, activePlayers: active, rosterSize,
         responseRate: rr, avgReadiness: avg, flags: flagsArr.length, surveyCount: readings.length,
       });
     })();
+    return () => { alive = false; };
   }, [sb, prefs.team_id, prefs.group_filter, days]);
 
   const periodSubtitle = periodLabel(days).toLowerCase();
