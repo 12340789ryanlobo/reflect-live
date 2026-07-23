@@ -17,8 +17,9 @@ struct RootView: View {
         case .pendingApproval(let teamId):
             PendingApprovalView(teamId: teamId)
         case .ready(let membership):
-            AppShell(membership: membership)
-                .id(membership) // rebuild the shell if the active team/role changes
+            let effective = session.effectiveMembership(membership)
+            AppShell(membership: effective)
+                .id(effective) // rebuild the shell if the team/role/preview changes
         }
     }
 }

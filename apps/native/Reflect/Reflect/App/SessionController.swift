@@ -47,6 +47,23 @@ final class SessionController {
     private(set) var pendingJoinCode: String?
     private(set) var joinedViaLink = false
 
+    /// Manager-only preview: when set, the shell renders the athlete
+    /// experience embodying this player. Writes still work — the coach
+    /// RLS policies allow logging on any teammate's behalf.
+    var previewPlayer: Player?
+
+    /// The membership the shell should render: the real one, or an athlete
+    /// stand-in while a manager previews a player's experience.
+    func effectiveMembership(_ membership: ActiveMembership) -> ActiveMembership {
+        guard membership.role.managesTeam, let player = previewPlayer else { return membership }
+        return ActiveMembership(
+            teamId: membership.teamId,
+            teamName: membership.teamName,
+            role: .athlete,
+            playerId: player.id
+        )
+    }
+
     func start() async {
         for await change in SupabaseService.client.auth.authStateChanges {
             switch change.event {
