@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import Database from 'better-sqlite3';
-import { assertSafeReflectDbPath } from './path-guard';
+import { assertSafeReflectDbPath } from '../path-guard';
 
 const env = readFileSync(join(import.meta.dir, '..', 'apps', 'worker', '.env.local'), 'utf8');
 const get = (k: string): string => {
